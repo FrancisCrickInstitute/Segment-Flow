@@ -1,0 +1,10 @@
+name: unet_conda
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pyyaml
+  - pip
+  - pip:
+    - git+ssh://git@github.com/FrancisCrickInstitute/em-segment-pytorch.git@installable

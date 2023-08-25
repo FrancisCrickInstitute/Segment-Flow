@@ -1,0 +1,9 @@
+name: download_model_conda
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - tqdm
+  - pip:
+    - requests
