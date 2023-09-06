@@ -17,7 +17,6 @@ log.info """\
          Task            : ${params.task}
          Model config    : ${params.model_config}
          Image filepaths : ${params.img_dir}
-         Executor        : ${params.executor}
          """.stripIndent()
 
 workflow {
