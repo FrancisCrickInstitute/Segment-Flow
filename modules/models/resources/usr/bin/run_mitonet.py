@@ -70,6 +70,14 @@ def infer_2d(engine, img, norms):
 
 
 def run_2d(engine, img, norms, inference_kwargs):
+    # First handle special case of [B, C, H, W]
+    if img.ndim == 4:
+        if img.shape[0] != 1:
+            raise ValueError(
+                f"Can only handle an image, or stack of images, not {img.shape}!"
+            )
+        else:
+            img = img.squeeze()
     # Stack of slices
     if img.ndim == 3:
         segs = []
@@ -122,22 +130,15 @@ if __name__ == "__main__":
     parser.add_argument("--mask-fname", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--model-chkpt", required=True)
-    parser.add_argument(
-        "--model-type", help="Select model type", default="default"
-    )
-    parser.add_argument(
-        "--model-config", help="Input parameters for inference"
-    )
+    parser.add_argument("--model-type", help="Select model type", default="default")
+    parser.add_argument("--model-config", help="Input parameters for inference")
 
     cli_args = parser.parse_args()
-    print(cli_args.output_dir)
-    print(cli_args.mask_fname)
 
     img = skimage.io.imread(cli_args.img_path)
 
     with open(cli_args.model_config, "r") as f:
         config = yaml.safe_load(f)
-    print(config)
     device = get_device()
     model = torch.jit.load(cli_args.model_chkpt, map_location=device)
     # NOTE: These are fixed from MitoNet configs, no matter the version
