@@ -46,7 +46,7 @@ workflow {
     // The first item is also the simpleName
     mask_ch = img_ch.map{ [ 
         it.first(),
-        file( it.last().trim() ).simpleName + "_masks_" + "${params.model}-${params.model_type}"
+        file( it.last().trim() ).simpleName + "_masks_" + "${params.task}-${params.model}-${params.model_type}"
     ] }
     // Join the channels
     img_mask_ch = img_ch.combine( mask_ch,  by: 0 )
