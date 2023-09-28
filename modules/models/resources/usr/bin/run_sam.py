@@ -38,15 +38,11 @@ def run_sam(
     if ndim == 2:
         all_masks = _run_sam_slice(img, model, pbar)
     elif ndim == 3:
-        all_masks = _run_sam_stack(
-            save_dir, save_name, img, model, fpath, pbar
-        )
+        all_masks = _run_sam_stack(save_dir, save_name, img, model, fpath, pbar)
     elif ndim == 4:
         if img.shape[0] == 1:
             img = img.squeeze()
-            all_masks = _run_sam_stack(
-                save_dir, save_name, img, model, fpath, pbar
-            )
+            all_masks = _run_sam_stack(save_dir, save_name, img, model, fpath, pbar)
         else:
             raise ValueError("Cannot handle a stack of multi-channel images")
     else:
@@ -138,16 +134,12 @@ def align_segment_labels(all_masks, threshold=0.5):
     for i in range(all_masks.shape[0] - 1):
         current_slice = all_masks[i]
         next_slice = all_masks[i + 1]
-        next_labels, next_label_counts = np.unique(
-            next_slice, return_counts=True
-        )
+        next_labels, next_label_counts = np.unique(next_slice, return_counts=True)
         next_label_counts = next_label_counts[next_labels != 0]
         next_labels = next_labels[next_labels != 0]
         new_next_slice = np.zeros_like(next_slice)
         if len(next_labels) > 0:
-            for next_label, next_label_count in zip(
-                next_labels, next_label_counts
-            ):
+            for next_label, next_label_count in zip(next_labels, next_label_counts):
                 current_roi_labels = current_slice[next_slice == next_label]
                 current_roi_labels, current_roi_label_counts = np.unique(
                     current_roi_labels, return_counts=True
@@ -155,9 +147,7 @@ def align_segment_labels(all_masks, threshold=0.5):
                 current_roi_label_counts = current_roi_label_counts[
                     current_roi_labels != 0
                 ]
-                current_roi_labels = current_roi_labels[
-                    current_roi_labels != 0
-                ]
+                current_roi_labels = current_roi_labels[current_roi_labels != 0]
                 if len(current_roi_labels) > 0:
                     current_max_count = np.max(current_roi_label_counts)
                     current_max_count_label = current_roi_labels[
@@ -184,18 +174,11 @@ def normalize_slice(img_slice, source_limits, target_limits):
     if target_limits is None:
         target_limits = (0, 1)
 
-    if (
-        source_limits[0] == source_limits[1]
-        or target_limits[0] == target_limits[1]
-    ):
+    if source_limits[0] == source_limits[1] or target_limits[0] == target_limits[1]:
         return img_slice * 0
     else:
-        x_std = (img_slice - source_limits[0]) / (
-            source_limits[1] - source_limits[0]
-        )
-        x_scaled = (
-            x_std * (target_limits[1] - target_limits[0]) + target_limits[0]
-        )
+        x_std = (img_slice - source_limits[0]) / (source_limits[1] - source_limits[0])
+        x_scaled = x_std * (target_limits[1] - target_limits[0]) + target_limits[0]
         return x_scaled
 
 
@@ -217,10 +200,10 @@ if __name__ == "__main__":
     parser.add_argument("--mask-fname", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--model-chkpt", required=True)
+    parser.add_argument("--model-type", help="Select model type", default="default")
     parser.add_argument(
-        "--model-type", help="Select model type", default="default"
+        "--model-config", help="Model parameter config path", required=True
     )
-    parser.add_argument("--model-config", help="Model parameter config path", required=True)
 
     cli_args = parser.parse_args()
 
