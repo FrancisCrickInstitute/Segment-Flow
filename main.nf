@@ -19,6 +19,10 @@ log.info """\
          Image filepaths : ${params.img_dir}
          """.stripIndent()
 
+def getMaskName(img_file, task, model, model_type) {
+    return "${img_file.simpleName}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}"
+}
+
 workflow {
     // TODO: Move the model-based stuff into a workflow under the models module
     // Download model checkpoint if it doesn't exist
@@ -40,17 +44,11 @@ workflow {
     // Create channel from paths to each image file
     // Create a tuple with the simpleName (without extension) and the full path
     img_ch = Channel.fromPath( params.img_dir )
-                    .splitText()
-                    .map{ [ file( it.trim() ).simpleName, it ] }
-    // Create channel of file names to store the masks in
-    // The first item is also the simpleName
-    mask_ch = img_ch.map{ [ 
-        it.first(),
-        file( it.last().trim() ).simpleName + "_masks_" + "${params.task}-${params.model}-${params.model_type}"
-    ] }
-    // Join the channels
-    img_mask_ch = img_ch.combine( mask_ch,  by: 0 )
-                        .map { fname, fpath, mask_name -> [ fpath, mask_name ]}
+                    .splitText( by: 1 ) { file( it.trim() ) }
+                    .map{ [
+                        it,
+                        getMaskName(it, params.task, params.model, params.model_type)
+                    ] }
 
     // Create the name for the mask output directory
     mask_output_dir = "${params.model_dir}/${params.model_type}_masks"
@@ -59,7 +57,7 @@ workflow {
     // Select appropriate model
     if( params.model == "sam" )
         runSAM (
-            img_mask_ch,
+            img_ch,
             mask_output_dir,
             params.model_config,
             chkpt_ch,
@@ -67,14 +65,14 @@ workflow {
         )
     else if( params.model == "unet" )
         runUNET (
-            img_mask_ch,
+            img_ch,
             mask_output_dir,
             params.model_config,
             chkpt_ch,
         )
     else if( params.model == "mitonet" )
         runMITONET (
-            img_mask_ch,
+            img_ch,
             mask_output_dir,
             params.model_config,
             chkpt_ch,
