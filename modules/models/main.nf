@@ -29,7 +29,7 @@ process runSAM {
     // Switch this to use publishDir and avoid path manipulation in python?
 
     input:
-    tuple path(image_path), val(mask_fname)
+    tuple val(meta), path(image_path), val(mask_fname)
     val mask_output_dir
     path model_config
     path model_chkpt
@@ -56,7 +56,7 @@ process runUNET {
     conda "${moduleDir}/envs/conda_unet.yml"
 
     input:
-    tuple path(image_path), val(mask_fname)
+    tuple val(meta), path(image_path), val(mask_fname)
     val mask_output_dir
     path model_config
     path model_chkpt
@@ -66,7 +66,6 @@ process runUNET {
 
     script:
     """
-    which python
     python ${moduleDir}/resources/usr/bin/run_unet.py \
     --img-path ${image_path} \
     --mask-fname ${mask_fname} \
@@ -81,7 +80,7 @@ process runMITONET {
     conda "${moduleDir}/envs/conda_mitonet.yml"
 
     input:
-    tuple path(image_path), val(mask_fname)
+    tuple val(meta), path(image_path), val(mask_fname)
     val mask_output_dir
     path model_config
     path model_chkpt

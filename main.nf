@@ -42,13 +42,17 @@ workflow {
     }
 
     // Create channel from paths to each image file
-    // Create a tuple with the simpleName (without extension) and the full path
+    // with the metadata and mask name too
     img_ch = Channel.fromPath( params.img_dir )
-                    .splitText( by: 1 ) { file( it.trim() ) }
-                    .map{ [
-                        it,
-                        getMaskName(it, params.task, params.model, params.model_type)
-                    ] }
+            | splitCsv( header: true )
+            | map{ row ->
+                meta = row.subMap("num_slices", "height", "width")
+                [
+                    meta,
+                    row.img_path,
+                    getMaskName( file(row.img_path), params.task, params.model, params.model_type )
+                ]
+            }
 
     // Create the name for the mask output directory
     mask_output_dir = "${params.model_dir}/${params.model_type}_masks"
