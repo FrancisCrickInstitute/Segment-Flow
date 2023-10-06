@@ -2,7 +2,7 @@
 nextflow.enable.dsl=2
 
 // Construct params based on inputs
-params.model_dir = "${launchDir}/.nextflow/cache/${params.model}"
+params.model_dir = "${workflow.homeDir}/.nextflow/cache/${params.model}"
 params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}"
 
@@ -11,12 +11,15 @@ include { downloadModel; runSAM; runUNET; runMITONET } from './modules/models'
 log.info """\
          AI ON DEMAND PIPELINE
          ===============================
-         Model Name      : ${params.model}
-         Model Variant   : ${params.model_type}
-         Model Checkpoint: ${params.model_chkpt_path}
+         Model name      : ${params.model}
+         Model variant   : ${params.model_type}
+         Model checkpoint: ${params.model_chkpt_path}
          Task            : ${params.task}
          Model config    : ${params.model_config}
          Image filepaths : ${params.img_dir}
+         ---
+         Cache directory : ${params.model_dir}
+         Work directory  : ${workDir}
          """.stripIndent()
 
 def getMaskName(img_file, task, model, model_type) {
