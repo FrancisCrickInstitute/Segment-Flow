@@ -3,14 +3,19 @@ from pathlib import Path
 from typing import Union
 import yaml
 
-from napari.layers.image._image_utils import guess_rgb
-from napari.layers.utils.layer_utils import calc_data_range
 import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 import skimage.io
 from tqdm.auto import tqdm
 
-from utils import save_masks
+from utils import save_masks, get_device
+
+
+def guess_rgb(img_shape):
+    # https://github.com/napari/napari/blob/26dcda8c2cb545948f01be7949fadf79a2927e91/napari/layers/image/_image_utils.py#L13
+    ndim = len(img_shape)
+    last_dim = img_shape[-1]
+    return ndim > 2 and last_dim in (3, 4)
 
 
 def run_sam(
@@ -22,6 +27,7 @@ def run_sam(
     model_config: dict,
 ):
     sam = sam_model_registry[model_type](checkpoint=model_chkpt)
+    sam.to(get_device())
     # Create the model
     model = SamAutomaticMaskGenerator(sam, **model_config)
     # Load the image
@@ -38,11 +44,11 @@ def run_sam(
     if ndim == 2:
         all_masks = _run_sam_slice(img, model, pbar)
     elif ndim == 3:
-        all_masks = _run_sam_stack(save_dir, save_name, img, model, fpath, pbar)
+        all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar)
     elif ndim == 4:
         if img.shape[0] == 1:
             img = img.squeeze()
-            all_masks = _run_sam_stack(save_dir, save_name, img, model, fpath, pbar)
+            all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar)
         else:
             raise ValueError("Cannot handle a stack of multi-channel images")
     else:
@@ -65,12 +71,19 @@ def _run_sam_slice(img_slice, model, pbar):
     return mask_img
 
 
-def _run_sam_stack(save_dir, save_name, img_stack, model, fpath, pbar):
+def _run_sam_stack(save_dir, save_name, img_stack, model, pbar):
     # Initialize the container of all masks
     all_masks = np.zeros(img_stack.shape, dtype=int)
-    # Use napari function to extract the contrast limits
-    # Avoids any mismatches further down the line
-    contrast_limits = calc_data_range(img_stack)
+    # Get the contrast limits
+    if img_stack.dtype == np.uint8:
+        contrast_limits = (0, 255)
+    else:
+        min_val = np.nanmin(img_stack)
+        max_val = np.nanmax(img_stack)
+        if min_val == max_val:
+            contrast_limits = (0, 1)
+        else:
+            contrast_limits = (float(min_val), float(max_val))
     # Loop over each stack and run
     for idx in range(img_stack.shape[0]):
         img_slice = img_stack[idx]

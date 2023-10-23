@@ -4,9 +4,7 @@ import numpy as np
 import torch
 
 
-def save_masks(
-    save_dir, save_name, masks, stack_slice=False, all=False, idx=None
-):
+def save_masks(save_dir, save_name, masks, stack_slice=False, all=False, idx=None):
     save_dir.mkdir(parents=True, exist_ok=True)
     # Cannot save a slice of a stack and all slice(s)
     assert not (stack_slice and all)
@@ -23,6 +21,8 @@ def save_masks(
         for f in save_dir.glob(f"{save_name}_*.npy"):
             f.unlink()
     # Save the complete masks!
+    # TODO: Use the max value to determine appropriate dtype to minimize size
+    # TODO: Longer-term, use zarr/dask to save to disk
     np.save(save_path, masks)
 
 
