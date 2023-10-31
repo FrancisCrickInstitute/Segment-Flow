@@ -2,7 +2,7 @@
 nextflow.enable.dsl=2
 
 // Construct params based on inputs
-params.model_dir = "${workflow.homeDir}/.nextflow/cache/${params.model}"
+params.model_dir = "${workflow.homeDir}/.nextflow/aiod/cache/${params.model}"
 params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}"
 
