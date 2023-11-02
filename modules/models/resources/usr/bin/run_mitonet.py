@@ -9,7 +9,7 @@ import skimage.io
 import torch
 import yaml
 
-from utils import save_masks, get_device, create_argparser_inference
+from utils import save_masks, get_device, create_argparser_inference, load_img
 
 
 def normalize(img, mean, std):
@@ -78,21 +78,19 @@ def run_2d(engine, img, norms, inference_kwargs):
             )
         else:
             img = img.squeeze()
+    full_mask = np.zeros(img.shape, dtype=int)
     # Stack of slices
     if img.ndim == 3:
-        segs = []
-
         for plane, img_slice in enumerate(img):
             seg = infer_2d(engine, img_slice, norms)
-            segs.append(seg)
+            full_mask[plane, ...] = seg
             # Save slice for incremental update
             save_masks(
                 save_dir=Path(cli_args.output_dir),
                 save_name=cli_args.mask_fname,
-                masks=seg,
-                stack_slice=True,
-                all=False,
-                idx=plane,
+                masks=full_mask,
+                curr_idx=plane + 1,
+                start_idx=cli_args.start_idx,
             )
         # # Pad segmentations  # NOTE: Why?
         # max_h = max(seg.shape[0] for seg in segs)
@@ -106,7 +104,7 @@ def run_2d(engine, img, norms, inference_kwargs):
         #         np.pad(seg, ((0, pad_h), (0, pad_w)))
         #     )
         # return np.stack(padded, axis=0)
-        return np.stack(segs, axis=0)
+        return full_mask
     # Single slice
     elif img.ndim == 2:
         return infer_2d(engine, img, norms)
@@ -126,7 +124,7 @@ if __name__ == "__main__":
     parser = parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
-    img = skimage.io.imread(cli_args.img_path)
+    img = load_img(cli_args.img_path, cli_args.start_idx, cli_args.end_idx)
 
     with open(cli_args.model_config, "r") as f:
         config = yaml.safe_load(f)
@@ -199,9 +197,8 @@ if __name__ == "__main__":
         save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
         masks=pan_seg,
-        stack_slice=False,
-        all=True,
-        idx=None,
+        curr_idx=cli_args.end_idx - cli_args.start_idx,
+        start_idx=cli_args.start_idx,
     )
 
 # python run_mitonet.py --model-chkpt /Users/shandc/Documents/ai-on-demand/src/ai_on_demand/.nextflow/cache/mitonet/mitonet_mini.pt --img-path /Users/shandc/Documents/data/napari_examples/example_stack.tiff

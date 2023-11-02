@@ -1,30 +1,22 @@
 import argparse
-from pathlib import Path
 
 import numpy as np
+import skimage.io
 import torch
 
 
-def save_masks(save_dir, save_name, masks, stack_slice=False, all=False, idx=None):
+def save_masks(save_dir, save_name, masks, curr_idx: int, start_idx: int):
     save_dir.mkdir(parents=True, exist_ok=True)
-    # Cannot save a slice of a stack and all slice(s)
-    assert not (stack_slice and all)
-    # Incrementally save the masks of a slice from a stack
-    if stack_slice:
-        save_path = save_dir / f"{save_name}_{idx}.npy"
-        # Remove file for previous mask iteration
-        if idx > 0:
-            (save_dir / f"{save_name}_{idx-1}.npy").unlink()
-    # Specify path for img or all slices, indicating finished
-    if all:
-        save_path = save_dir / f"{save_name}_all.npy"
-        # Remove any previous files
-        for f in save_dir.glob(f"{save_name}_*.npy"):
-            f.unlink()
-    # Save the complete masks!
+    # Define path, where start_idx + curr_idx is the most recent slice to save
+    save_path = save_dir / f"{save_name}_{curr_idx}_{start_idx}.npy"
     # TODO: Use the max value to determine appropriate dtype to minimize size
     # TODO: Longer-term, use zarr/dask to save to disk
     np.save(save_path, masks)
+    # Get path for previous slice
+    prev_path = save_dir / f"{save_name}_{curr_idx-1}_{start_idx}.npy"
+    # Remove previous save if it exists
+    if prev_path.is_file():
+        prev_path.unlink()
 
 
 def get_device():
@@ -38,11 +30,33 @@ def create_argparser_inference():
     parser.add_argument("--mask-fname", required=True, help="Mask save filename")
     parser.add_argument("--output-dir", required=True, help="Mask output directory")
     parser.add_argument("--model-chkpt", required=True, help="Path to model checkpoint")
+    parser.add_argument(
+        "--start-idx", type=int, required=True, help="Start index for stack"
+    )
+    parser.add_argument(
+        "--end-idx", type=int, required=True, help="End index for stack"
+    )
     parser.add_argument("--model-type", help="Select model type", default="default")
     parser.add_argument("--model-config", help="Model config path")
-    parser.add_argument(
-        "--start_idx", type=int, default=0, help="Start index for stack"
-    )
-    parser.add_argument("--end_idx", type=int, default=None, help="End index for stack")
 
     return parser
+
+
+def guess_rgb(img_shape):
+    # https://github.com/napari/napari/blob/26dcda8c2cb545948f01be7949fadf79a2927e91/napari/layers/image/_image_utils.py#L13
+    ndim = len(img_shape)
+    last_dim = img_shape[-1]
+    return ndim > 2 and last_dim in (3, 4)
+
+
+def load_img(img_path, start_idx: int, end_idx: int):
+    img = skimage.io.imread(img_path)
+
+    # No slicing to be done if not a stack
+    if img.ndim == 2:
+        return img
+    # TODO: Edge-case: we do have a stack, but are distributing single slices
+    elif (end_idx - start_idx) == 1:
+        return img
+    else:
+        return img[start_idx:end_idx, ...]

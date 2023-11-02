@@ -26,6 +26,19 @@ def getMaskName(img_file, task, model, model_type) {
     return "${img_file.simpleName}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}"
 }
 
+def getIndices(meta, img_path, mask_fname, num_slices, step = 50) {
+    if (num_slices < step) {
+        return [meta, img_path, mask_fname, [[0, num_slices]]]
+    }
+    else {
+        indices = []
+        for (int i = 0; i < num_slices; i += step) {
+            indices.add([i, i + step])
+        }
+        return [meta, img_path, mask_fname, indices]
+    }
+}
+
 workflow {
     // TODO: Move the model-based stuff into a workflow under the models module
     // Download model checkpoint if it doesn't exist
@@ -55,6 +68,14 @@ workflow {
                     row.img_path,
                     getMaskName( file(row.img_path), params.task, params.model, params.model_type )
                 ]
+            }
+            | map{ meta, img_path, mask_fname ->
+                num_slices = meta.num_slices.toInteger()
+                getIndices(meta, img_path, mask_fname, num_slices)
+            }
+            | transpose
+            | map{ meta, img_path, mask_fname, indices ->
+                    [meta, img_path, mask_fname, indices[0], indices[1]]
             }
 
     // Create the name for the mask output directory
