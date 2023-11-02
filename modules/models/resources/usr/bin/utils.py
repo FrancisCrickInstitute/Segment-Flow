@@ -1,3 +1,4 @@
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -28,3 +29,20 @@ def save_masks(save_dir, save_name, masks, stack_slice=False, all=False, idx=Non
 
 def get_device():
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def create_argparser_inference():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument("--img-path", required=True, help="Path to image")
+    parser.add_argument("--mask-fname", required=True, help="Mask save filename")
+    parser.add_argument("--output-dir", required=True, help="Mask output directory")
+    parser.add_argument("--model-chkpt", required=True, help="Path to model checkpoint")
+    parser.add_argument("--model-type", help="Select model type", default="default")
+    parser.add_argument("--model-config", help="Model config path")
+    parser.add_argument(
+        "--start_idx", type=int, default=0, help="Start index for stack"
+    )
+    parser.add_argument("--end_idx", type=int, default=None, help="End index for stack")
+
+    return parser

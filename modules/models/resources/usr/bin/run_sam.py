@@ -8,7 +8,7 @@ from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
 import skimage.io
 from tqdm.auto import tqdm
 
-from utils import save_masks, get_device
+from utils import save_masks, get_device, create_argparser_inference
 
 
 def guess_rgb(img_shape):
@@ -208,16 +208,7 @@ def create_mask_arr(masks):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--img-path", required=True)
-    parser.add_argument("--mask-fname", required=True)
-    parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--model-chkpt", required=True)
-    parser.add_argument("--model-type", help="Select model type", default="default")
-    parser.add_argument(
-        "--model-config", help="Model parameter config path", required=True
-    )
-
+    parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
     with open(cli_args.model_config, "r") as f:

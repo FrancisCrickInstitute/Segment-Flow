@@ -5,21 +5,10 @@ import skimage.io
 
 from em_segment.modules.loading import load_from_yaml
 from em_segment.predictions import do_predictions
-from utils import save_masks, get_device
+from utils import save_masks, get_device, create_argparser_inference
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--img-path", required=True)
-    parser.add_argument("--mask-fname", required=True)
-    parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--model-chkpt", required=True)
-    # parser.add_argument(
-    #     "--model-type", help="Select model type", default="default"
-    # )
-    parser.add_argument("--model-config", help="Model parameter config path")
-
+    parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
     chkpt_path = Path(cli_args.model_chkpt)

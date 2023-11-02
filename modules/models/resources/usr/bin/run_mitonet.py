@@ -9,7 +9,7 @@ import skimage.io
 import torch
 import yaml
 
-from utils import save_masks, get_device
+from utils import save_masks, get_device, create_argparser_inference
 
 
 def normalize(img, mean, std):
@@ -123,16 +123,7 @@ def run_3d(engine, img, norms, inference_kwargs):
 
 
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--img-path", required=True)
-    parser.add_argument("--mask-fname", required=True)
-    parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--model-chkpt", required=True)
-    parser.add_argument("--model-type", help="Select model type", default="default")
-    parser.add_argument("--model-config", help="Input parameters for inference")
-
+    parser = parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
     img = skimage.io.imread(cli_args.img_path)
