@@ -34,7 +34,6 @@ if __name__ == "__main__":
         save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
         masks=labelled_stack,
-        stack_slice=False,
-        all=True,
-        idx=None,
+        curr_idx=cli_args.end_idx - cli_args.start_idx,
+        start_idx=cli_args.start_idx,
     )
