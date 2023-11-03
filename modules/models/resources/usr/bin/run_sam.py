@@ -1,21 +1,18 @@
-import argparse
 from pathlib import Path
 from typing import Union
 import yaml
 
 import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-import skimage.io
 from tqdm.auto import tqdm
 
-from utils import save_masks, get_device, create_argparser_inference
-
-
-def guess_rgb(img_shape):
-    # https://github.com/napari/napari/blob/26dcda8c2cb545948f01be7949fadf79a2927e91/napari/layers/image/_image_utils.py#L13
-    ndim = len(img_shape)
-    last_dim = img_shape[-1]
-    return ndim > 2 and last_dim in (3, 4)
+from utils import (
+    save_masks,
+    get_device,
+    create_argparser_inference,
+    guess_rgb,
+    load_img,
+)
 
 
 def run_sam(
@@ -25,35 +22,36 @@ def run_sam(
     model_type: str,
     model_chkpt: Union[Path, str],
     model_config: dict,
+    start_idx: int,
+    end_idx: int,
 ):
     sam = sam_model_registry[model_type](checkpoint=model_chkpt)
     sam.to(get_device())
     # Create the model
     model = SamAutomaticMaskGenerator(sam, **model_config)
     # Load the image
-    img = skimage.io.imread(fpath)
+    img = load_img(fpath, start_idx, end_idx)
     # Extract the dimensions
     ndim = img.ndim
     # Reduce ndims if RGB (i.e. it's a single RGB image, not a stack)
     if guess_rgb(img.shape):
         ndim -= 1
     # Create the progress bar for this stack
-    num_slices = img.shape[0] if ndim == 3 else 1
-    pbar = tqdm(total=num_slices, desc=f"{Path(fpath).stem}")
+    pbar = tqdm(total=end_idx - start_idx, desc=f"{Path(fpath).stem}")
     # Send the image to the corresponding run func based on slice or stack
     if ndim == 2:
         all_masks = _run_sam_slice(img, model, pbar)
     elif ndim == 3:
-        all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar)
+        all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar, start_idx)
     elif ndim == 4:
         if img.shape[0] == 1:
             img = img.squeeze()
-            all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar)
+            all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar, start_idx)
         else:
             raise ValueError("Cannot handle a stack of multi-channel images")
     else:
         raise ValueError("Can only handle an image, or stack of images!")
-    save_masks(save_dir, save_name, all_masks, all=True)
+    save_masks(save_dir, save_name, all_masks, curr_idx=end_idx, start_idx=start_idx)
     pbar.close()
     return img, all_masks
 
@@ -71,7 +69,7 @@ def _run_sam_slice(img_slice, model, pbar):
     return mask_img
 
 
-def _run_sam_stack(save_dir, save_name, img_stack, model, pbar):
+def _run_sam_stack(save_dir, save_name, img_stack, model, pbar, start_idx):
     # Initialize the container of all masks
     all_masks = np.zeros(img_stack.shape, dtype=int)
     # Get the contrast limits
@@ -105,8 +103,8 @@ def _run_sam_stack(save_dir, save_name, img_stack, model, pbar):
             save_dir=save_dir,
             save_name=save_name,
             masks=all_masks,
-            stack_slice=True,
-            idx=idx,
+            curr_idx=idx + 1,
+            start_idx=start_idx,
         )
     # Align masks to ensure consistent colouration
     all_masks = align_segment_labels(all_masks)
@@ -221,4 +219,6 @@ if __name__ == "__main__":
         model_type=cli_args.model_type,
         model_chkpt=cli_args.model_chkpt,
         model_config=model_config,
+        start_idx=cli_args.start_idx,
+        end_idx=cli_args.end_idx,
     )
