@@ -51,7 +51,13 @@ def run_sam(
             raise ValueError("Cannot handle a stack of multi-channel images")
     else:
         raise ValueError("Can only handle an image, or stack of images!")
-    save_masks(save_dir, save_name, all_masks, curr_idx=end_idx, start_idx=start_idx)
+    save_masks(
+        save_dir,
+        save_name,
+        all_masks,
+        curr_idx=end_idx - start_idx,
+        start_idx=start_idx,
+    )
     pbar.close()
     return img, all_masks
 
