@@ -36,8 +36,7 @@ process runSAM {
     val model_type
 
     output:
-    // Because we are manually saving it in the .cache so napari can watch for each slice
-    stdout
+    tuple val("${image_path.simpleName}"), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_${end_idx-start_idx}_${start_idx}.npy"), emit: mask
 
     script:
     """
@@ -64,7 +63,7 @@ process runUNET {
     path model_chkpt
 
     output:
-    stdout
+    tuple val("${image_path.simpleName}"), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_${end_idx-start_idx}_${start_idx}.npy"), emit: mask
 
     script:
     """
@@ -91,7 +90,7 @@ process runMITONET {
     val model_type
 
     output:
-    stdout
+    tuple val("${image_path.simpleName}"), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_${end_idx-start_idx}_${start_idx}.npy"), emit: mask
 
     script:
     """
@@ -104,5 +103,23 @@ process runMITONET {
     --model-config ${model_config} \
     --start-idx ${start_idx} \
     --end-idx ${end_idx}
+    """
+}
+
+process combineStacks {
+    conda "${moduleDir}/envs/conda_combine_stacks.yml"
+
+    input:
+    tuple val(img_simplename), val(mask_fname), val(mask_output_dir), path(masks)
+
+    output:
+    stdout
+
+    script:
+    """
+    python ${moduleDir}/resources/usr/bin/combine_stacks.py \
+    --mask-fname ${mask_fname} \
+    --output-dir ${mask_output_dir} \
+    --masks ${masks}
     """
 }

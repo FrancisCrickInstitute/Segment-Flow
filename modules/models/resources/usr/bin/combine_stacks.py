@@ -1,0 +1,32 @@
+from pathlib import Path
+
+import numpy as np
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mask-fname", required=True, help="Mask save filename")
+    parser.add_argument("--output-dir", required=True, help="Mask output directory")
+    parser.add_argument(
+        "--masks",
+        required=True,
+        nargs="+",
+        help="Masks to combine",
+    )
+
+    cli_args = parser.parse_args()
+
+    # Sort masks by index to ensure correct order
+    cli_args.masks.sort(key=lambda x: int(Path(x).stem.split("_")[-1]))
+    # Load the masks
+    masks = []
+    for mask_path in cli_args.masks:
+        masks.append(np.load(mask_path))
+        # Remove the mask
+        (Path(cli_args.output_dir) / mask_path).unlink()
+    # Combine the masks
+    combined_masks = np.concatenate(masks)
+    # Save the masks
+    save_path = Path(cli_args.output_dir) / f"{cli_args.mask_fname}_all.npy"
+    np.save(save_path, combined_masks)

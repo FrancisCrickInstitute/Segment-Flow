@@ -6,7 +6,7 @@ params.model_dir = "${workflow.homeDir}/.nextflow/aiod/cache/${params.model}"
 params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}"
 
-include { downloadModel; runSAM; runUNET; runMITONET } from './modules/models'
+include { downloadModel; runSAM; runUNET; runMITONET; combineStacks } from './modules/models'
 
 log.info """\
          AI ON DEMAND PIPELINE
@@ -84,30 +84,44 @@ workflow {
     // TODO: This should be delegated to a workflow in the models module
     // Select appropriate model
     if( params.model == "sam" )
-        runSAM (
+        mask_out = runSAM (
             img_ch,
             mask_output_dir,
             params.model_config,
             chkpt_ch,
             params.model_type
-        )
+        ).mask
     else if( params.model == "unet" )
-        runUNET (
+        mask_out = runUNET (
             img_ch,
             mask_output_dir,
             params.model_config,
             chkpt_ch,
-        )
+        ).mask
     else if( params.model == "mitonet" )
-        runMITONET (
+        mask_out = runMITONET (
             img_ch,
             mask_output_dir,
             params.model_config,
             chkpt_ch,
             params.model_type
-        )
+        ).mask
     else
         error "Model ${params.model} not yet implemented!"
+
+    mask_out
+    | groupTuple
+    | map{ img_name, mask_fnames, output_dirs, mask_paths ->
+        [
+            img_name,
+            mask_fnames.first(),
+            output_dirs.first(),
+            mask_paths,
+        ]
+    }
+    | set { mask_ch }
+
+    combineStacks( mask_ch )
 }
 
 workflow.onComplete{
