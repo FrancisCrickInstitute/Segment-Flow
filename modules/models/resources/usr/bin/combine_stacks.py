@@ -26,7 +26,10 @@ if __name__ == "__main__":
         # Remove the mask
         (Path(cli_args.output_dir) / mask_path).unlink()
     # Combine the masks
-    combined_masks = np.concatenate(masks)
+    if len(masks) > 1:
+        combined_masks = np.concatenate(masks)
+    else:
+        combined_masks = masks[0]
     # Save the masks
     save_path = Path(cli_args.output_dir) / f"{cli_args.mask_fname}_all.npy"
     np.save(save_path, combined_masks)
