@@ -23,8 +23,6 @@ if __name__ == "__main__":
     masks = []
     for mask_path in cli_args.masks:
         masks.append(np.load(mask_path))
-        # Remove the mask
-        (Path(cli_args.output_dir) / mask_path).unlink()
     # Combine the masks
     if len(masks) > 1:
         combined_masks = np.concatenate(masks)
@@ -33,3 +31,7 @@ if __name__ == "__main__":
     # Save the masks
     save_path = Path(cli_args.output_dir) / f"{cli_args.mask_fname}_all.npy"
     np.save(save_path, combined_masks)
+    # Remove the individual masks now that they are combined
+    for mask_path in cli_args.masks:
+        # Remove the mask
+        (Path(cli_args.output_dir) / mask_path).unlink()

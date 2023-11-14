@@ -111,7 +111,7 @@ process combineStacks {
     memory { masks*.size().sum() * 2 as MemoryUnit }
 
     input:
-    tuple val(img_simplename), val(mask_fname), val(mask_output_dir), path(masks)
+    tuple val(img_simplename), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
 
     output:
     stdout
