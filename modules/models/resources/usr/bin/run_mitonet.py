@@ -45,31 +45,33 @@ def force_connected(pan_seg, thing_list, label_divisor=1000):
     return pan_seg
 
 
-def preprocess(img, norms):
+def preprocess(img, norms, device):
     # TODO: It should be just an image right?
     assert img.ndim == 2
-    return torch.from_numpy(
-        normalize(img, norms["mean"], norms["std"])[None]
-    ).unsqueeze(0)
+    return (
+        torch.from_numpy(normalize(img, norms["mean"], norms["std"])[None])
+        .unsqueeze(0)
+        .to(device)
+    )
 
 
-def infer_2d(engine, img, norms):
+def infer_2d(engine, img, norms, device):
     # Resize if doing - SKIP
     orig_size = img.shape
     # Preprocess
-    img = preprocess(img, norms)
+    img = preprocess(img, norms, device)
     # Run inference
     pan_seg = engine(img, orig_size, upsampling=1)
     # Postprocess
     pan_seg = force_connected(
-        pan_seg.squeeze().cpu().numpy().astype(np.int32),
+        pan_seg.squeeze().detach().numpy().astype(np.int32),
         engine.thing_list,
         engine.label_divisor,
     )
     return pan_seg
 
 
-def run_2d(engine, img, norms, inference_kwargs):
+def run_2d(engine, img, norms, device, inference_kwargs):
     # First handle special case of [B, C, H, W]
     if img.ndim == 4:
         if img.shape[0] != 1:
@@ -82,7 +84,7 @@ def run_2d(engine, img, norms, inference_kwargs):
     # Stack of slices
     if img.ndim == 3:
         for plane, img_slice in enumerate(img):
-            seg = infer_2d(engine, img_slice, norms)
+            seg = infer_2d(engine, img_slice, norms, device)
             full_mask[plane, ...] = seg
             # Save slice for incremental update
             save_masks(
@@ -192,7 +194,6 @@ if __name__ == "__main__":
         # Stack postprocessing
         # Relabels and filters each class
     # Save the stack
-    print(np.unique(pan_seg, return_counts=True))
     save_masks(
         save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
