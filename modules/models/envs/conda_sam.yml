@@ -1,9 +1,9 @@
 name: sam_conda
 channels:
-  - defaults
-  - conda-forge
   - pytorch
+  - conda-forge
   - nvidia
+  - defaults
 dependencies:
   - python=3.10
   - pytorch::pytorch==2.0.1
