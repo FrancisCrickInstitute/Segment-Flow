@@ -159,7 +159,7 @@ if __name__ == "__main__":
             label_divisor=config["max_objects"],
         )
         # Run inference
-        pan_seg = run_2d(engine, img, norms, inference_kwargs)
+        pan_seg = run_2d(engine, img, norms, device, inference_kwargs)
     else:
         raise NotImplementedError
         inference_plane = config["inference_plane"]

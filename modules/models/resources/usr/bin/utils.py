@@ -20,7 +20,9 @@ def save_masks(save_dir, save_name, masks, curr_idx: int, start_idx: int):
 
 
 def get_device():
-    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(device)
+    return device
 
 
 def create_argparser_inference():
