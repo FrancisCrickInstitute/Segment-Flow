@@ -5,7 +5,7 @@ import skimage.io
 
 from em_segment.modules.loading import load_from_yaml
 from em_segment.predictions import do_predictions
-from utils import save_masks, get_device, create_argparser_inference
+from utils import save_masks, get_device, create_argparser_inference, load_img
 
 if __name__ == "__main__":
     parser = create_argparser_inference()
@@ -18,10 +18,14 @@ if __name__ == "__main__":
 
     # Load the trainer/model etc. from yaml config
     trainer, evaluators, config_obj = load_from_yaml(config_path)
+
+    # Load the image
+    stack = load_img(cli_args.img_path, cli_args.start_idx, cli_args.end_idx)
     # Get the segmentations
     preds = do_predictions(
         trainer=trainer,
         config=config_obj,
+        stack=stack,
         stack_name=Path(cli_args.img_path).stem,
         stack_filepath=cli_args.img_path,
         chkpt_path=chkpt_path,
