@@ -64,7 +64,7 @@ def infer_2d(engine, img, norms, device):
     pan_seg = engine(img, orig_size, upsampling=1)
     # Postprocess
     pan_seg = force_connected(
-        pan_seg.squeeze().detach().numpy().astype(np.int32),
+        pan_seg.squeeze().detach().cpu().numpy().astype(np.int32),
         engine.thing_list,
         engine.label_divisor,
     )
