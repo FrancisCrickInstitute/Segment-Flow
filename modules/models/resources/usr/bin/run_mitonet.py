@@ -109,7 +109,7 @@ def run_2d(engine, img, norms, device, inference_kwargs):
         return full_mask
     # Single slice
     elif img.ndim == 2:
-        return infer_2d(engine, img, norms)
+        return infer_2d(engine, img, norms, device)
     else:
         raise ValueError("Can only handle an image, or stack of images!")
 
