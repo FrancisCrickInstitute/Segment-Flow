@@ -91,7 +91,7 @@ workflow {
             chkpt_ch,
             params.model_type
         ).mask
-    else if( params.model == "unet" )
+    else if( params.model == "seai_unet" )
         mask_out = runUNET (
             img_ch,
             mask_output_dir,
