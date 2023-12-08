@@ -8,13 +8,11 @@ from tqdm.auto import tqdm
 
 
 def get_model_checkpoint(
-    chkpt_output_dir: Union[Path, str], chkpt_fname: str, chkpt_loc: str, chkpt_type: str, 
+    chkpt_output_dir: Union[Path, str],
+    chkpt_fname: str,
+    chkpt_loc: str,
+    chkpt_type: str,
 ):
-    # Get the model dict
-    # model_dict = MODEL_BANK[model_name][task]
-    # Get the checkpoint filename
-    # chkpt_fname = Path(model_dict[model_type]["filename"])
-    # Just return if this already exists
     # NOTE: Using chkpt_output_dir here as that's where Nextflow will copy the result to
     if (Path(chkpt_output_dir) / chkpt_fname).exists():
         return
@@ -22,7 +20,7 @@ def get_model_checkpoint(
     if chkpt_type == "url":
         print(f"Downloading {chkpt_loc}")
         download_from_url(chkpt_loc, Path(chkpt_fname))
-    elif chkpt_type == "dir":
+    elif chkpt_type == "file":
         # Handle case where directory containing checkpoint is given
         if not Path(chkpt_loc).is_file():
             if Path(chkpt_loc).is_dir():
@@ -32,9 +30,7 @@ def get_model_checkpoint(
         print(f"Copying {chkpt_loc}")
         copy_from_path(chkpt_loc, Path(chkpt_fname))
     else:
-        raise KeyError(
-            f"Either 'url' or 'dir' must be specified!"
-        )
+        raise KeyError(f"Either 'url' or 'file' must be specified!")
 
 
 def download_from_url(url: str, chkpt_fname: Union[Path, str]):
@@ -58,7 +54,7 @@ def download_from_url(url: str, chkpt_fname: Union[Path, str]):
                     pbar.update(len(chunk))
     # Close request
     req.close()
-    print(f"Done! Checkpoint saved to {chkpt_fname}")
+    print(f"Model download done! Checkpoint saved to {chkpt_fname}")
 
 
 def copy_from_path(fpath: Union[Path, str], chkpt_fname: Union[Path, str]):
@@ -86,7 +82,6 @@ if __name__ == "__main__":
         "--chkpt-type",
         required=True,
         type=str,
-        choices=["url", "dir"],
         help="Type of model checkpoint location",
     )
     parser.add_argument(
