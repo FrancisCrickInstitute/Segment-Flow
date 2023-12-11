@@ -25,7 +25,7 @@ process downloadModel {
 
 process runSAM {
     label 'small_gpu'
-    conda "${moduleDir}/envs/conda_sam.yml"
+    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_sam.yml"
     // Switch this to use publishDir and avoid path manipulation in python?
 
     input:
@@ -54,7 +54,7 @@ process runSAM {
 
 process runUNET {
     label 'small_gpu'
-    conda "${moduleDir}/envs/conda_unet.yml"
+    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_unet.yml"
 
     input:
     tuple val(meta), path(image_path), val(mask_fname), val(start_idx), val(end_idx)
@@ -67,6 +67,7 @@ process runUNET {
 
     script:
     """
+    echo ${moduleDir}/envs/${task.ext.condaDir}/conda_unet.yml
     python ${moduleDir}/resources/usr/bin/run_unet.py \
     --img-path ${image_path} \
     --mask-fname ${mask_fname} \
@@ -80,7 +81,8 @@ process runUNET {
 
 process runMITONET {
     label 'small_gpu'
-    conda "${moduleDir}/envs/conda_mitonet.yml"
+    // time { 1.m * params.stack_size * params.img_size_tier * task.attempt }
+    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_mitonet.yml"
 
     input:
     tuple val(meta), path(image_path), val(mask_fname), val(start_idx), val(end_idx)
