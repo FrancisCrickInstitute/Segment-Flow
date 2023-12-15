@@ -2,6 +2,7 @@ import argparse
 
 import numpy as np
 import skimage.io
+from skimage.segmentation import relabel_sequential
 import torch
 
 
@@ -10,6 +11,11 @@ def save_masks(save_dir, save_name, masks, curr_idx: int, start_idx: int):
     # Define path, where start_idx + curr_idx is the most recent slice to save
     save_path = save_dir / f"{save_name}_{curr_idx}_{start_idx}.npy"
     # TODO: Use the max value to determine appropriate dtype to minimize size
+    # Relabel the inputs to minimise int size and thus output file size
+    masks, _, _ = relabel_sequential(masks)
+    # Determine appropriate dtype
+    best_dtype = np.result_type(np.min_scalar_type(arr.min()), arr.max())
+    masks = masks.astype(best_dtype)
     # TODO: Longer-term, use zarr/dask to save to disk
     np.save(save_path, masks)
     # Get path for previous slice
