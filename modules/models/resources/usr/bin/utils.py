@@ -14,7 +14,7 @@ def save_masks(save_dir, save_name, masks, curr_idx: int, start_idx: int):
     # Relabel the inputs to minimise int size and thus output file size
     masks, _, _ = relabel_sequential(masks)
     # Determine appropriate dtype
-    best_dtype = np.result_type(np.min_scalar_type(arr.min()), arr.max())
+    best_dtype = np.result_type(np.min_scalar_type(masks.min()), masks.max())
     masks = masks.astype(best_dtype)
     # TODO: Longer-term, use zarr/dask to save to disk
     np.save(save_path, masks)
