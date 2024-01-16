@@ -28,6 +28,8 @@ if __name__ == "__main__":
         combined_masks = np.concatenate(masks)
     else:
         combined_masks = masks[0]
+    mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
+    print(f"Memory used in combination: {mem_used:.2f} GB")
     # Save the masks
     save_path = Path(cli_args.output_dir) / f"{cli_args.mask_fname}_all.npy"
     np.save(save_path, combined_masks)
