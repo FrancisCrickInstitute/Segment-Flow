@@ -1,8 +1,10 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl=2
 
-// Construct params based on inputs
-params.model_dir = "${workflow.homeDir}/.nextflow/aiod/cache/${params.model}"
+// Default root directory, that gets overridden by input from Napari
+params.root_dir = "${workflow.homeDir}/.nextflow/aiod/"
+// Construct other directories from root
+params.model_dir = "${params.root_dir}/aiod_cache/${params.model}"
 params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}"
 
