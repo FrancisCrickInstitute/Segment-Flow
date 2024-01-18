@@ -8,13 +8,11 @@ from tqdm.auto import tqdm
 
 
 def get_model_checkpoint(
-    chkpt_output_dir: Union[Path, str], chkpt_fname: str, chkpt_loc: str, chkpt_type: str, 
+    chkpt_output_dir: Union[Path, str],
+    chkpt_fname: str,
+    chkpt_loc: str,
+    chkpt_type: str,
 ):
-    # Get the model dict
-    # model_dict = MODEL_BANK[model_name][task]
-    # Get the checkpoint filename
-    # chkpt_fname = Path(model_dict[model_type]["filename"])
-    # Just return if this already exists
     # NOTE: Using chkpt_output_dir here as that's where Nextflow will copy the result to
     if (Path(chkpt_output_dir) / chkpt_fname).exists():
         return
@@ -32,9 +30,7 @@ def get_model_checkpoint(
         print(f"Copying {chkpt_loc}")
         copy_from_path(chkpt_loc, Path(chkpt_fname))
     else:
-        raise KeyError(
-            f"Either 'url' or 'dir' must be specified!"
-        )
+        raise KeyError(f"Either 'url' or 'dir' must be specified!")
 
 
 def download_from_url(url: str, chkpt_fname: Union[Path, str]):
@@ -71,10 +67,10 @@ def copy_from_path(fpath: Union[Path, str], chkpt_fname: Union[Path, str]):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--chkpt-path",
+        "--chkpt-output-dir",
         required=True,
         type=str,
-        help="Full path to model checkpoint (for saving)",
+        help="Output directory to store model checkpoint",
     )
     parser.add_argument(
         "--chkpt-loc",
@@ -98,10 +94,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    chkpt_output_dir = Path(args.chkpt_path).parent
-
     get_model_checkpoint(
-        chkpt_output_dir=chkpt_output_dir,
+        chkpt_output_dir=args.chkpt_output_dir,
         chkpt_fname=args.chkpt_fname,
         chkpt_loc=args.chkpt_loc,
         chkpt_type=args.chkpt_type,

@@ -16,7 +16,7 @@ process downloadModel {
     script:
     """
     python ${moduleDir}/resources/usr/bin/download_model.py \
-    --chkpt-path ${model_chkpt_path} \
+    --chkpt-output-dir "$params.model_chkpt_dir" \
     --chkpt-loc ${model_chkpt_loc} \
     --chkpt-type ${model_chkpt_type} \
     --chkpt-fname "${model_chkpt_fname}"
