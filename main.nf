@@ -14,7 +14,7 @@ def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
 log.info """\
          AI ONDEMAND PIPELINE
-         (Started pipeline at ${log_timestamp})
+         (Started at ${log_timestamp})
          =======================================
          Model name      : ${params.model}
          Model variant   : ${params.model_type}
@@ -25,8 +25,11 @@ log.info """\
          ---
          Cache directory : ${params.model_dir}
          Work directory  : ${workDir}
+         Profile         : ${workflow.profile}
          =======================================
          """.stripIndent()
+
+log.info "Command line arguments: $workflow.commandLine"
 
 def getMaskName(img_file, task, model, model_type) {
     return "${img_file.simpleName}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}"
@@ -130,6 +133,23 @@ workflow {
     combineStacks( mask_ch )
 }
 
-workflow.onComplete{
-    log.info ( workflow.success ? '\nDone!' : '\nSomething went wrong!' )
+workflow.onComplete {
+    def end_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
+    if ( workflow.success ) {
+        log.info """\
+                 =======================================
+                 AIoD finished SUCCESSFULLY at ${end_timestamp} after $workflow.duration $workflow.elapsedTime
+                 =======================================
+                 """.stripIndent()
+    } else {
+        log.info """\
+            =======================================
+            AIoD finished WITH ERRORS at ${end_timestamp} after $workflow.duration
+            =======================================
+            """.stripIndent()
+    }
+}
+
+workflow.onError {
+    log.info "ERROR: AIoD stopped with the following message: ${workflow.errorMessage}"
 }
