@@ -10,9 +10,12 @@ params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}
 
 include { downloadModel; runSAM; runUNET; runMITONET; combineStacks } from './modules/models'
 
+def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
+
 log.info """\
-         AI ON DEMAND PIPELINE
-         ===============================
+         AI ONDEMAND PIPELINE
+         (Started pipeline at ${log_timestamp})
+         =======================================
          Model name      : ${params.model}
          Model variant   : ${params.model_type}
          Model checkpoint: ${params.model_chkpt_path}
@@ -22,6 +25,7 @@ log.info """\
          ---
          Cache directory : ${params.model_dir}
          Work directory  : ${workDir}
+         =======================================
          """.stripIndent()
 
 def getMaskName(img_file, task, model, model_type) {
