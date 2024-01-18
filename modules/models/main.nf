@@ -19,7 +19,7 @@ process downloadModel {
     --chkpt-path ${model_chkpt_path} \
     --chkpt-loc ${model_chkpt_loc} \
     --chkpt-type ${model_chkpt_type} \
-    --chkpt-fname ${model_chkpt_fname}
+    --chkpt-fname "${model_chkpt_fname}"
     """
 }
 
@@ -42,7 +42,7 @@ process runSAM {
     """
     python ${moduleDir}/resources/usr/bin/run_sam.py \
     --img-path ${image_path} \
-    --mask-fname ${mask_fname} \
+    --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
     --model-chkpt ${model_chkpt} \
     --model-type ${model_type} \
@@ -70,7 +70,7 @@ process runUNET {
     echo ${moduleDir}/envs/${task.ext.condaDir}/conda_unet.yml
     python ${moduleDir}/resources/usr/bin/run_unet.py \
     --img-path ${image_path} \
-    --mask-fname ${mask_fname} \
+    --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
     --model-chkpt ${model_chkpt} \
     --model-config ${model_config} \
@@ -98,7 +98,7 @@ process runMITONET {
     """
     python ${moduleDir}/resources/usr/bin/run_mitonet.py \
     --img-path ${image_path} \
-    --mask-fname ${mask_fname} \
+    --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
     --model-chkpt ${model_chkpt} \
     --model-type ${model_type} \
@@ -110,7 +110,7 @@ process runMITONET {
 
 process combineStacks {
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
-    memory { masks*.size().sum() * 5 as MemoryUnit }
+    memory { masks*.size().sum() * 3 as MemoryUnit }
 
     input:
     tuple val(img_simplename), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
@@ -122,7 +122,7 @@ process combineStacks {
     """
     echo ${masks*.size().sum() as MemoryUnit}
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
-    --mask-fname ${mask_fname} \
+    --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
     --masks ${masks}
     """
