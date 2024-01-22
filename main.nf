@@ -138,7 +138,7 @@ workflow.onComplete {
     if ( workflow.success ) {
         log.info """\
                  =======================================
-                 AIoD finished SUCCESSFULLY at ${end_timestamp} after $workflow.duration $workflow.elapsedTime
+                 AIoD finished SUCCESSFULLY at ${end_timestamp} after $workflow.duration
                  =======================================
                  """.stripIndent()
     } else {
