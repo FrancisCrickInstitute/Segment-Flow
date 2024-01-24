@@ -42,7 +42,12 @@ def getIndices(meta, img_path, mask_fname, num_slices, step = 50) {
     else {
         indices = []
         for (int i = 0; i < num_slices; i += step) {
-            indices.add([i, i + step])
+            if (i + step > num_slices) {
+                indices.add([i, num_slices])
+            }
+            else {
+                indices.add([i, i + step])
+            }
         }
         return [meta, img_path, mask_fname, indices]
     }
@@ -137,15 +142,15 @@ workflow.onComplete {
     def end_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
     if ( workflow.success ) {
         log.info """\
-                 =======================================
+                 ================================================
                  AIoD finished SUCCESSFULLY at ${end_timestamp} after $workflow.duration
-                 =======================================
+                 ================================================
                  """.stripIndent()
     } else {
         log.info """\
-            =======================================
+            ================================================
             AIoD finished WITH ERRORS at ${end_timestamp} after $workflow.duration
-            =======================================
+            ================================================
             """.stripIndent()
     }
 }
