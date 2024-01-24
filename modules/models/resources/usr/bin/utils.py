@@ -63,8 +63,5 @@ def load_img(img_path, start_idx: int, end_idx: int):
     # No slicing to be done if not a stack
     if img.ndim == 2:
         return img
-    # TODO: Edge-case: we do have a stack, but are distributing single slices
-    elif (end_idx - start_idx) == 1:
-        return img
     else:
         return img[start_idx:end_idx, ...]
