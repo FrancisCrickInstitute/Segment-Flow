@@ -74,7 +74,7 @@ workflow {
     // Create channel from paths to each image file
     // with the metadata and mask name too
     img_ch = Channel.fromPath( params.img_dir )
-            | splitCsv( header: true )
+            | splitCsv( header: true, quote: '\"' )
             | map{ row ->
                 meta = row.subMap("num_slices", "height", "width")
                 [
