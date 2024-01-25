@@ -113,17 +113,17 @@ process combineStacks {
     memory { masks*.size().sum() * 3 as MemoryUnit <= 100.MB ? 100.MB : masks*.size().sum() * 3 as MemoryUnit }
 
     input:
-    tuple val(img_simplename), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
+    tuple val(img_simplename), val(model), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
 
     output:
     stdout
 
     script:
     """
-    echo ${masks*.size().sum() as MemoryUnit}
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
-    --masks ${masks}
+    --masks ${masks} \
+    --model ${model}
     """
 }

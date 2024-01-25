@@ -9,7 +9,8 @@ import skimage.io
 import torch
 import yaml
 
-from utils import save_masks, get_device, create_argparser_inference, load_img
+from utils import save_masks, create_argparser_inference, load_img
+from model_utils import get_device
 
 
 def normalize(img, mean, std):
@@ -39,7 +40,7 @@ def force_connected(pan_seg, thing_list, label_divisor=1000):
         outside_mask = np.logical_or(pan_seg < min_id, pan_seg >= max_id)
         instance_seg[outside_mask] = 0
 
-        instance_seg = skimage.measure.label(instance_seg).astype(np.int32)
+        instance_seg = skimage.measure.label(instance_seg).astype(np.uint16)
         instance_seg[instance_seg > 0] += min_id
         pan_seg[instance_seg > 0] = instance_seg[instance_seg > 0]
     return pan_seg
@@ -64,7 +65,7 @@ def infer_2d(engine, img, norms, device):
     pan_seg = engine(img, orig_size, upsampling=1)
     # Postprocess
     pan_seg = force_connected(
-        pan_seg.squeeze().detach().cpu().numpy().astype(np.int32),
+        pan_seg.squeeze().detach().cpu().numpy().astype(np.uint16),
         engine.thing_list,
         engine.label_divisor,
     )
@@ -211,4 +212,5 @@ TODO:
     - May be easier to split into classes as they did
 - Add semantic only segmentation
 - Integrate downsampling
+    - Empanada uses cv2.resize for this
 """

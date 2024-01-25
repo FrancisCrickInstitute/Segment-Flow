@@ -5,7 +5,8 @@ import skimage.io
 
 from em_segment.modules.loading import load_from_yaml
 from em_segment.predictions import do_predictions
-from utils import save_masks, get_device, create_argparser_inference, load_img
+from model_utils import get_device
+from utils import save_masks, create_argparser_inference, load_img
 
 if __name__ == "__main__":
     parser = create_argparser_inference()

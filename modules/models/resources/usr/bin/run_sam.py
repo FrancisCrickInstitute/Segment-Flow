@@ -8,11 +8,12 @@ from tqdm.auto import tqdm
 
 from utils import (
     save_masks,
-    get_device,
     create_argparser_inference,
     guess_rgb,
     load_img,
+    align_segment_labels,
 )
+from model_utils import get_device
 
 
 def run_sam(
@@ -133,54 +134,6 @@ def _run_sam_stack(save_dir, save_name, img_stack, model, pbar, start_idx):
 
 #         for label in next_labels:
 #             cost_matrix[curr_slice == label] += 1
-
-
-def align_segment_labels(all_masks, threshold=0.5):
-    # From https://github.com/MIC-DKFZ/napari-sam/blob/main/src/napari_sam/_widget.py#L1118
-    """
-    There is a potentially better way to do this, using the Hungarian algorithm
-    It will, however, still require computing the "cost" (i.e. overlap, defined as
-    the count of co-occurences between every numerical label between two slices)
-    The Hungarian algorithm itself can be easily done using scipy.optimize.linear_sum_assignment
-    It's just that then the optimal assignment will be found, rather than using this
-    thresholded approach. Can revise later as needed.
-
-    TODO: Abstract out into separate nextflow process?
-    """
-    all_masks = all_masks.copy()
-    for i in range(all_masks.shape[0] - 1):
-        current_slice = all_masks[i]
-        next_slice = all_masks[i + 1]
-        next_labels, next_label_counts = np.unique(next_slice, return_counts=True)
-        next_label_counts = next_label_counts[next_labels != 0]
-        next_labels = next_labels[next_labels != 0]
-        new_next_slice = np.zeros_like(next_slice)
-        if len(next_labels) > 0:
-            for next_label, next_label_count in zip(next_labels, next_label_counts):
-                current_roi_labels = current_slice[next_slice == next_label]
-                current_roi_labels, current_roi_label_counts = np.unique(
-                    current_roi_labels, return_counts=True
-                )
-                current_roi_label_counts = current_roi_label_counts[
-                    current_roi_labels != 0
-                ]
-                current_roi_labels = current_roi_labels[current_roi_labels != 0]
-                if len(current_roi_labels) > 0:
-                    current_max_count = np.max(current_roi_label_counts)
-                    current_max_count_label = current_roi_labels[
-                        np.argmax(current_roi_label_counts)
-                    ]
-                    overlap = current_max_count / next_label_count
-                    if overlap >= threshold:
-                        new_next_slice[
-                            next_slice == next_label
-                        ] = current_max_count_label
-                    else:
-                        new_next_slice[next_slice == next_label] = next_label
-                else:
-                    new_next_slice[next_slice == next_label] = next_label
-            all_masks[i + 1] = new_next_slice
-    return all_masks
 
 
 def normalize_slice(img_slice, source_limits, target_limits):

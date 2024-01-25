@@ -128,6 +128,7 @@ workflow {
     | map{ img_name, mask_fnames, output_dirs, mask_paths ->
         [
             img_name,
+            params.model,
             mask_fnames.first(),
             output_dirs.first(),
             mask_paths,
