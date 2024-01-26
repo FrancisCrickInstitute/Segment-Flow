@@ -56,6 +56,8 @@ if __name__ == "__main__":
     # Combine the masks
     if len(masks) > 1:
         combined_masks = np.concatenate(masks)
+        mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
+        print(f"Memory used after loading stack: {mem_used:.2f} GB")
         if cli_args.model == "sam":
             combined_masks = connect_sam(combined_masks)
         else:

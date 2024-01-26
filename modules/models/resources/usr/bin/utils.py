@@ -90,7 +90,6 @@ def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
 
     TODO: Abstract out into separate nextflow process?
     """
-    all_masks = all_masks.copy()
     for i in range(all_masks.shape[0] - 1):
         current_slice = all_masks[i]
         next_slice = all_masks[i + 1]

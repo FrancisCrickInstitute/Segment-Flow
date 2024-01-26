@@ -120,6 +120,7 @@ process combineStacks {
 
     script:
     """
+    echo ${task.memory}
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
