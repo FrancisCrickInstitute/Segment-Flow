@@ -1,6 +1,34 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl=2
 
+def helpMessage() {
+    log.info """
+    Usage:
+
+    nextflow run FrancisCrickInstitute/Segment-Flow <ARGUMENTS>
+
+    Required arguments:
+    --profile <PROFILE>          Nextflow profile to use
+    --root_dir <ROOT_DIR>        Root directory for the pipeline (for caching models, masks etc.)
+    --img_dir <IMG_DIR>          Directory containing images to segment
+    --model <MODEL>              Model to use for segmentation
+    --model_type <MODEL_TYPE>    Type of model to use for segmentation
+    --task <TASK>                Task to perform with the model
+    --model_config <CONFIG>      Path to model config file
+    --model_chkpt_loc <LOC>      Location of model checkpoint
+    --model_chkpt_type <TYPE>    Type of model checkpoint  **??**
+    --model_chkpt_fname <FNAME>  Filename of model checkpoint
+    
+    Optional arguments:
+    --help                      Print this help message
+    """.stripIndent()
+}
+
+if ( params.help ) {
+    helpMessage()
+    exit 0
+}
+
 // Default root directory, that gets overridden by input from Napari
 params.root_dir = "${workflow.homeDir}/.nextflow/aiod/"
 // Construct other directories from root
