@@ -11,7 +11,6 @@ from utils import (
     create_argparser_inference,
     guess_rgb,
     load_img,
-    align_segment_labels,
 )
 from model_utils import get_device
 
@@ -113,8 +112,6 @@ def _run_sam_stack(save_dir, save_name, img_stack, model, pbar, start_idx):
             curr_idx=idx + 1,
             start_idx=start_idx,
         )
-    # Align masks to ensure consistent colouration
-    all_masks = align_segment_labels(all_masks)
     return all_masks
 
 
