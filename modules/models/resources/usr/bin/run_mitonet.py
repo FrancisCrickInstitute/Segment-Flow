@@ -147,7 +147,12 @@ if __name__ == "__main__":
         "inference_scale": config["downsampling"],
     }
 
-    if config["mode"] == "2D":
+    if config["plane"] != "All":
+        # Reorient the image if necessary
+        if config["plane"] == "XZ":
+            img = np.moveaxis(img, 1, 0)
+        elif config["plane"] == "YZ":
+            img = np.moveaxis(img, 2, 0)
         # Create the inference engine
         engine = PanopticDeepLabRenderEngine(
             model=model,
