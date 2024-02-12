@@ -20,7 +20,7 @@ def get_model_checkpoint(
     if chkpt_type == "url":
         print(f"Downloading {chkpt_loc}")
         download_from_url(chkpt_loc, Path(chkpt_fname))
-    elif chkpt_type == "dir":
+    elif chkpt_type == "file":
         # Handle case where directory containing checkpoint is given
         if not Path(chkpt_loc).is_file():
             if Path(chkpt_loc).is_dir():
@@ -29,8 +29,6 @@ def get_model_checkpoint(
                 raise FileNotFoundError(f"Model checkpoint not found: {chkpt_loc}")
         print(f"Copying {chkpt_loc}")
         copy_from_path(chkpt_loc, Path(chkpt_fname))
-    else:
-        raise KeyError(f"Either 'url' or 'dir' must be specified!")
 
 
 def download_from_url(url: str, chkpt_fname: Union[Path, str]):
@@ -82,7 +80,7 @@ if __name__ == "__main__":
         "--chkpt-type",
         required=True,
         type=str,
-        choices=["url", "dir"],
+        choices=["url", "file"],
         help="Type of model checkpoint location",
     )
     parser.add_argument(
