@@ -174,7 +174,7 @@ workflow {
     }
     | set { mask_ch }
 
-    combineStacks( mask_ch )
+    combineStacks( mask_ch, params.postprocess )
 }
 
 // Useful output upon completion, one way or another

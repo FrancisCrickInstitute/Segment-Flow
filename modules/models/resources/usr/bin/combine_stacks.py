@@ -43,6 +43,12 @@ if __name__ == "__main__":
         required=True,
         help="Model used to generate masks",
     )
+    parser.add_argument(
+        "--postprocess",
+        required=False,
+        action="store_true",
+        help="Run postprocessing on the masks",
+    )
 
     cli_args = parser.parse_args()
 
@@ -58,12 +64,14 @@ if __name__ == "__main__":
         combined_masks = np.concatenate(masks)
         mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
         print(f"Memory used after loading stack: {mem_used:.2f} GB")
+    else:
+        combined_masks = masks[0]
+    if cli_args.postprocess:
+        print("Postprocessing masks...")
         if cli_args.model == "sam":
             combined_masks = connect_sam(combined_masks)
         else:
             combined_masks = connect_components(combined_masks)
-    else:
-        combined_masks = masks[0]
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
     print(f"Memory used in combination: {mem_used:.2f} GB")
     # Save the masks

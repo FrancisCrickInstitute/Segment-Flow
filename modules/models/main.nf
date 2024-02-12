@@ -114,17 +114,20 @@ process combineStacks {
 
     input:
     tuple val(img_simplename), val(model), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
+    val postprocess
 
     output:
     stdout
 
     script:
+    def postprocess = postprocess ? "--postprocess" : ""
     """
     echo ${task.memory}
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
     --masks ${masks} \
-    --model ${model}
+    --model ${model} \
+    ${postprocess}
     """
 }
