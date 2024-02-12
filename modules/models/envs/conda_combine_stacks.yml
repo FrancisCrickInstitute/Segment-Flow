@@ -4,10 +4,10 @@ channels:
   - conda-forge
 dependencies:
   - python=3.10
-  - numpy
-  - scikit-image
-  - dask
-  - dask-image
   - pip
   - pip:
+    - numpy
+    - scikit-image
+    - dask
+    - dask-image
     - psutil
