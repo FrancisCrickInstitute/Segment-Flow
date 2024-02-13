@@ -110,7 +110,7 @@ process runMITONET {
 
 process combineStacks {
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
-    memory { masks*.size().sum() * 3 * task.attempt as MemoryUnit <= 100.MB ? 100.MB : masks*.size().sum() * 3 * task.attempt as MemoryUnit }
+    memory { masks*.size().sum() * 3 * task.attempt as MemoryUnit <= 150.MB ? 150.MB : masks*.size().sum() * 3 * task.attempt as MemoryUnit }
 
     input:
     tuple val(img_simplename), val(model), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
@@ -123,6 +123,7 @@ process combineStacks {
     def postprocess = postprocess ? "--postprocess" : ""
     """
     echo ${task.memory}
+    echo ${masks*.size().sum() as MemoryUnit}
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
