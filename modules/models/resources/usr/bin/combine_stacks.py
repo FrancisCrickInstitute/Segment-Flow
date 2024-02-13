@@ -57,6 +57,8 @@ if __name__ == "__main__":
     cli_args.masks.sort(key=lambda x: int(Path(x).stem.split("_")[-1]))
     # Load the masks
     masks = []
+    mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
+    print(f"Memory used before loading stack: {mem_used:.2f} GB")
     for mask_path in cli_args.masks:
         masks.append(np.load(mask_path))
     # Combine the masks
