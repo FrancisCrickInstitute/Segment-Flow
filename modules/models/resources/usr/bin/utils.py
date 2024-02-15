@@ -10,12 +10,10 @@ def save_masks(save_dir, save_name, masks, curr_idx: int, start_idx: int):
     save_dir.mkdir(parents=True, exist_ok=True)
     # Define path, where start_idx + curr_idx is the most recent slice to save
     save_path = save_dir / f"{save_name}_{curr_idx}_{start_idx}.npy"
-    # TODO: Use the max value to determine appropriate dtype to minimize size
     # Relabel the inputs to minimise int size and thus output file size
     masks, _, _ = relabel_sequential(masks)
-    # Determine appropriate dtype
-    best_dtype = np.result_type(np.min_scalar_type(masks.min()), masks.max())
-    masks = masks.astype(best_dtype)
+    # Reduce dtype to save space
+    masks = reduce_dtype(masks)
     # TODO: Longer-term, use zarr/dask to save to disk
     np.save(save_path, masks)
     # Get path for previous slice
@@ -114,9 +112,9 @@ def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
                     ]
                     overlap = current_max_count / next_label_count
                     if overlap >= threshold:
-                        new_next_slice[
-                            next_slice == next_label
-                        ] = current_max_count_label
+                        new_next_slice[next_slice == next_label] = (
+                            current_max_count_label
+                        )
                     else:
                         new_next_slice[next_slice == next_label] = next_label
                 else:
