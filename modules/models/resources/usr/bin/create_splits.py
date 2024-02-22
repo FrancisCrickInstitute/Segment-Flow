@@ -8,11 +8,11 @@ import pandas as pd
 MAX_TILE_SIZE = {
     "height": 3000,
     "width": 3000,
-    "depth": 50,
+    "depth": 100,
 }
 
 
-def auto_tile_size(image_shape, num_tiles):
+def auto_tile_size(image_shape: tuple[int, ...], num_tiles: tuple[int, ...]):
     """
     Calculate the number of tiles to use for a given image size, for any dimension specified as 'auto'.
 
@@ -26,16 +26,15 @@ def auto_tile_size(image_shape, num_tiles):
     # Extract the number of tiles
     x_tiles, y_tiles, z_tiles = num_tiles
     if x_tiles == "auto":
-        # TODO: CHECK ME
-        x_tiles = height // MAX_TILE_SIZE["height"]
+        x_tiles = (height // MAX_TILE_SIZE["height"]) + 1
     else:
         x_tiles = check_sensible_num_tiles(int(x_tiles), height, dim="height")
     if y_tiles == "auto":
-        y_tiles = width // MAX_TILE_SIZE["width"]
+        y_tiles = (width // MAX_TILE_SIZE["width"]) + 1
     else:
         y_tiles = check_sensible_num_tiles(int(y_tiles), width, dim="width")
     if z_tiles == "auto":
-        z_tiles = depth // MAX_TILE_SIZE["depth"]
+        z_tiles = (depth // MAX_TILE_SIZE["depth"]) + 1
     else:
         z_tiles = check_sensible_num_tiles(int(z_tiles), depth, dim="depth")
     return (x_tiles, y_tiles, z_tiles)
@@ -45,21 +44,23 @@ def check_sensible_num_tiles(num_tiles_dim: int, dim_size: int, dim: str):
     """
     Make sure the input number of tiles is sensible for the given dimension size.
     """
-    # print(
-    #     f"Checking input for {dim}, with {num_tiles_dim} tiles requested and {dim} size {dim_size}..."
-    # )
     # Make sure the number of tiles is at least 1
     if num_tiles_dim < 1:
         return 1
     # More tiles than pixels? Use auto method
     if num_tiles_dim > dim_size:
-        return dim_size // MAX_TILE_SIZE[dim]
+        return (dim_size // MAX_TILE_SIZE[dim]) + 1
     # Make sure it's not too small, defined as 1% of the max tile size
-    if dim_size // num_tiles_dim < (MAX_TILE_SIZE[dim] / 100):
-        return dim_size // MAX_TILE_SIZE[dim]
+    if (dim_size // num_tiles_dim) < (MAX_TILE_SIZE[dim] / 100):
+        # NOTE: We are just ignoring the user here
+        # We could default to MAX_TILE_SIZE[dim] / 100 as a lower bound
+        # But I think I'd rather just set our default tile size and ignore it!
+        return (dim_size // MAX_TILE_SIZE[dim]) + 1
     # Make sure it's not too big, defined as 5x the max tile size
-    if dim_size // num_tiles_dim > (MAX_TILE_SIZE[dim] * 5):
-        return dim_size // MAX_TILE_SIZE[dim]
+    if (dim_size // num_tiles_dim) > (MAX_TILE_SIZE[dim] * 5):
+        # NOTE: Again we are just ignoring the user here
+        # We could default to MAX_TILE_SIZE[dim] * 5 as an upper bound...
+        return (dim_size // MAX_TILE_SIZE[dim]) + 1
     return num_tiles_dim
 
 
@@ -92,9 +93,9 @@ def generate_patch_indices(
     eff_depth = round(depth * (1 + overlap_fraction_depth))
 
     # Calculate the patch size based on the number of tiles
-    patch_height = eff_height // max(num_tiles_height, 1)
-    patch_width = eff_width // max(num_tiles_width, 1)
-    patch_depth = eff_depth // max(num_tiles_depth, 1)
+    patch_height = eff_height // num_tiles_height
+    patch_width = eff_width // num_tiles_width
+    patch_depth = eff_depth // num_tiles_depth
 
     # Calculate overlap size based on fraction
     overlap_height = (
@@ -116,9 +117,9 @@ def generate_patch_indices(
     # Generate indices for the patches
     patch_indices = []
 
-    for i in range(max(num_tiles_height, 1)):
-        for j in range(max(num_tiles_width, 1)):
-            for k in range(max(num_tiles_depth, 1)):
+    for i in range(num_tiles_height):
+        for j in range(num_tiles_width):
+            for k in range(num_tiles_depth):
                 start_h = i * (patch_height - overlap_height)
                 end_h = (
                     min(start_h + patch_height, height)
