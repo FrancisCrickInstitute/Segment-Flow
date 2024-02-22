@@ -69,25 +69,6 @@ def getMaskName(img_file) {
     return "${img_file.simpleName}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}-${params.param_hash}"
 }
 
-// Get the indices to split the image into (to create multiple jobs, on each substack of size step)
-def getIndices(meta, img_path, mask_fname, num_slices, step = 50) {
-    if (num_slices < step) {
-        return [meta, img_path, mask_fname, [[0, num_slices]]]
-    }
-    else {
-        indices = []
-        for (int i = 0; i < num_slices; i += step) {
-            if (i + step > num_slices) {
-                indices.add([i, num_slices])
-            }
-            else {
-                indices.add([i, i + step])
-            }
-        }
-        return [meta, img_path, mask_fname, indices]
-    }
-}
-
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
 workflow {
     // TODO: Move the model-based stuff into a workflow under the models module?
