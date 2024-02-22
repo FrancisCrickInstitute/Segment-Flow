@@ -54,7 +54,7 @@ process runSAM {
     // Switch this to use publishDir and avoid path manipulation in python?
 
     input:
-    tuple val(meta), path(image_path), val(mask_fname), val(start_idx), val(end_idx)
+    tuple val(meta), path(image_path), val(mask_fname), val(idxs)
     val mask_output_dir
     path model_config
     path model_chkpt
@@ -72,8 +72,7 @@ process runSAM {
     --model-chkpt ${model_chkpt} \
     --model-type ${model_type} \
     --model-config ${model_config} \
-    --start-idx ${start_idx} \
-    --end-idx ${end_idx}
+    --idxs ${idxs.join(" ")}
     """
 }
 
@@ -82,7 +81,7 @@ process runUNET {
     conda "${moduleDir}/envs/${task.ext.condaDir}/conda_unet.yml"
 
     input:
-    tuple val(meta), path(image_path), val(mask_fname), val(start_idx), val(end_idx)
+    tuple val(meta), path(image_path), val(mask_fname), val(idxs)
     val mask_output_dir
     path model_config
     path model_chkpt
@@ -99,8 +98,7 @@ process runUNET {
     --output-dir ${mask_output_dir} \
     --model-chkpt ${model_chkpt} \
     --model-config ${model_config} \
-    --start-idx ${start_idx} \
-    --end-idx ${end_idx}
+    --idxs ${idxs.join(" ")}
     """
 }
 
@@ -110,7 +108,7 @@ process runMITONET {
     conda "${moduleDir}/envs/${task.ext.condaDir}/conda_mitonet.yml"
 
     input:
-    tuple val(meta), path(image_path), val(mask_fname), val(start_idx), val(end_idx)
+    tuple val(meta), path(image_path), val(mask_fname), val(idxs)
     val mask_output_dir
     path model_config
     path model_chkpt
@@ -128,8 +126,7 @@ process runMITONET {
     --model-chkpt ${model_chkpt} \
     --model-type ${model_type} \
     --model-config ${model_config} \
-    --start-idx ${start_idx} \
-    --end-idx ${end_idx}
+    --idxs ${idxs.join(" ")}
     """
 }
 
