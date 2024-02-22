@@ -164,13 +164,36 @@ if __name__ == "__main__":
         nargs=3,
         help="Overlap in each dimension (default is 0). Assumed H x W x D, or X x Y x Z.",
     )
+    parser.add_argument(
+        "--output-csv",
+        required=False,
+        default="all_img_paths.csv",
+        type=str,
+        help="Output csv file with patch indices",
+    )
 
     args = parser.parse_args()
 
     # Load the csv file
-    img_csv = Path(args.img_csv)
-    output_dir = img_csv.parent
-    img_df = pd.read_csv(img_csv)
+    img_csv_fpath = Path(args.img_csv)
+    output_dir = img_csv_fpath.parent
+    img_df = pd.read_csv(img_csv_fpath)
+
+    # Drop the patch info if it exists
+    img_df = img_df.drop(
+        columns=[
+            "patch_idx",
+            "start_h",
+            "end_h",
+            "start_w",
+            "end_w",
+            "start_d",
+            "end_d",
+        ],
+        errors="ignore",
+    )
+    # Remove any rows with the same image path (caused by previous runs/expansions)
+    img_df = img_df.drop_duplicates(subset=["img_path"])
 
     new_csv = defaultdict(list)
 
@@ -194,7 +217,6 @@ if __name__ == "__main__":
             num_tiles=num_tiles,
             overlap_fraction=overlap_fraction,
         )
-        print(img_path, len(patch_indices))
 
         for i, patch in enumerate(patch_indices):
             # Insert all info from the row
@@ -208,3 +230,7 @@ if __name__ == "__main__":
             new_csv["end_w"].append(patch[1][1])
             new_csv["start_d"].append(patch[2][0])
             new_csv["end_d"].append(patch[2][1])
+
+    # Overwrite the csv with the new info
+    new_csv_df = pd.DataFrame(new_csv)
+    new_csv_df.to_csv(img_csv_fpath, index=False)
