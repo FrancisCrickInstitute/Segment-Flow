@@ -6,21 +6,31 @@ import skimage.io
 from skimage.segmentation import relabel_sequential
 
 
-def save_masks(save_dir, save_name, masks, curr_idx: int, start_idx: int):
+def save_masks(save_dir, save_name, masks, idxs: list[int, ...], prev_path=None):
+    # Extract the start and end indices in each dim
+    start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
     save_dir.mkdir(parents=True, exist_ok=True)
     # Define path, where start_idx + curr_idx is the most recent slice to save
-    save_path = save_dir / f"{save_name}_{curr_idx}_{start_idx}.npy"
+    save_path = (
+        save_dir
+        / f"{save_name}_x{start_x}-{end_x}_y{start_y}-{end_y}_z{start_z}-{end_z}.npy"
+    )
     # Relabel the inputs to minimise int size and thus output file size
     masks, _, _ = relabel_sequential(masks)
     # Reduce dtype to save space
     masks = reduce_dtype(masks)
     # TODO: Longer-term, use zarr/dask to save to disk
     np.save(save_path, masks)
-    # Get path for previous slice
-    prev_path = save_dir / f"{save_name}_{curr_idx-1}_{start_idx}.npy"
     # Remove previous save if it exists
-    if prev_path.is_file():
+    if prev_path is not None and prev_path.is_file():
         prev_path.unlink()
+    return save_path
+
+
+def extract_idxs(idxs: list[int, ...]):
+    # Standardise expected idxs format and extraction
+    start_x, end_x, start_y, end_y, start_z, end_z = idxs
+    return start_x, end_x, start_y, end_y, start_z, end_z
 
 
 def create_argparser_inference():
@@ -31,10 +41,11 @@ def create_argparser_inference():
     parser.add_argument("--output-dir", required=True, help="Mask output directory")
     parser.add_argument("--model-chkpt", required=True, help="Path to model checkpoint")
     parser.add_argument(
-        "--start-idx", type=int, required=True, help="Start index for stack"
-    )
-    parser.add_argument(
-        "--end-idx", type=int, required=True, help="End index for stack"
+        "--idxs",
+        nargs=6,
+        type=int,
+        required=True,
+        help="Start and end indices for stack",
     )
     parser.add_argument("--model-type", help="Select model type", default="default")
     parser.add_argument("--model-config", help="Model config path")
@@ -49,16 +60,23 @@ def guess_rgb(img_shape):
     return ndim > 2 and last_dim in (3, 4)
 
 
-def load_img(img_path, start_idx: int, end_idx: int):
+def load_img(img_path, idxs: list[int, ...]):
     # TODO: Use zarr/dask to load from disk, or something else
     img = skimage.io.imread(img_path)
     # TODO: Ensure first dim is slices? Difficult to generalise...
+    # Extract the start and end indices in each dim
+    start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
 
     # No slicing to be done if not a stack
     if img.ndim == 2:
-        return img
+        img = img[start_x:end_x, start_y:end_y]
+    # TODO: Allow for multi-channel images
+    # This can be achieved by adding the CHWD etc. order to metadata
+    # Then propagate that here, and index accordingly
+    # Can then be propagated to the model for it to handle reshaping/tranposing as needed
     else:
-        return img[start_idx:end_idx, ...]
+        img = img[start_z:end_z, start_x:end_x, start_y:end_y]
+    return img
 
 
 def reduce_dtype(arr: np.ndarray, max_val: Optional[int] = None):
