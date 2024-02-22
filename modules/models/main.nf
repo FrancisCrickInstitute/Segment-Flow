@@ -1,3 +1,28 @@
+process splitStacks {
+    // Re-use the combine stacks conda env
+    conda "${moduleDir}/envs/conda_combine_stacks.yml"
+    memory { 500.MB * task.attempt as MemoryUnit }
+    publishDir "$params.root_dir", mode: 'copy'
+
+    input:
+    path csv_path
+
+    output:
+    path "${csv_path.getName()}", emit: csv_file
+
+    script:
+    // Nextflow must have a string of comma separated values as input params, so split them here
+    // https://github.com/nextflow-io/nextflow/issues/3595 should track this
+    num_tiles = params.num_tiles.replace(",", " ")
+    overlap = params.overlap.replace(",", " ")
+    """
+    python ${moduleDir}/resources/usr/bin/create_splits.py \
+    --img-csv ${csv_path} \
+    --output-csv ${file(csv_path).getName()} \
+    --num-tiles $num_tiles \
+    --overlap $overlap
+    """
+}
 
 process downloadModel {
     conda "${moduleDir}/envs/conda_download_model.yml"

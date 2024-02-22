@@ -38,7 +38,7 @@ params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}"
 
 // Import processes from model modules
-include { downloadModel; runSAM; runUNET; runMITONET; combineStacks } from './modules/models'
+include { downloadModel; splitStacks; runSAM; runUNET; runMITONET; combineStacks } from './modules/models'
 
 def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
@@ -108,29 +108,27 @@ workflow {
         chkpt_ch = chkpt_file
     }
 
-    // Create channel from paths to each image file
-    // with the metadata and mask name too
-    img_ch = Channel.fromPath( params.img_dir )
-            | splitCsv( header: true, quote: '\"' )
-            // Insert the metadata and mask name into the channel
-            | map{ row ->
-                meta = row.subMap("num_slices", "height", "width")
+    // Split the image stacks into substacks
+    // Python handles the file saving and overwrites params.img_dir
+    splitStacks( params.img_dir )
+    img_ch = splitStacks.out.csv_file.splitCsv( header: true, quote: '\"' )
+        | view()
+        | map{ row ->
+            meta = row.subMap("height", "width", "num_slices", "channels")
+            [
+                meta,
+                row.img_path,
+                getMaskName( file(row.img_path) ),
                 [
-                    meta,
-                    row.img_path,
-                    getMaskName( file(row.img_path) )
+                    row.start_h.toInteger(),
+                    row.end_h.toInteger(),
+                    row.start_w.toInteger(),
+                    row.end_w.toInteger(),
+                    row.start_d.toInteger(),
+                    row.end_d.toInteger()
                 ]
-            }
-            // Split into a row per image, per substack
-            | map{ meta, img_path, mask_fname ->
-                num_slices = meta.num_slices.toInteger()
-                getIndices(meta, img_path, mask_fname, num_slices)
-            }
-            | transpose
-            // Extract indices to more clearly pass into processes
-            | map{ meta, img_path, mask_fname, indices ->
-                    [meta, img_path, mask_fname, indices[0], indices[1]]
-            }
+            ]
+        }
 
     // Create the name for the mask output directory
     mask_output_dir = "${params.model_dir}/${params.model_type}_masks"
