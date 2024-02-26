@@ -93,7 +93,6 @@ workflow {
     // Python handles the file saving and overwrites params.img_dir
     splitStacks( params.img_dir )
     img_ch = splitStacks.out.csv_file.splitCsv( header: true, quote: '\"' )
-        | view()
         | map{ row ->
             meta = row.subMap("height", "width", "num_slices", "channels")
             [
@@ -145,9 +144,10 @@ workflow {
     // Group all the outputs per image together to combine
     mask_out
     | groupTuple
-    | map{ img_name, mask_fnames, output_dirs, mask_paths ->
+    | map{ img_name, meta, mask_fnames, output_dirs, mask_paths ->
         [
             img_name,
+            meta.first(),
             params.model,
             mask_fnames.first(),
             output_dirs.first(),

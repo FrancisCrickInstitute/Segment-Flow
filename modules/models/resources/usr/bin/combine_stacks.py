@@ -6,7 +6,42 @@ import dask.array as da
 import dask_image.ndmeasure
 import numpy as np
 
-from utils import reduce_dtype, align_segment_labels
+from utils import reduce_dtype, align_segment_labels, extract_idxs_from_fname
+
+
+def combine_masks(
+    masks: list[str], overlap: list[float, ...], image_size: tuple[int, ...]
+):
+    """
+    Combine masks from each of the substacks into a single array/dataset.
+
+    If overlap is 0, then the masks are simply inserted into their relevant indices.
+
+    If overlap is >0, then the masks need to be combined.
+    """
+    # Get the chunk size from the first file
+    start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(masks[0])
+    chunk_size = (end_x - start_x, end_y - start_y, end_z - start_z)
+    # Create the array to hold the masks
+    all_masks = np.zeros(image_size, dtype=np.uint16)
+    # Loop over each mask and insert into the array
+    if all([val == 0 for val in overlap]):
+        for mask in masks:
+            start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
+                mask
+            )
+            mask = np.load(mask)
+            all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask
+    else:
+        # Combine the masks
+        for mask in masks:
+            start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
+                mask
+            )
+            mask = np.load(mask)
+            # Just sum, naive method
+            all_masks[start_z:end_z, start_x:end_x, start_y:end_y] += mask
+    return all_masks
 
 
 def connect_components(all_masks: np.ndarray):
@@ -44,6 +79,19 @@ if __name__ == "__main__":
         help="Model used to generate masks",
     )
     parser.add_argument(
+        "--image-size",
+        nargs=3,
+        type=int,
+        required=True,
+        help="Size of the image stack",
+    )
+    parser.add_argument(
+        "--overlap",
+        required=True,
+        nargs=3,
+        help="Overlap in each dimension (default is 0). Assumed H x W x D.",
+    )
+    parser.add_argument(
         "--postprocess",
         required=False,
         action="store_true",
@@ -52,9 +100,6 @@ if __name__ == "__main__":
 
     cli_args = parser.parse_args()
 
-    # Sort masks by index to ensure correct order
-    # Our start_idx is the final component of the filename, so we can sort by that
-    cli_args.masks.sort(key=lambda x: int(Path(x).stem.split("_")[-1]))
     # Load the masks
     masks = []
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
@@ -63,11 +108,14 @@ if __name__ == "__main__":
         masks.append(np.load(mask_path))
     # Combine the masks
     if len(masks) > 1:
-        combined_masks = np.concatenate(masks)
+        combined_masks = combine_masks(
+            masks, overlap=cli_args.overlap, image_size=cli_args.image_size
+        )
         mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
         print(f"Memory used after loading stack: {mem_used:.2f} GB")
     else:
         combined_masks = masks[0]
+    print(f"Combined masks shape: {combined_masks.shape}")
     if cli_args.postprocess:
         print("Postprocessing masks...")
         if cli_args.model == "sam":

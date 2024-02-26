@@ -2,6 +2,7 @@ process splitStacks {
     // Re-use the combine stacks conda env
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
     memory { 500.MB * task.attempt as MemoryUnit }
+    time { 5.m * task.attempt }
     publishDir "$params.root_dir", mode: 'copy'
 
     input:
@@ -13,13 +14,13 @@ process splitStacks {
     script:
     // Nextflow must have a string of comma separated values as input params, so split them here
     // https://github.com/nextflow-io/nextflow/issues/3595 should track this
-    num_tiles = params.num_tiles.replace(",", " ")
+    num_substacks = params.num_substacks.replace(",", " ")
     overlap = params.overlap.replace(",", " ")
     """
     python ${moduleDir}/resources/usr/bin/create_splits.py \
-    --img-csv ${csv_path} \
-    --output-csv ${file(csv_path).getName()} \
-    --num-tiles $num_tiles \
+    --img-csv ${params.img_dir} \
+    --output-csv ${csv_path.getName()} \
+    --num-substacks $num_substacks \
     --overlap $overlap
     """
 }
@@ -61,7 +62,7 @@ process runSAM {
     val model_type
 
     output:
-    tuple val("${image_path.simpleName}"), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_${end_idx-start_idx}_${start_idx}.npy"), emit: mask
+    tuple val("${image_path.simpleName}"), val(meta), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.npy"), emit: mask
 
     script:
     """
@@ -87,7 +88,7 @@ process runUNET {
     path model_chkpt
 
     output:
-    tuple val("${image_path.simpleName}"), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_${end_idx-start_idx}_${start_idx}.npy"), emit: mask
+    tuple val("${image_path.simpleName}"), val(meta), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.npy"), emit: mask
 
     script:
     """
@@ -115,7 +116,7 @@ process runMITONET {
     val model_type
 
     output:
-    tuple val("${image_path.simpleName}"), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_${end_idx-start_idx}_${start_idx}.npy"), emit: mask
+    tuple val("${image_path.simpleName}"), val(meta), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.npy"), emit: mask
 
     script:
     """
@@ -135,7 +136,7 @@ process combineStacks {
     memory { masks*.size().sum() * 3 * task.attempt as MemoryUnit <= 300.MB ? 300.MB : masks*.size().sum() * 3 * task.attempt as MemoryUnit }
 
     input:
-    tuple val(img_simplename), val(model), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
+    tuple val(img_simplename), val(meta), val(model), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
     val postprocess
 
     output:
@@ -143,6 +144,7 @@ process combineStacks {
 
     script:
     def postprocess = postprocess ? "--postprocess" : ""
+    overlap = params.overlap.replace(",", " ")
     """
     echo ${task.memory}
     echo ${masks*.size().sum() as MemoryUnit}
@@ -151,6 +153,8 @@ process combineStacks {
     --output-dir ${mask_output_dir} \
     --masks ${masks} \
     --model ${model} \
+    --image-size ${meta.height} ${meta.width} ${meta.num_slices} \
+    --overlap $overlap \
     ${postprocess}
     """
 }

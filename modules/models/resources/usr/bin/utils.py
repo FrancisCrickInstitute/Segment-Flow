@@ -6,11 +6,11 @@ import skimage.io
 from skimage.segmentation import relabel_sequential
 
 
-def save_masks(save_dir, save_name, masks, idxs: list[int, ...], prev_path=None):
+def save_masks(save_dir, save_name, masks, idxs: list[int, ...]):
+    save_dir.mkdir(parents=True, exist_ok=True)
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
-    save_dir.mkdir(parents=True, exist_ok=True)
-    # Define path, where start_idx + curr_idx is the most recent slice to save
+    # Define path with all the indices
     save_path = (
         save_dir
         / f"{save_name}_x{start_x}-{end_x}_y{start_y}-{end_y}_z{start_z}-{end_z}.npy"
@@ -21,15 +21,21 @@ def save_masks(save_dir, save_name, masks, idxs: list[int, ...], prev_path=None)
     masks = reduce_dtype(masks)
     # TODO: Longer-term, use zarr/dask to save to disk
     np.save(save_path, masks)
-    # Remove previous save if it exists
-    if prev_path is not None and prev_path.is_file():
-        prev_path.unlink()
     return save_path
 
 
 def extract_idxs(idxs: list[int, ...]):
     # Standardise expected idxs format and extraction
     start_x, end_x, start_y, end_y, start_z, end_z = idxs
+    return start_x, end_x, start_y, end_y, start_z, end_z
+
+
+def extract_idxs_from_fname(fname: str):
+    # Extract the indices from the filename
+    idx_ranges = fname.split("_")[-3:]
+    start_x, end_x = map(int, idx_ranges[0].split("x")[1].split("-"))
+    start_y, end_y = map(int, idx_ranges[1].split("y")[1].split("-"))
+    start_z, end_z = map(int, idx_ranges[2].split("z")[1].split("-"))
     return start_x, end_x, start_y, end_y, start_z, end_z
 
 
