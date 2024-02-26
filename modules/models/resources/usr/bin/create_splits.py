@@ -143,7 +143,7 @@ def generate_patch_indices(
                     ((start_h, end_h), (start_w, end_w), (start_d, end_d))
                 )
 
-    return patch_indices
+    return patch_indices, len(patch_indices)
 
 
 if __name__ == "__main__":
@@ -156,13 +156,13 @@ if __name__ == "__main__":
         "--num-tiles",
         required=True,
         nargs=3,
-        help="Number of tiles in each dimension (default is 'auto'). Assumed H x W x D, or X x Y x Z.",
+        help="Number of tiles in each dimension (default is 'auto'). Assumed H x W x D.",
     )
     parser.add_argument(
         "--overlap",
         required=True,
         nargs=3,
-        help="Overlap in each dimension (default is 0). Assumed H x W x D, or X x Y x Z.",
+        help="Overlap in each dimension (default is 0). Assumed H x W x D.",
     )
     parser.add_argument(
         "--output-csv",
@@ -176,7 +176,6 @@ if __name__ == "__main__":
 
     # Load the csv file
     img_csv_fpath = Path(args.img_csv)
-    output_dir = img_csv_fpath.parent
     img_df = pd.read_csv(img_csv_fpath)
 
     # Drop the patch info if it exists
@@ -212,7 +211,7 @@ if __name__ == "__main__":
         overlap_fraction = tuple([float(val) for val in args.overlap])
 
         # Generate the patch indices
-        patch_indices = generate_patch_indices(
+        patch_indices, _ = generate_patch_indices(
             img_shape,
             num_tiles=num_tiles,
             overlap_fraction=overlap_fraction,
@@ -233,4 +232,4 @@ if __name__ == "__main__":
 
     # Overwrite the csv with the new info
     new_csv_df = pd.DataFrame(new_csv)
-    new_csv_df.to_csv(img_csv_fpath, index=False)
+    new_csv_df.to_csv(Path.cwd() / args.output_csv, index=False)
