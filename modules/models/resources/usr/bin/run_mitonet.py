@@ -87,15 +87,7 @@ def run_2d(engine, img, norms, device, inference_kwargs):
         for plane, img_slice in enumerate(img):
             seg = infer_2d(engine, img_slice, norms, device)
             full_mask[plane, ...] = seg
-            # Save slice for incremental update
-            save_masks(
-                save_dir=Path(cli_args.output_dir),
-                save_name=cli_args.mask_fname,
-                masks=full_mask,
-                curr_idx=plane + 1,
-                start_idx=cli_args.start_idx,
-            )
-        # # Pad segmentations  # NOTE: Why?
+        # # Pad segmentations  # NOTE: Why did they do this?
         # max_h = max(seg.shape[0] for seg in segs)
         # max_w = max(seg.shape[1] for seg in segs)
         # padded = []
@@ -127,7 +119,7 @@ if __name__ == "__main__":
     parser = parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
-    img = load_img(cli_args.img_path, cli_args.start_idx, cli_args.end_idx)
+    img = load_img(cli_args.img_path, cli_args.idxs)
 
     with open(cli_args.model_config, "r") as f:
         config = yaml.safe_load(f)
@@ -204,8 +196,7 @@ if __name__ == "__main__":
         save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
         masks=pan_seg,
-        curr_idx=cli_args.end_idx - cli_args.start_idx,
-        start_idx=cli_args.start_idx,
+        idxs=cli_args.idxs,
     )
 
 # python run_mitonet.py --model-chkpt /Users/shandc/Documents/ai-on-demand/src/ai_on_demand/.nextflow/cache/mitonet/mitonet_mini.pt --img-path /Users/shandc/Documents/data/napari_examples/example_stack.tiff

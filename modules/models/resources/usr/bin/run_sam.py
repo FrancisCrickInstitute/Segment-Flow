@@ -11,6 +11,7 @@ from utils import (
     create_argparser_inference,
     guess_rgb,
     load_img,
+    extract_idxs,
 )
 from model_utils import get_device
 
@@ -22,42 +23,37 @@ def run_sam(
     model_type: str,
     model_chkpt: Union[Path, str],
     model_config: dict,
-    start_idx: int,
-    end_idx: int,
+    idxs: list[int, ...],
 ):
     sam = sam_model_registry[model_type](checkpoint=model_chkpt)
     sam.to(get_device())
     # Create the model
     model = SamAutomaticMaskGenerator(sam, **model_config)
     # Load the image
-    img = load_img(fpath, start_idx, end_idx)
+    img = load_img(fpath, idxs)
     # Extract the dimensions
     ndim = img.ndim
     # Reduce ndims if RGB (i.e. it's a single RGB image, not a stack)
     if guess_rgb(img.shape):
         ndim -= 1
+    # Get the start and end indices
+    _, start_z, end_z = extract_idxs(idxs)
     # Create the progress bar for this stack
-    pbar = tqdm(total=end_idx - start_idx, desc=f"{Path(fpath).stem}")
+    pbar = tqdm(total=end_z - start_z, desc=f"{Path(fpath).stem}")
     # Send the image to the corresponding run func based on slice or stack
     if ndim == 2:
         all_masks = _run_sam_slice(img, model, pbar)
     elif ndim == 3:
-        all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar, start_idx)
+        all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar)
     elif ndim == 4:
         if img.shape[0] == 1:
             img = img.squeeze()
-            all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar, start_idx)
+            all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar)
         else:
             raise ValueError("Cannot handle a stack of multi-channel images")
     else:
         raise ValueError("Can only handle an image, or stack of images!")
-    save_masks(
-        save_dir,
-        save_name,
-        all_masks,
-        curr_idx=end_idx - start_idx,
-        start_idx=start_idx,
-    )
+    save_masks(save_dir, save_name, all_masks, idxs=idxs)
     pbar.close()
     return img, all_masks
 
@@ -75,7 +71,7 @@ def _run_sam_slice(img_slice, model, pbar):
     return mask_img
 
 
-def _run_sam_stack(save_dir, save_name, img_stack, model, pbar, start_idx):
+def _run_sam_stack(save_dir, save_name, img_stack, model, pbar):
     # Initialize the container of all masks
     all_masks = np.zeros(img_stack.shape, dtype=int)
     # Get the contrast limits
@@ -104,33 +100,7 @@ def _run_sam_stack(save_dir, save_name, img_stack, model, pbar, start_idx):
         masks = _run_sam_slice(img_slice, model, pbar)
         # Insert the masks for this slice
         all_masks[idx, ...] = masks
-        # Save this slice (and all previous slices)
-        save_masks(
-            save_dir=save_dir,
-            save_name=save_name,
-            masks=all_masks,
-            curr_idx=idx + 1,
-            start_idx=start_idx,
-        )
     return all_masks
-
-
-# def align_segment_labels(all_masks):
-#     aligned_masks = all_masks.copy()
-
-#     for idx in range(all_masks.shape[0] - 1):
-#         curr_slice = all_masks[idx]
-#         next_slice = all_masks[idx+1]
-#         curr_labels, curr_counts = np.unique(curr_slice, return_counts=True)
-#         next_labels, next_counts = np.unique(next_slice, return_counts=True)
-
-#         cost_matrix = np.zeros((
-#             curr_labels.size,
-#             next_labels.size
-#         ), dtype=int)
-
-#         for label in next_labels:
-#             cost_matrix[curr_slice == label] += 1
 
 
 def normalize_slice(img_slice, source_limits, target_limits):
@@ -175,6 +145,5 @@ if __name__ == "__main__":
         model_type=cli_args.model_type,
         model_chkpt=cli_args.model_chkpt,
         model_config=model_config,
-        start_idx=cli_args.start_idx,
-        end_idx=cli_args.end_idx,
+        idxs=cli_args.idxs,
     )

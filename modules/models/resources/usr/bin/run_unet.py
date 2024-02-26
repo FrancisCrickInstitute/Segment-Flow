@@ -21,7 +21,7 @@ if __name__ == "__main__":
     trainer, evaluators, config_obj = load_from_yaml(config_path)
 
     # Load the image
-    stack = load_img(cli_args.img_path, cli_args.start_idx, cli_args.end_idx)
+    stack = load_img(img_path=cli_args.img_path, idxs=cli_args.idxs)
     # Get the segmentations
     preds = do_predictions(
         trainer=trainer,
@@ -39,6 +39,5 @@ if __name__ == "__main__":
         save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
         masks=labelled_stack,
-        curr_idx=cli_args.end_idx - cli_args.start_idx,
-        start_idx=cli_args.start_idx,
+        idxs=cli_args.idxs,
     )
