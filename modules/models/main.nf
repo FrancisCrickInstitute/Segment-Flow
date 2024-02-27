@@ -153,7 +153,7 @@ process combineStacks {
     --output-dir ${mask_output_dir} \
     --masks ${masks} \
     --model ${model} \
-    --image-size ${meta.height} ${meta.width} ${meta.num_slices} \
+    --image-size ${meta.num_slices} ${meta.height} ${meta.width} \
     --overlap $overlap \
     ${postprocess}
     """

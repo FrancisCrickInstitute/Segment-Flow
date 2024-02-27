@@ -83,7 +83,7 @@ if __name__ == "__main__":
         nargs=3,
         type=int,
         required=True,
-        help="Size of the image stack",
+        help="Size of the image stack, in array (i.e. D x H x W) format.",
     )
     parser.add_argument(
         "--overlap",
@@ -100,21 +100,17 @@ if __name__ == "__main__":
 
     cli_args = parser.parse_args()
 
-    # Load the masks
-    masks = []
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
     print(f"Memory used before loading stack: {mem_used:.2f} GB")
-    for mask_path in cli_args.masks:
-        masks.append(np.load(mask_path))
     # Combine the masks
-    if len(masks) > 1:
+    if len(cli_args.masks) > 1:
         combined_masks = combine_masks(
-            masks, overlap=cli_args.overlap, image_size=cli_args.image_size
+            cli_args.masks, overlap=cli_args.overlap, image_size=cli_args.image_size
         )
         mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
         print(f"Memory used after loading stack: {mem_used:.2f} GB")
     else:
-        combined_masks = masks[0]
+        combined_masks = np.load(cli_args.masks[0])
     print(f"Combined masks shape: {combined_masks.shape}")
     if cli_args.postprocess:
         print("Postprocessing masks...")

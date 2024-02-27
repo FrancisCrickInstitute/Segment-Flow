@@ -1,4 +1,5 @@
 import argparse
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -32,7 +33,7 @@ def extract_idxs(idxs: list[int, ...]):
 
 def extract_idxs_from_fname(fname: str):
     # Extract the indices from the filename
-    idx_ranges = fname.split("_")[-3:]
+    idx_ranges = Path(fname).stem.split("_")[-3:]
     start_x, end_x = map(int, idx_ranges[0].split("x")[1].split("-"))
     start_y, end_y = map(int, idx_ranges[1].split("y")[1].split("-"))
     start_z, end_z = map(int, idx_ranges[2].split("z")[1].split("-"))
