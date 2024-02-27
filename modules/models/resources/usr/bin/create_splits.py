@@ -17,13 +17,13 @@ def auto_substack_size(image_shape: tuple[int, ...], num_substacks: tuple[int, .
     """
     Calculate the number of substacks to use for a given image size, for any dimension specified as 'auto'.
 
-    Assumes the image shape is a tuple of integers representing the dimensions of the image (e.g. (H, W, D)).
+    Assumes the image shape is a tuple of integers representing the dimensions of the image (D, H, W).
 
     This uses the constants defined at the top of script to create chunks for each job within a given size, keeping
     down the size (but increasing number) of the submitted jobs to avoid memory issues.
     """
     # Extract the dimensions
-    height, width, depth = image_shape
+    depth, height, width = image_shape
     # Extract the number of substacks
     x_substacks, y_substacks, z_substacks = num_substacks
     if x_substacks == "auto":
@@ -75,16 +75,16 @@ def generate_stack_indices(
     """
     Generate the indices for every stack for a given image size, desired number of substacks, and overlap fraction.
 
-    Note that the overlap fraction is a float between 0 and 1, and the number of substacks is a tuple of integers, both of which should represent the same number of dimensions and meaning of the image_shape, which is expected to be a tuple of integers representing the dimensions of the image (e.g. (H, W, D)).
+    Note that the overlap fraction is a float between 0 and 1, and the number of substacks is a tuple of integers, both of which should represent the same number of dimensions and meaning of the image_shape, which is expected to be a tuple of integers representing the dimensions of the image (D, H, W).
 
     Also note that the output is not guaranteed to completely satisfy the given arguments, as it may not be satisfiable. In this case, the overlap created will be different, but the number of substacks is guaranteed.
     """
     # Extract the dimensions
     # TODO: Handle the case where the image is 2D
     # TODO: Handle the case where the image is 4D
-    # TODO: Handle the image shape being e.g. D x H x W instead of H x W x D
+    # TODO: Handle the image shape being e.g. H x W x D instead of D x H x W
     # In the above, we can probably assume D is minimum size
-    height, width, depth = image_shape
+    depth, height, width = image_shape
     num_substacks_height, num_substacks_width, num_substacks_depth = num_substacks
     overlap_fraction_height, overlap_fraction_width, overlap_fraction_depth = (
         overlap_fraction
@@ -146,7 +146,7 @@ def generate_stack_indices(
                     ((start_h, end_h), (start_w, end_w), (start_d, end_d))
                 )
 
-    return stack_indices, len(stack_indices), (stack_height, stack_width, stack_depth)
+    return stack_indices, len(stack_indices), (stack_depth, stack_height, stack_width)
 
 
 if __name__ == "__main__":
@@ -203,7 +203,7 @@ if __name__ == "__main__":
     for idx, row in img_df.iterrows():
         img_path = Path(row["img_path"])
         # Extract the image shape from the row
-        img_shape = (row["height"], row["width"], row["num_slices"])
+        img_shape = (row["num_slices"], row["height"], row["width"])
         # Ensure the image shape is a tuple of integers
         img_shape = tuple([int(val) for val in img_shape])
         num_substacks = auto_substack_size(
