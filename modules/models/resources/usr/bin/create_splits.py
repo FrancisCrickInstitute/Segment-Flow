@@ -146,7 +146,15 @@ def generate_stack_indices(
                     ((start_h, end_h), (start_w, end_w), (start_d, end_d))
                 )
 
-    return stack_indices, len(stack_indices), (stack_depth, stack_height, stack_width)
+    return (
+        stack_indices,
+        len(stack_indices),
+        (
+            stack_depth - overlap_depth,
+            stack_height - overlap_height,
+            stack_width - overlap_width,
+        ),
+    )
 
 
 if __name__ == "__main__":
