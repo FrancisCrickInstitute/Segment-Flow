@@ -37,7 +37,7 @@ def run_sam(
     if guess_rgb(img.shape):
         ndim -= 1
     # Get the start and end indices
-    _, start_z, end_z = extract_idxs(idxs)
+    _, _, _, _, start_z, end_z = extract_idxs(idxs)
     # Create the progress bar for this stack
     pbar = tqdm(total=end_z - start_z, desc=f"{Path(fpath).stem}")
     # Send the image to the corresponding run func based on slice or stack
