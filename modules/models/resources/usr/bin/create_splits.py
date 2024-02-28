@@ -145,16 +145,25 @@ def generate_stack_indices(
                 stack_indices.append(
                     ((start_h, end_h), (start_w, end_w), (start_d, end_d))
                 )
-
     return (
         stack_indices,
         len(stack_indices),
-        (
-            stack_depth - overlap_depth,
-            stack_height - overlap_height,
-            stack_width - overlap_width,
-        ),
+        (stack_depth, stack_height, stack_width),
     )
+
+
+def check_sizes(stack_indices):
+    "Quick check to see if the stack sizes are all the same."
+    sizes = []
+    for stack in stack_indices:
+        stack_size = 0
+        for stack_dim in stack:
+            stack_size += stack_dim[1] - stack_dim[0]
+        sizes.append(stack_size)
+    if len(set(sizes)) == 1:
+        return True
+    else:
+        return False
 
 
 if __name__ == "__main__":
@@ -222,7 +231,7 @@ if __name__ == "__main__":
         overlap_fraction = tuple([float(val) for val in args.overlap])
 
         # Generate the stack indices
-        stack_indices, _ = generate_stack_indices(
+        stack_indices, num_stacks, stack_size = generate_stack_indices(
             img_shape,
             num_substacks=num_substacks,
             overlap_fraction=overlap_fraction,
