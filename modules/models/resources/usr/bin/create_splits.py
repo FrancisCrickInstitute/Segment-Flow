@@ -91,10 +91,22 @@ def generate_stack_indices(
     )
     # The effective size of the image after multiply by the overlap added
     # This helps create the appropriate stack size, amd we later create the overlap with offset
-    eff_height = round(height * (1 + overlap_fraction_height))
-    eff_width = round(width * (1 + overlap_fraction_width))
-    eff_depth = round(depth * (1 + overlap_fraction_depth))
-
+    # This only counts if we have more than 1 substack in that dimension
+    eff_height = (
+        round(height * (1 + overlap_fraction_height))
+        if num_substacks_height > 1
+        else height
+    )
+    eff_width = (
+        round(width * (1 + overlap_fraction_width))
+        if num_substacks_width > 1
+        else width
+    )
+    eff_depth = (
+        round(depth * (1 + overlap_fraction_depth))
+        if num_substacks_depth > 1
+        else depth
+    )
     # Calculate the stack size based on the number of substacks
     stack_height = eff_height // num_substacks_height
     stack_width = eff_width // num_substacks_width
