@@ -25,6 +25,11 @@ def run_sam(
     model_config: dict,
     idxs: list[int, ...],
 ):
+    # Handle extra finetuned/other models
+    if "MicroSAM" in model_type:
+        model_type = "vit_b"
+    elif model_type == "MedSAM":
+        model_type = "vit_b"
     sam = sam_model_registry[model_type](checkpoint=model_chkpt)
     sam.to(get_device())
     # Create the model
@@ -65,7 +70,7 @@ def _run_sam_slice(img_slice, model, pbar):
     img_slice = img_slice[..., :3]
     masks = model.generate(img_slice)
     # Convert the masks into a napari-friendly format
-    mask_img = create_mask_arr(masks)
+    mask_img = create_mask_arr(masks, img_slice.shape[:2])
     # Update progress bar
     pbar.update(1)
     return mask_img
@@ -119,13 +124,16 @@ def normalize_slice(img_slice, source_limits, target_limits):
         return x_scaled
 
 
-def create_mask_arr(masks):
+def create_mask_arr(masks, slice_shape):
+    # No segmentations, return empty array
+    if len(masks) == 0:
+        return np.zeros(slice_shape, dtype=int)
     # Sort the masks/annotations by area to allow overwriting/lapping
     sorted_anns = sorted(masks, key=(lambda x: x["area"]), reverse=True)
     # Need integers for napari Labels layer
-    # NOTE: argmax used in other libraries, but wrong due to double-use of 0
+    # NOTE: Seen argmax used in other libraries, but wrong due to double-use of 0 (if included!)
     # That will result in 1 less mask present
-    mask_img = np.zeros(sorted_anns[0]["segmentation"].shape, dtype=int)
+    mask_img = np.zeros(slice_shape, dtype=int)
     for i, mask in enumerate(sorted_anns):
         mask_img[mask["segmentation"]] = i + 1
     return mask_img
