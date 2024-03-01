@@ -52,16 +52,16 @@ def calc_num_stacks_dim(
     # More stacks than pixels? Use auto method
     if num_stacks_dim > eff_size:
         num_stacks_dim = auto_size(eff_size, getattr(MAX_SUBSTACK_SIZE, dim))
-    # Make sure it's not too small, defined as 1% of the max stacks size
-    elif (eff_size // num_stacks_dim) < (getattr(MAX_SUBSTACK_SIZE, dim) / 100):
+    # Make sure it's not too small, defined as 5% of the max stacks size
+    elif (eff_size // num_stacks_dim) < (getattr(MAX_SUBSTACK_SIZE, dim) / 20):
         # NOTE: We are just ignoring the user here
-        # We could default to getattr(MAX_SUBSTACK_SIZE, dim) / 100 as a lower bound
+        # We could default to getattr(MAX_SUBSTACK_SIZE, dim) / 20 as a lower bound
         # But I think I'd rather just set our default stacks size and ignore it!
         num_stacks_dim = auto_size(eff_size, getattr(MAX_SUBSTACK_SIZE, dim))
-    # Make sure it's not too big, defined as 5x the max stacks size
-    elif (eff_size // num_stacks_dim) > (getattr(MAX_SUBSTACK_SIZE, dim) * 5):
+    # Make sure it's not too big, defined as 3x the max stacks size
+    elif (eff_size // num_stacks_dim) > (getattr(MAX_SUBSTACK_SIZE, dim) * 3):
         # NOTE: Again we are just ignoring the user here
-        # We could default to getattr(MAX_SUBSTACK_SIZE, dim) * 5 as an upper bound...
+        # We could default to getattr(MAX_SUBSTACK_SIZE, dim) * 3 as an upper bound...
         num_stacks_dim = auto_size(eff_size, getattr(MAX_SUBSTACK_SIZE, dim))
     # If num_stacks_dim is 1, and overlap is >0, warn the user
     if num_stacks_dim == 1 and overlap > 0:
