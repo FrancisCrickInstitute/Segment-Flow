@@ -22,6 +22,9 @@ def auto_size(size: int, max_size: int | float) -> int:
     Calculate the number of stacks to use for a given size, based on a maximum size.
     """
     num_stacks = size // max_size
+    # If the size is less than the max size, we still want to use 1 stack
+    if num_stacks == 0:
+        return 1
     # We want to ensure that max_size is not exceeded
     if (size / num_stacks) > max_size:
         num_stacks += 1
