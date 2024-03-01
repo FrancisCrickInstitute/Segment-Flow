@@ -32,8 +32,9 @@ if ( params.help ) {
 
 // Default root directory, that gets overridden by input from Napari
 params.root_dir = "${workflow.homeDir}/.nextflow/aiod"
+params.cache_dir = "${params.root_dir}/aiod_cache"
 // Construct other directories from root
-params.model_dir = "${params.root_dir}/aiod_cache/${params.model}"
+params.model_dir = "${params.cache_dir}/${params.model}"
 params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}"
 

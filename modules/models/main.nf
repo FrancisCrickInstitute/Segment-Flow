@@ -3,7 +3,7 @@ process splitStacks {
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
     memory { 500.MB * task.attempt as MemoryUnit }
     time { 5.m * task.attempt }
-    publishDir "$params.root_dir", mode: 'copy'
+    publishDir "$params.cache_dir", mode: 'copy'
 
     input:
     path csv_path
