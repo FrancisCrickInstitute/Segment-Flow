@@ -47,10 +47,10 @@ def check_sensible_num_substacks(num_stacks_dim: int, dim_size: int, dim: str):
     """
     Make sure the input number of substacks is sensible for the given dimension size.
     """
-    # Make sure the number of stackss is at least 1
+    # Make sure the number of stacks is at least 1
     if num_stacks_dim < 1:
-        return 1
-    # More stackss than pixels? Use auto method
+        num_stacks_dim = 1
+    # More stacks than pixels? Use auto method
     if num_stacks_dim > dim_size:
         return (dim_size // MAX_SUBSTACK_SIZE[dim]) + 1
     # Make sure it's not too small, defined as 1% of the max stacks size
