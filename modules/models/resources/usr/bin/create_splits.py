@@ -75,16 +75,16 @@ def calc_num_stacks_dim(
 
 
 def calc_num_stacks(
-    img_shape: Stack, req_stacks: Stack, overlap_fraction: Stack
+    image_shape: Stack, req_stacks: Stack, overlap_fraction: Stack
 ) -> tuple[Stack, Stack]:
     num_stacks_height, eff_height = calc_num_stacks_dim(
-        img_shape.height, req_stacks.height, overlap_fraction.height, "height"
+        image_shape.height, req_stacks.height, overlap_fraction.height, "height"
     )
     num_stacks_width, eff_width = calc_num_stacks_dim(
-        img_shape.width, req_stacks.width, overlap_fraction.width, "width"
+        image_shape.width, req_stacks.width, overlap_fraction.width, "width"
     )
     num_stacks_depth, eff_depth = calc_num_stacks_dim(
-        img_shape.depth, req_stacks.depth, overlap_fraction.depth, "depth"
+        image_shape.depth, req_stacks.depth, overlap_fraction.depth, "depth"
     )
     num_stacks = Stack(
         height=num_stacks_height,
