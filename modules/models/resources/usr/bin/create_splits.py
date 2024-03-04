@@ -1,5 +1,6 @@
 from collections import defaultdict, namedtuple
 from pathlib import Path
+from typing import Union
 import warnings
 
 import pandas as pd
@@ -17,7 +18,7 @@ MAX_SUBSTACK_SIZE = Stack(
 )
 
 
-def auto_size(size: int, max_size: int | float) -> int:
+def auto_size(size: int, max_size: Union[int, float]) -> int:
     """
     Calculate the number of stacks to use for a given size, based on a maximum size.
     """
