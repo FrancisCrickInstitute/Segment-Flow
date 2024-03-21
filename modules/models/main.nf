@@ -155,6 +155,7 @@ process combineStacks {
     --model ${model} \
     --image-size ${meta.num_slices} ${meta.height} ${meta.width} \
     --overlap $overlap \
+    --iou-threshold ${params.iou_threshold} \
     ${postprocess}
     """
 }
