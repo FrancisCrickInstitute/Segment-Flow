@@ -1,7 +1,6 @@
 from pathlib import Path
 import os
 import psutil
-import time
 
 import dask.array as da
 import dask_image.ndmeasure
@@ -188,57 +187,6 @@ def mask_iou(masks1: np.ndarray, masks2: np.ndarray):
         return intersection / union
 
 
-# @profile
-def connect_sam_orig(all_masks, iou_threshold):
-    for idx in range(all_masks.shape[0] - 1):
-        # Create a matrix to store all combinations of IoUs
-        curr_slice = all_masks[idx]
-        next_slice = all_masks[idx + 1]
-
-        curr_labels = np.unique(curr_slice)
-        next_labels = np.unique(next_slice)
-        curr_label_dict = {label: i for i, label in enumerate(curr_labels)}
-        next_label_dict = {label: i for i, label in enumerate(next_labels)}
-
-        # Store the label mappings
-        label_maps = []
-        # Get the max label in the next slice to assign new labels
-        max_label = next_labels.max() + 1
-
-        # Restrict to only overlapping boxes
-        box_matches = filter_overlaps(curr_slice, next_slice)
-
-        curr_slice_bool = curr_slice[..., None] == curr_labels
-        next_slice_bool = next_slice[..., None] == next_labels
-
-        # Iterate over the matches and check which ones sufficiently overlap
-        for curr_label, next_label in box_matches:
-            # Get the current and next masks
-            curr_mask = curr_slice_bool[..., curr_label_dict[curr_label]]
-            next_mask = next_slice_bool[..., next_label_dict[next_label]]
-            # Compute the IOU
-            iou = mask_iou(curr_mask, next_mask)
-            # If threshold met, remap label
-            if iou >= iou_threshold:
-                # Skip if it's already the same label
-                if curr_label == next_label:
-                    continue
-                # If new label already present, map it to next available label
-                if curr_label in next_labels:
-                    label_maps.append((curr_label, max_label))
-                    max_label += 1
-                # Otherwise, map the label in the next slice to the value in the current
-                label_maps.append((next_label, curr_label))
-        # Remap the labels if matches found
-        if label_maps:
-            new_next_slice = next_slice.copy()
-            for new_label, next_label in label_maps:
-                new_next_slice[next_slice == new_label] = next_label
-            # NOTE: This makes next_slice now point to new_next_slice
-            all_masks[idx + 1] = new_next_slice
-    return reduce_dtype(all_masks)
-
-
 if __name__ == "__main__":
     import argparse
 
@@ -300,18 +248,9 @@ if __name__ == "__main__":
     if cli_args.postprocess:
         print("Postprocessing masks...")
         if cli_args.model == "sam":
-            start = time.time()
             combined_masks_new = connect_sam(
                 combined_masks.copy(), iou_threshold=cli_args.iou_threshold
             )
-            end = time.time()
-            print(f"Time taken for new postprocessing: {end - start:.4f} s")
-            start = time.time()
-            combined_masks_orig = connect_sam_orig(
-                combined_masks.copy(), iou_threshold=cli_args.iou_threshold
-            )
-            end = time.time()
-            print(f"Time taken for original postprocessing: {end - start:.4f} s")
         else:
             combined_masks = connect_components(combined_masks)
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
