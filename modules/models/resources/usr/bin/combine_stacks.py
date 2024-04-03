@@ -1,9 +1,14 @@
 from pathlib import Path
 import os
 import psutil
+import time
 
 import dask.array as da
 import dask_image.ndmeasure
+
+from numba import jit, prange
+from numba.core import types
+from numba.typed import Dict
 import numpy as np
 import skimage.measure
 
@@ -56,20 +61,32 @@ def connect_components(all_masks: np.ndarray):
     return reduce_dtype(labelled, max_val=num_holes)
 
 
-# def connect_sam(all_masks: np.ndarray):
-#     print("Special SAM stuff!")
-#     # Align overlapping segment labels
-#     all_masks = align_segment_labels(all_masks)
-#     return reduce_dtype(all_masks)
-
-
-def mask_iou(masks1: np.ndarray, masks2: np.ndarray):
-    intersection = np.sum(np.logical_and(masks1, masks2))
-    union = np.sum(np.logical_or(masks1, masks2))
-    return intersection / union
+@jit(nopython=True, parallel=True)
+def mask_iou_batch(
+    box_matches, curr_slice_bool, next_slice_bool, curr_label_dict, next_label_dict
+):
+    # Initialize the array to store the IoUs
+    n = len(box_matches)
+    ious = np.zeros(n)
+    # Parallel loop over the box matches
+    for i in prange(n):
+        # Extract the boolean masks for the current and next labels
+        curr_label, next_label = box_matches[i]
+        curr_mask = curr_slice_bool[..., curr_label_dict[curr_label]]
+        next_mask = next_slice_bool[..., next_label_dict[next_label]]
+        # Calculate the IoU
+        # Inlined here to help numba optimise
+        union = np.sum(np.logical_or(curr_mask, next_mask))
+        if union == 0:
+            ious[i] = 0.0
+        else:
+            intersection = np.sum(np.logical_and(curr_mask, next_mask))
+            ious[i] = intersection / union
+    return ious
 
 
 def filter_overlaps(curr_slice, next_slice):
+    # Get the bounding boxes for each region in the current and next slices
     rps = skimage.measure.regionprops(curr_slice)
     boxes1 = np.array([rp.bbox for rp in rps])
     labels1 = np.array([rp.label for rp in rps])
@@ -78,6 +95,7 @@ def filter_overlaps(curr_slice, next_slice):
     boxes2 = np.array([rp.bbox for rp in rps])
     labels2 = np.array([rp.label for rp in rps])
 
+    # Check for overlaps between the boxes in the two slices
     box_matches = []
 
     for i, box1 in enumerate(boxes1):
@@ -106,8 +124,14 @@ def connect_sam(all_masks, iou_threshold):
         curr_slice = all_masks[idx]
         next_slice = all_masks[idx + 1]
 
-        # curr_labels = np.unique(curr_slice)
+        # Get the unique labels in the current and next slices
+        curr_labels = np.unique(curr_slice)
         next_labels = np.unique(next_slice)
+        # Get a numba-compatible dictionary for the labels to allow for later indexing
+        curr_label_dict = Dict.empty(key_type=types.int32, value_type=types.int32)
+        next_label_dict = Dict.empty(key_type=types.int32, value_type=types.int32)
+        curr_label_dict.update({label: i for i, label in enumerate(curr_labels)})
+        next_label_dict.update({label: i for i, label in enumerate(next_labels)})
 
         # Store the label mappings
         label_maps = []
@@ -117,15 +141,85 @@ def connect_sam(all_masks, iou_threshold):
         # Restrict to only overlapping boxes
         box_matches = filter_overlaps(curr_slice, next_slice)
 
+        # Create boolean masks for each label in the current and next slices
+        # Effectively converts (H, W) int array into (H, W, N) boolean where N is the number of labels
+        curr_slice_bool = curr_slice[..., None] == curr_labels
+        next_slice_bool = next_slice[..., None] == next_labels
+
+        # Calculate IoUs for all pairs of overlapping boxes
+        ious = mask_iou_batch(
+            box_matches,
+            curr_slice_bool,
+            next_slice_bool,
+            curr_label_dict,
+            next_label_dict,
+        )
+
+        # Iterate over the matches and check which ones sufficiently overlap
+        for iou, (curr_label, next_label) in zip(ious, box_matches):
+            # If threshold met, remap label
+            if iou >= iou_threshold:
+                # Skip if it's already the same label
+                if curr_label == next_label:
+                    continue
+                # If new label already present, map it to next available label
+                if curr_label in next_labels:
+                    label_maps.append((curr_label, max_label))
+                    max_label += 1
+                # Otherwise, map the label in the next slice to the value in the current
+                label_maps.append((next_label, curr_label))
+        # Remap the labels if matches with sufficient overlap found
+        if label_maps:
+            new_next_slice = next_slice.copy()
+            for new_label, next_label in label_maps:
+                # NOTE: Using the boolean slice here took a lot longer
+                new_next_slice[next_slice == new_label] = next_label
+            # NOTE: This makes next_slice now point to new_next_slice, regardless of copy
+            all_masks[idx + 1] = new_next_slice
+    return reduce_dtype(all_masks)
+
+
+def mask_iou(masks1: np.ndarray, masks2: np.ndarray):
+    intersection = np.sum(np.logical_and(masks1, masks2))
+    union = np.sum(np.logical_or(masks1, masks2))
+    if union == 0:
+        return 0.0
+    else:
+        return intersection / union
+
+
+# @profile
+def connect_sam_orig(all_masks, iou_threshold):
+    for idx in range(all_masks.shape[0] - 1):
+        # Create a matrix to store all combinations of IoUs
+        curr_slice = all_masks[idx]
+        next_slice = all_masks[idx + 1]
+
+        curr_labels = np.unique(curr_slice)
+        next_labels = np.unique(next_slice)
+        curr_label_dict = {label: i for i, label in enumerate(curr_labels)}
+        next_label_dict = {label: i for i, label in enumerate(next_labels)}
+
+        # Store the label mappings
+        label_maps = []
+        # Get the max label in the next slice to assign new labels
+        max_label = next_labels.max() + 1
+
+        # Restrict to only overlapping boxes
+        box_matches = filter_overlaps(curr_slice, next_slice)
+
+        curr_slice_bool = curr_slice[..., None] == curr_labels
+        next_slice_bool = next_slice[..., None] == next_labels
+
         # Iterate over the matches and check which ones sufficiently overlap
         for curr_label, next_label in box_matches:
             # Get the current and next masks
-            curr_mask = curr_slice == curr_label
-            next_mask = next_slice == next_label
+            curr_mask = curr_slice_bool[..., curr_label_dict[curr_label]]
+            next_mask = next_slice_bool[..., next_label_dict[next_label]]
             # Compute the IOU
             iou = mask_iou(curr_mask, next_mask)
             # If threshold met, remap label
-            if iou > iou_threshold:
+            if iou >= iou_threshold:
                 # Skip if it's already the same label
                 if curr_label == next_label:
                     continue
@@ -206,9 +300,18 @@ if __name__ == "__main__":
     if cli_args.postprocess:
         print("Postprocessing masks...")
         if cli_args.model == "sam":
-            combined_masks = connect_sam(
-                combined_masks, iou_threshold=cli_args.iou_threshold
+            start = time.time()
+            combined_masks_new = connect_sam(
+                combined_masks.copy(), iou_threshold=cli_args.iou_threshold
             )
+            end = time.time()
+            print(f"Time taken for new postprocessing: {end - start:.4f} s")
+            start = time.time()
+            combined_masks_orig = connect_sam_orig(
+                combined_masks.copy(), iou_threshold=cli_args.iou_threshold
+            )
+            end = time.time()
+            print(f"Time taken for original postprocessing: {end - start:.4f} s")
         else:
             combined_masks = connect_components(combined_masks)
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
