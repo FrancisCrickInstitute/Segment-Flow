@@ -12,9 +12,9 @@ Stack = namedtuple("Stack", ["height", "width", "depth"])
 # TODO: These constants vary by GPU/available memory, and also scale by number of channels which is not considered here
 # Named substack to avoid patch/tile confusion, and to avoid chunk confusion
 MAX_SUBSTACK_SIZE = Stack(
-    height=3000,
-    width=3000,
-    depth=100,
+    height=5000,
+    width=5000,
+    depth=50,
 )
 
 
