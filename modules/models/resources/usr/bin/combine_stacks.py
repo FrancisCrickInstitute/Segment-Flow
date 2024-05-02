@@ -229,6 +229,7 @@ if __name__ == "__main__":
     cli_args = parser.parse_args()
 
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
+    print("New SAM mask combination...")
     print(f"Memory used before loading stack: {mem_used:.2f} GB")
     # Combine the masks
     if len(cli_args.masks) > 1:
