@@ -132,11 +132,6 @@ def connect_sam(all_masks, iou_threshold):
         curr_label_dict.update({label: i for i, label in enumerate(curr_labels)})
         next_label_dict.update({label: i for i, label in enumerate(next_labels)})
 
-        # Store the label mappings
-        label_maps = []
-        # Get the max label in the next slice to assign new labels
-        max_label = next_labels.max() + 1
-
         # Restrict to only overlapping boxes
         box_matches = filter_overlaps(curr_slice, next_slice)
 
@@ -153,28 +148,28 @@ def connect_sam(all_masks, iou_threshold):
             curr_label_dict,
             next_label_dict,
         )
-
+        # Get the max label in the next slice to assign new labels
+        max_label = next_labels.max() + 1
+        # Create an array mapping the next labels to the current labels
+        mapping_arr = np.full(next_labels.max() + 1, fill_value=0, dtype=np.uint16)
         # Iterate over the matches and check which ones sufficiently overlap
         for iou, (curr_label, next_label) in zip(ious, box_matches):
             # If threshold met, remap label
             if iou >= iou_threshold:
-                # Skip if it's already the same label
-                if curr_label == next_label:
+                mapping_arr[next_label] = curr_label
+        # Need to account for all other labels
+        for i, val in enumerate(mapping_arr):
+            # Fill in the labels that were not matched
+            if val == 0:
+                # Skip background
+                if i == 0:
                     continue
-                # If new label already present, map it to next available label
-                if curr_label in next_labels:
-                    label_maps.append((curr_label, max_label))
-                    max_label += 1
-                # Otherwise, map the label in the next slice to the value in the current
-                label_maps.append((next_label, curr_label))
-        # Remap the labels if matches with sufficient overlap found
-        if label_maps:
-            new_next_slice = next_slice.copy()
-            for new_label, next_label in label_maps:
-                # NOTE: Using the boolean slice here took a lot longer
-                new_next_slice[next_slice == new_label] = next_label
-            # NOTE: This makes next_slice now point to new_next_slice, regardless of copy
-            all_masks[idx + 1] = new_next_slice
+                # Set to the next available label
+                mapping_arr[i] = max_label
+                max_label += 1
+        # Remap the labels in the next slice
+        # Fancy mapping: https://stackoverflow.com/a/55950051
+        all_masks[idx + 1] = mapping_arr[next_slice.copy()]
     return reduce_dtype(all_masks)
 
 
@@ -248,8 +243,8 @@ if __name__ == "__main__":
     if cli_args.postprocess:
         print("Postprocessing masks...")
         if cli_args.model == "sam":
-            combined_masks_new = connect_sam(
-                combined_masks.copy(), iou_threshold=cli_args.iou_threshold
+            combined_masks = connect_sam(
+                combined_masks, iou_threshold=cli_args.iou_threshold
             )
         else:
             combined_masks = connect_components(combined_masks)
