@@ -148,8 +148,8 @@ def connect_sam(all_masks, iou_threshold):
             curr_label_dict,
             next_label_dict,
         )
-        # Get the max label in the next slice to assign new labels
-        max_label = next_labels.max() + 1
+        # Get the max label from the current slice to assign to to ensure no conflict
+        max_label = curr_labels.max() + 1
         # Create an array mapping the next labels to the current labels
         mapping_arr = np.full(next_labels.max() + 1, fill_value=0, dtype=np.uint16)
         # Iterate over the matches and check which ones sufficiently overlap
