@@ -10,6 +10,7 @@ from numba.core import types
 from numba.typed import Dict
 import numpy as np
 import skimage.measure
+from skimage.segmentation import relabel_sequential
 
 from utils import reduce_dtype, align_segment_labels, extract_idxs_from_fname
 
@@ -170,6 +171,11 @@ def connect_sam(all_masks, iou_threshold):
         # Remap the labels in the next slice
         # Fancy mapping: https://stackoverflow.com/a/55950051
         all_masks[idx + 1] = mapping_arr[next_slice.copy()]
+    (
+        all_masks,
+        _,
+        _,
+    ) = relabel_sequential(all_masks)
     return reduce_dtype(all_masks)
 
 
