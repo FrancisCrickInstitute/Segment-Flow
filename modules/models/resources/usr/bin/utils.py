@@ -69,9 +69,10 @@ def guess_rgb(img_shape):
 
 def load_img(img_path, idxs: list[int, ...]):
     # TODO: Use zarr/dask to load from disk, or something else
+    # TODO: Handle proper conversion if loads as a float
     img = skimage.io.imread(img_path)
     if img.max() > 255:
-        img = img.astype(np.uint32)
+        img = img.astype(np.int32)
     # TODO: Ensure first dim is slices? Difficult to generalise...
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
