@@ -36,6 +36,11 @@ def run_sam(
     model = SamAutomaticMaskGenerator(sam, **model_config)
     # Load the image
     img = load_img(fpath, idxs)
+    if img.max() > 255:
+        warnings.warn(
+            "Image values are greater than 255, converting to uint8. This may result in loss of information."
+        )
+        img = img.astype(np.uint8)
     # Extract the dimensions
     ndim = img.ndim
     # Reduce ndims if RGB (i.e. it's a single RGB image, not a stack)
