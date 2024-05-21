@@ -59,11 +59,11 @@ def run_sam(
     if ndim == 2:
         all_masks = _run_sam_slice(img, model, pbar)
     elif ndim == 3:
-        all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar)
+        all_masks = _run_sam_stack(img, model, pbar)
     elif ndim == 4:
         if img.shape[0] == 1:
             img = img.squeeze()
-            all_masks = _run_sam_stack(save_dir, save_name, img, model, pbar)
+            all_masks = _run_sam_stack(img, model, pbar)
         else:
             raise ValueError("Cannot handle a stack of multi-channel images")
     else:
@@ -86,9 +86,12 @@ def _run_sam_slice(img_slice, model, pbar):
     return mask_img
 
 
-def _run_sam_stack(save_dir, save_name, img_stack, model, pbar):
+def _run_sam_stack(img_stack, model, pbar):
     # Initialize the container of all masks
-    all_masks = np.zeros(img_stack.shape, dtype=int)
+    if guess_rgb(img_stack.shape):
+        all_masks = np.zeros(img_stack.shape[:3], dtype=int)
+    else:
+        all_masks = np.zeros(img_stack.shape, dtype=int)
     # Get the contrast limits
     if img_stack.dtype == np.uint8:
         contrast_limits = (0, 255)
