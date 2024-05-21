@@ -31,7 +31,11 @@ def run_sam(
         model_type = "vit_b"
     elif model_type == "MedSAM":
         model_type = "vit_b"
-    sam = sam_model_registry[model_type](checkpoint=model_chkpt)
+    # Just default to vit_b if not found
+    try:
+        sam = sam_model_registry[model_type](checkpoint=model_chkpt)
+    except KeyError:
+        sam = sam_model_registry["vit_b"](checkpoint=model_chkpt)
     sam.to(get_device())
     # Create the model
     model = SamAutomaticMaskGenerator(sam, **model_config)
