@@ -141,41 +141,44 @@ def connect_sam(all_masks, iou_threshold):
         # Restrict to only overlapping boxes
         box_matches = filter_overlaps(curr_slice, next_slice)
 
-        # Create boolean masks for each label in the current and next slices
-        # Effectively converts (H, W) int array into (H, W, N) boolean where N is the number of labels
-        curr_slice_bool = curr_slice[..., None] == curr_labels
-        next_slice_bool = next_slice[..., None] == next_labels
+        # No matches, skip
+        if len(box_matches) > 0:
+            # Create boolean masks for each label in the current and next slices
+            # Effectively converts (H, W) int array into (H, W, N) boolean where N is the number of labels
+            curr_slice_bool = curr_slice[..., None] == curr_labels
+            next_slice_bool = next_slice[..., None] == next_labels
 
-        # Calculate IoUs for all pairs of overlapping boxes
-        ious = mask_iou_batch(
-            box_matches,
-            curr_slice_bool,
-            next_slice_bool,
-            curr_label_dict,
-            next_label_dict,
-        )
-        # Get the max label from the current slice to assign to to ensure no conflict
-        max_label = curr_labels.max() + 1
-        # Create an array mapping the next labels to the current labels
-        mapping_arr = np.full(next_labels.max() + 1, fill_value=0, dtype=np.uint16)
-        # Iterate over the matches and check which ones sufficiently overlap
-        for iou, (curr_label, next_label) in zip(ious, box_matches):
-            # If threshold met, remap label
-            if iou >= iou_threshold:
-                mapping_arr[next_label] = curr_label
-        # Need to account for all other labels
-        for i, val in enumerate(mapping_arr):
-            # Fill in the labels that were not matched
-            if val == 0:
-                # Skip background
-                if i == 0:
-                    continue
-                # Set to the next available label
-                mapping_arr[i] = max_label
-                max_label += 1
-        # Remap the labels in the next slice
-        # Fancy mapping: https://stackoverflow.com/a/55950051
-        all_masks[idx + 1] = mapping_arr[next_slice.copy()]
+            # Calculate IoUs for all pairs of overlapping boxes
+            ious = mask_iou_batch(
+                box_matches,
+                curr_slice_bool,
+                next_slice_bool,
+                curr_label_dict,
+                next_label_dict,
+            )
+            # Get the max label from the current slice to assign to to ensure no conflict
+            max_label = curr_labels.max() + 1
+            # Create an array mapping the next labels to the current labels
+            mapping_arr = np.full(next_labels.max() + 1, fill_value=0, dtype=np.uint16)
+            # Iterate over the matches and check which ones sufficiently overlap
+            for iou, (curr_label, next_label) in zip(ious, box_matches):
+                # If threshold met, remap label
+                if iou >= iou_threshold:
+                    mapping_arr[next_label] = curr_label
+            # Need to account for all other labels
+            for i, val in enumerate(mapping_arr):
+                # Fill in the labels that were not matched
+                if val == 0:
+                    # Skip background
+                    if i == 0:
+                        continue
+                    # Set to the next available label
+                    mapping_arr[i] = max_label
+                    max_label += 1
+            # Remap the labels in the next slice
+            # Fancy mapping: https://stackoverflow.com/a/55950051
+            all_masks[idx + 1] = mapping_arr[next_slice.copy()]
+    # Relabel the masks to get consecutive labels from 1 to N
     (
         all_masks,
         _,
