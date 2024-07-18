@@ -129,10 +129,14 @@ def connect_sam(all_masks, iou_threshold):
         curr_labels = np.unique(curr_slice)
         next_labels = np.unique(next_slice)
         # Get a numba-compatible dictionary for the labels to allow for later indexing
-        curr_label_dict = Dict.empty(key_type=types.int32, value_type=types.int32)
-        next_label_dict = Dict.empty(key_type=types.int32, value_type=types.int32)
-        curr_label_dict.update({label: i for i, label in enumerate(curr_labels)})
-        next_label_dict.update({label: i for i, label in enumerate(next_labels)})
+        curr_label_dict = Dict.empty(key_type=types.uint16, value_type=types.uint16)
+        next_label_dict = Dict.empty(key_type=types.uint16, value_type=types.uint16)
+        curr_label_dict.update(
+            {label: np.uint16(i) for i, label in enumerate(curr_labels)}
+        )
+        next_label_dict.update(
+            {label: np.uint16(i) for i, label in enumerate(next_labels)}
+        )
 
         # Restrict to only overlapping boxes
         box_matches = filter_overlaps(curr_slice, next_slice)
