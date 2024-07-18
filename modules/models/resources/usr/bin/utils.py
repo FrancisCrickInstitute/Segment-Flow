@@ -99,7 +99,7 @@ def reduce_dtype(arr: np.ndarray, max_val: Optional[int] = None):
     # Surely it doesn't need more than 32 bits...
     else:
         best_dtype = np.uint32
-    return arr.astype(best_dtype)
+    return arr.astype(best_dtype, copy=False)
 
 
 def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):

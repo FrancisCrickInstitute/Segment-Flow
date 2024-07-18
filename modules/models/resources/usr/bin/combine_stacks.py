@@ -29,6 +29,7 @@ def combine_masks(
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(masks[0])
     chunk_size = (end_x - start_x, end_y - start_y, end_z - start_z)
     # Create the array to hold the masks
+    # NOTE: Using uint16 to be safe, but ideally should be taken from inputs (but slight chicken & egg)
     all_masks = np.zeros(image_size, dtype=np.uint16)
     # Loop over each mask and insert into the array
     if all([val == 0 for val in overlap]):
@@ -47,7 +48,7 @@ def combine_masks(
             mask = np.load(mask)
             # Just sum, naive method
             all_masks[start_z:end_z, start_x:end_x, start_y:end_y] += mask
-    return all_masks
+    return reduce_dtype(all_masks)
 
 
 def connect_components(all_masks: np.ndarray):
@@ -235,7 +236,6 @@ if __name__ == "__main__":
     cli_args = parser.parse_args()
 
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
-    print("New SAM mask combination...")
     print(f"Memory used before loading stack: {mem_used:.2f} GB")
     # Combine the masks
     if len(cli_args.masks) > 1:
