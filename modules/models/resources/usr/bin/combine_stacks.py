@@ -11,6 +11,7 @@ from numba.typed import Dict
 import numpy as np
 import skimage.measure
 from skimage.segmentation import relabel_sequential
+from tqdm import tqdm
 
 from utils import reduce_dtype, align_segment_labels, extract_idxs_from_fname
 
@@ -88,7 +89,7 @@ def connect_components(all_masks: np.ndarray):
     return reduce_dtype(labelled, max_val=num_holes)
 
 
-@jit(nopython=True, parallel=True)
+@jit(nopython=True, parallel=True, fastmath=True)
 def mask_iou_batch(
     box_matches, curr_slice_bool, next_slice_bool, curr_label_dict, next_label_dict
 ):
@@ -103,11 +104,11 @@ def mask_iou_batch(
         next_mask = next_slice_bool[..., next_label_dict[next_label]]
         # Calculate the IoU
         # Inlined here to help numba optimise
-        union = np.sum(np.logical_or(curr_mask, next_mask))
+        union = np.count_nonzero(np.logical_or(curr_mask, next_mask))
         if union == 0:
             ious[i] = 0.0
         else:
-            intersection = np.sum(np.logical_and(curr_mask, next_mask))
+            intersection = np.count_nonzero(np.logical_and(curr_mask, next_mask))
             ious[i] = intersection / union
     return ious
 
@@ -146,7 +147,7 @@ def check_overlap(box1, box2):
 
 
 def connect_sam(all_masks, iou_threshold):
-    for idx in range(all_masks.shape[0] - 1):
+    for idx in tqdm(range(all_masks.shape[0] - 1)):
         # Create a matrix to store all combinations of IoUs
         curr_slice = all_masks[idx]
         next_slice = all_masks[idx + 1]
