@@ -37,7 +37,10 @@ def combine_masks(
     # NOTE: Using uint16 to be safe, but ideally should be taken from inputs (but slight chicken & egg)
     all_masks = np.zeros(image_size, dtype=np.uint16)
     # Loop over each mask and insert into the array
-    if all([val == 0 for val in overlap]):
+    # Add the masks together if overlap is >0
+    # NOTE: Adding together only really makes sense for binary masks
+    overlap = [float(val) for val in overlap]
+    if sum(overlap) == 0.0:
         for mask in masks:
             idxs = extract_idxs_from_fname(mask)
             mask = np.load(mask)
