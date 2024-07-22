@@ -28,17 +28,20 @@ def combine_masks(
     # Get the chunk size from the first file
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(masks[0])
     chunk_size = (end_x - start_x, end_y - start_y, end_z - start_z)
+    # Check if there is XY tiling (at least one must be true for any given substack)
+    xy_tiling = (
+        start_x > 0 or end_x < image_size[1] or start_y > 0 or end_y < image_size[2]
+    )
     # Create the array to hold the masks
     # NOTE: Using uint16 to be safe, but ideally should be taken from inputs (but slight chicken & egg)
     all_masks = np.zeros(image_size, dtype=np.uint16)
     # Loop over each mask and insert into the array
     if all([val == 0 for val in overlap]):
         for mask in masks:
-            start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
-                mask
-            )
+            idxs = extract_idxs_from_fname(mask)
             mask = np.load(mask)
-            all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask
+            all_masks = insert_mask(all_masks, mask, idxs, xy_tiling, False)
+    # TODO: Extract this, and handle binary/labelled masks properly, with specified vote mechanism
     else:
         # Combine the masks
         for mask in masks:
@@ -49,6 +52,29 @@ def combine_masks(
             # Just sum, naive method
             all_masks[start_z:end_z, start_x:end_x, start_y:end_y] += mask
     return reduce_dtype(all_masks)
+
+
+def insert_mask(
+    all_masks,
+    mask,
+    idxs: tuple[int, int, int, int, int, int],
+    xy_tiling: bool,
+    is_overlap: bool,
+):
+    # Extract the indices
+    start_x, end_x, start_y, end_y, start_z, end_z = idxs
+    # Ensure labels are unique across a slice
+    if xy_tiling:
+        # Get the current maximum value across the relevant slices
+        max_val = all_masks[start_z:end_z, ...].max()
+        # # Check if we need to upcast the array
+        # if max_val + mask.max() > np.iinfo(all_masks.dtype).max:
+        #     all_masks = all_masks.astype(np.uint32, copy=False)
+        all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask + max_val
+    else:
+        # Insert the mask into the array
+        all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask
+    return all_masks
 
 
 def connect_components(all_masks: np.ndarray):
