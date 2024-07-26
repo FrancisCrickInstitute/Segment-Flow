@@ -134,10 +134,9 @@ process runMITONET {
 process combineStacks {
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
     // Add a minimum amount of memory, otherwise scale as a multiple of the input mask size
-    // FIXME: Ternary vs elvis operator
-    memory { masks*.size().sum() * 4 * task.attempt as MemoryUnit <= 300.MB ? 300.MB : masks*.size().sum() * 4 * task.attempt as MemoryUnit }
-    // Give more base time (but lower scaling) if postprocessing
-    time { params.postprocess ? 45.m * task.attempt : 10.min * Math.pow(2, task.attempt) }
+    memory { Math.max((300.MB).toBytes(), masks*.size().sum() * 5 * task.attempt) as MemoryUnit }
+    // Give more base time if postprocessing
+    time { params.postprocess ? 45.m * Math.pow(2, task.attempt) : 10.min * Math.pow(2, task.attempt) }
 
     input:
     tuple val(img_simplename), val(meta), val(model), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
