@@ -31,6 +31,8 @@ def run_sam(
         model_type = "vit_b"
     elif model_type == "MedSAM":
         model_type = "vit_b"
+    elif model_type == "default":
+        model_type = "vit_b"
     # Just default to vit_b if not found
     try:
         sam = sam_model_registry[model_type](checkpoint=model_chkpt)
