@@ -11,3 +11,5 @@ dependencies:
     - dask
     - dask-image
     - psutil
+    - numba
+    - tqdm
