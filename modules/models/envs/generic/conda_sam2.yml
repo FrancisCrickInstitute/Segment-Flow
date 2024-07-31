@@ -1,0 +1,16 @@
+name: sam_conda
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - numpy
+    - scikit-image
+    - torch
+    - torchvision
+    - git+https://github.com/facebookresearch/segment-anything-2.git
+    - opencv-python
+    - requests
+    - pyyaml
