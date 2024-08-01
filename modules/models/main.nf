@@ -77,6 +77,33 @@ process runSAM {
     """
 }
 
+process runSAM2 {
+    label 'small_gpu'
+    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_sam2.yml"
+
+    input:
+    tuple val(meta), path(image_path), val(mask_fname), val(idxs)
+    val mask_output_dir
+    path model_config
+    path model_chkpt
+    val model_type
+
+    output:
+    tuple val("${image_path.simpleName}"), val(meta), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.npy"), emit: mask
+
+    script:
+    """
+    python ${moduleDir}/resources/usr/bin/run_sam2.py \
+    --img-path ${image_path} \
+    --mask-fname "${mask_fname}" \
+    --output-dir ${mask_output_dir} \
+    --model-chkpt ${model_chkpt} \
+    --model-type ${model_type} \
+    --model-config ${model_config} \
+    --idxs ${idxs.join(" ")}
+    """
+}
+
 process runUNET {
     label 'small_gpu'
     conda "${moduleDir}/envs/${task.ext.condaDir}/conda_unet.yml"

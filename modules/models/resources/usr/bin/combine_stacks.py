@@ -286,7 +286,7 @@ if __name__ == "__main__":
     print(f"Combined masks shape: {combined_masks.shape}")
     if cli_args.postprocess:
         print("Postprocessing masks...")
-        if cli_args.model == "sam":
+        if cli_args.model == "sam" or cli_args.model == "sam2":
             combined_masks = connect_sam(
                 combined_masks, iou_threshold=cli_args.iou_threshold
             )
