@@ -3,6 +3,8 @@ from typing import Union
 import yaml
 import warnings
 
+import hydra
+from hydra import initialize_config_dir
 import numpy as np
 import requests
 from sam2.build_sam import build_sam2
@@ -19,10 +21,22 @@ from model_utils import get_device
 
 # NOTE: Placeholder until internalisation from Meta, or us
 BASE_CONFIGS = {
-    "hiera_base": "https://raw.githubusercontent.com/facebookresearch/segment-anything-2/82b026cd5578af78757323ab99a0b5c8dc456cff/sam2_configs/sam2_hiera_b%2B.yaml",
-    "hiera_large": "https://raw.githubusercontent.com/facebookresearch/segment-anything-2/82b026cd5578af78757323ab99a0b5c8dc456cff/sam2_configs/sam2_hiera_l.yaml",
-    "hiera_small": "https://raw.githubusercontent.com/facebookresearch/segment-anything-2/82b026cd5578af78757323ab99a0b5c8dc456cff/sam2_configs/sam2_hiera_s.yaml",
-    "hiera_tiny": "https://raw.githubusercontent.com/facebookresearch/segment-anything-2/82b026cd5578af78757323ab99a0b5c8dc456cff/sam2_configs/sam2_hiera_t.yaml",
+    "hiera_base": {
+        "url": "https://raw.githubusercontent.com/facebookresearch/segment-anything-2/82b026cd5578af78757323ab99a0b5c8dc456cff/sam2_configs/sam2_hiera_b%2B.yaml",
+        "fname": "sam2_hiera_b+.yaml",
+    },
+    "hiera_large": {
+        "url": "https://raw.githubusercontent.com/facebookresearch/segment-anything-2/82b026cd5578af78757323ab99a0b5c8dc456cff/sam2_configs/sam2_hiera_l.yaml",
+        "fname": "sam2_hiera_l.yaml",
+    },
+    "hiera_small": {
+        "url": "https://raw.githubusercontent.com/facebookresearch/segment-anything-2/82b026cd5578af78757323ab99a0b5c8dc456cff/sam2_configs/sam2_hiera_s.yaml",
+        "fname": "sam2_hiera_s.yaml",
+    },
+    "hiera_tiny": {
+        "url": "https://raw.githubusercontent.com/facebookresearch/segment-anything-2/82b026cd5578af78757323ab99a0b5c8dc456cff/sam2_configs/sam2_hiera_t.yaml",
+        "fname": "sam2_hiera_t.yaml",
+    },
 }
 
 
@@ -42,13 +56,15 @@ def run_sam2(
         raise ValueError(f"Model type {model_type} not found!")
     base_config = get_sam2_config(model_type)
     device = get_device()
-    sam2 = build_sam2(
-        config_file=base_config,
-        ckpt_path=model_chkpt,
-        device=device,
-        mode="eval",
-        apply_postprocessing=False,  # TODO: Why?
-    )
+    hydra.core.global_hydra.GlobalHydra.instance().clear()
+    with initialize_config_dir(config_dir=str(Path.cwd())):
+        sam2 = build_sam2(
+            config_file=base_config,
+            ckpt_path=model_chkpt,
+            device=device,
+            mode="eval",
+            apply_postprocessing=False,  # TODO: Why?
+        )
     # Create the AMG model
     model = SAM2AutomaticMaskGenerator(sam2, **model_config)
     # Load the image
@@ -81,9 +97,15 @@ def run_sam2(
 
 
 def get_sam2_config(model_type):
-    req = requests.get(BASE_CONFIGS[model_type])
+    req = requests.get(BASE_CONFIGS[model_type]["url"])
     req.raise_for_status()
-    return yaml.safe_load(req.text)
+    # Load the YAML
+    cfg = yaml.safe_load(req.text)
+    # Dump it into current working folder for Hydra to 'discover'
+    fname = BASE_CONFIGS[model_type]["fname"]
+    with open(fname, "w") as f:
+        yaml.dump(cfg, f)
+    return fname
 
 
 def _run_sam2_slice(img_slice, model):
