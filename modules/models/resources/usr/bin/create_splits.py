@@ -8,13 +8,15 @@ import pandas as pd
 # TODO: Handle the case where the image is 2D (slice) or 3D (slice with channels)
 # TODO: Handle the case where the image is 4D (volume + channels)
 # TODO: Handle the case where the image is 5D (volume + time + channels)
-Stack = namedtuple("Stack", ["height", "width", "depth"])
+# Default channels to None, as not always needed
+Stack = namedtuple("Stack", ["height", "width", "depth", "channels"], defaults=[None])
 # TODO: These constants vary by GPU/available memory, and also scale by number of channels which is not considered here
 # Named substack to avoid patch/tile confusion, and to avoid chunk confusion
 MAX_SUBSTACK_SIZE = Stack(
     height=5000,
     width=5000,
     depth=50,
+    channels=1,
 )
 
 
@@ -91,11 +93,13 @@ def calc_num_stacks(
         height=num_stacks_height,
         width=num_stacks_width,
         depth=num_stacks_depth,
+        channels=image_shape.channels,
     )
     eff_shape = Stack(
         height=eff_height,
         width=eff_width,
         depth=eff_depth,
+        channels=image_shape.channels,
     )
     return num_stacks, eff_shape
 
@@ -166,7 +170,7 @@ def generate_stack_indices(
     return (
         stack_indices,
         len(stack_indices),
-        Stack(stack_height, stack_width, stack_depth),
+        Stack(stack_height, stack_width, stack_depth, image_shape.channels),
     )
 
 
@@ -242,6 +246,7 @@ if __name__ == "__main__":
             height=int(row["height"]),
             width=int(row["width"]),
             depth=int(row["num_slices"]),
+            channels=int(row["channels"]),
         )
         # Get the requested number of substacks (either int or 'auto' for each dimension)
         num_substacks = Stack(*args.num_substacks)
