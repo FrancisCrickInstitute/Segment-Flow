@@ -178,6 +178,7 @@ process combineStacks {
     """
     echo ${task.memory}
     echo ${masks*.size().sum() as MemoryUnit}
+    echo ${task.cpus}
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
