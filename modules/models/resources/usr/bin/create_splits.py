@@ -220,6 +220,14 @@ if __name__ == "__main__":
     img_csv_fpath = Path(args.img_csv)
     img_df = pd.read_csv(img_csv_fpath)
 
+    # Check that the csv has the required columns
+    required_columns = ["img_path", "height", "width", "num_slices", "channels"]
+    for col in required_columns:
+        if col not in img_df.columns:
+            raise ValueError(
+                f"Column '{col}' not found in input image path csv file ({img_csv_fpath})."
+            )
+
     # Drop the stack info if it exists
     img_df = img_df.drop(
         columns=[
