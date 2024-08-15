@@ -287,9 +287,11 @@ if __name__ == "__main__":
     if cli_args.postprocess:
         print("Postprocessing masks...")
         if cli_args.model == "sam" or cli_args.model == "sam2":
-            combined_masks = connect_sam(
-                combined_masks, iou_threshold=cli_args.iou_threshold
-            )
+            # No need to align over slices if there are none! Labels consecutive already
+            if combined_masks.ndim > 2:
+                combined_masks = connect_sam(
+                    combined_masks, iou_threshold=cli_args.iou_threshold
+                )
         else:
             combined_masks = connect_components(combined_masks)
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
