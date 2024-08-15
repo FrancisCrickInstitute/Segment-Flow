@@ -16,3 +16,4 @@ dependencies:
     - numpy
     - scikit-image
     - empanada-dl
+    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

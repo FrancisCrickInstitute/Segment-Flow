@@ -9,3 +9,4 @@ dependencies:
   - pip:
     - git+ssh://git@github.com/FrancisCrickInstitute/em-segment-pytorch.git
     - imagecodecs
+    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

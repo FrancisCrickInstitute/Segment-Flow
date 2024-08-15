@@ -3,8 +3,9 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-import skimage.io
 from skimage.segmentation import relabel_sequential
+
+import aiod_utils.io as aiod_io
 
 
 def save_masks(save_dir, save_name, masks, idxs: list[int, ...]):
@@ -67,23 +68,33 @@ def guess_rgb(img_shape):
     return ndim > 2 and last_dim in (3, 4)
 
 
-def load_img(img_path, idxs: list[int, ...]):
-    # TODO: Use zarr/dask to load from disk, or something else
-    # TODO: Handle proper conversion if loads as a float
-    img = skimage.io.imread(img_path)
-    # TODO: Ensure first dim is slices? Difficult to generalise...
+def load_img(fpath, idxs: list[int, ...], **kwargs):
+    # By default we return array in [CD]HW format, depending on input
+    # Squeeze by default to remove any singleton dimensions (primarily C=1)
+    img = aiod_io.load_image(fpath, return_array=True, **kwargs).squeeze()
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
+
+    # Handle case where no depth, but multiple channels
+    if start_z == 0 and end_z == 1:
+        depth = False
+    else:
+        depth = True
 
     # No slicing to be done if not a stack
     if img.ndim == 2:
         img = img[start_x:end_x, start_y:end_y]
-    # TODO: Allow for multi-channel images
-    # This can be achieved by adding the CHWD etc. order to metadata
-    # Then propagate that here, and index accordingly
-    # Can then be propagated to the model for it to handle reshaping/tranposing as needed
-    else:
+    elif (img.ndim == 3) and depth:
         img = img[start_z:end_z, start_x:end_x, start_y:end_y]
+    elif (img.ndim == 3) and not depth:
+        # If RGB(A) in last dim (i.e. from skimage), slice accordingly
+        if guess_rgb(img.shape, dim=-1):
+            img = img[start_x:end_x, start_y:end_y, ...]
+        # Otherwise assume channel is first dim
+        else:
+            img = img[..., start_x:end_x, start_y:end_y]
+    else:
+        img = img[..., start_z:end_z, start_x:end_x, start_y:end_y]
     return img
 
 
