@@ -68,7 +68,7 @@ def run_sam2(
     # Create the AMG model
     model = SAM2AutomaticMaskGenerator(sam2, **model_config)
     # Load the image
-    img = load_img(fpath, idxs)
+    img = load_img(fpath, idxs, dim_order="ZYXC")
     if img.max() > 255:
         warnings.warn(
             "Image values are greater than 255, converting to uint8. This may result in loss of information."
@@ -77,7 +77,7 @@ def run_sam2(
     # Extract the dimensions
     ndim = img.ndim
     # Reduce ndims if RGB (i.e. it's a single RGB image, not a stack)
-    if guess_rgb(img.shape):
+    if guess_rgb(img.shape, dim=-1):
         ndim -= 1
     # Send the image to the corresponding run func based on slice or stack
     if ndim == 2:
@@ -110,7 +110,7 @@ def get_sam2_config(model_type):
 
 def _run_sam2_slice(img_slice, model):
     # Expand to 3-channel if not rgb
-    if not guess_rgb(img_slice.shape):
+    if not guess_rgb(img_slice.shape, dim=-1):
         img_slice = np.stack((img_slice,) * 3, axis=-1)
     img_slice = img_slice[..., :3]
     masks = model.generate(img_slice)
@@ -121,7 +121,7 @@ def _run_sam2_slice(img_slice, model):
 
 def _run_sam2_stack(img_stack, model):
     # Initialize the container of all masks
-    if guess_rgb(img_stack.shape):
+    if guess_rgb(img_stack.shape, dim=-1):
         all_masks = np.zeros(img_stack.shape[:3], dtype=int)
     else:
         all_masks = np.zeros(img_stack.shape, dtype=int)
@@ -139,7 +139,7 @@ def _run_sam2_stack(img_stack, model):
     for idx in range(img_stack.shape[0]):
         img_slice = img_stack[idx]
         # Expand to 3-channel if not rgb
-        if not guess_rgb(img_slice.shape):
+        if not guess_rgb(img_slice.shape, dim=-1):
             img_slice = np.stack((img_slice,) * 3, axis=-1)
         img_slice = img_slice[..., :3]
         # Normalize the slice

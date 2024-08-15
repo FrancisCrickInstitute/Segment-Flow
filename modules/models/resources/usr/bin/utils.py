@@ -61,11 +61,11 @@ def create_argparser_inference():
     return parser
 
 
-def guess_rgb(img_shape):
-    # https://github.com/napari/napari/blob/26dcda8c2cb545948f01be7949fadf79a2927e91/napari/layers/image/_image_utils.py#L13
+def guess_rgb(img_shape, dim: int = 0):
+    # Unified load func aims for [CD]HW format, so check for RGB(A) in first dim
     ndim = len(img_shape)
-    last_dim = img_shape[-1]
-    return ndim > 2 and last_dim in (3, 4)
+    channel_dim = img_shape[dim]
+    return ndim > 2 and channel_dim in (3, 4)
 
 
 def load_img(fpath, idxs: list[int, ...], **kwargs):

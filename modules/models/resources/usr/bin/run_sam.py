@@ -42,7 +42,9 @@ def run_sam(
     # Create the model
     model = SamAutomaticMaskGenerator(sam, **model_config)
     # Load the image
-    img = load_img(fpath, idxs)
+    # SAM wants channels last if present (only single or RGB though!)
+    # NOTE: skimage is current fallback, and returns channels last
+    img = load_img(fpath, idxs, dim_order="ZYXC")
     if img.max() > 255:
         warnings.warn(
             "Image values are greater than 255, converting to uint8. This may result in loss of information."
@@ -51,7 +53,7 @@ def run_sam(
     # Extract the dimensions
     ndim = img.ndim
     # Reduce ndims if RGB (i.e. it's a single RGB image, not a stack)
-    if guess_rgb(img.shape):
+    if guess_rgb(img.shape, dim=-1):
         ndim -= 1
     # Get the start and end indices
     _, _, _, _, start_z, end_z = extract_idxs(idxs)
@@ -77,7 +79,7 @@ def run_sam(
 
 def _run_sam_slice(img_slice, model, pbar):
     # Expand to 3-channel if not rgb
-    if not guess_rgb(img_slice.shape):
+    if not guess_rgb(img_slice.shape, dim=-1):
         img_slice = np.stack((img_slice,) * 3, axis=-1)
     img_slice = img_slice[..., :3]
     masks = model.generate(img_slice)
@@ -90,7 +92,8 @@ def _run_sam_slice(img_slice, model, pbar):
 
 def _run_sam_stack(img_stack, model, pbar):
     # Initialize the container of all masks
-    if guess_rgb(img_stack.shape):
+    if guess_rgb(img_stack.shape, dim=-1):
+        print(img_stack.shape, img_stack.shape[:3])
         all_masks = np.zeros(img_stack.shape[:3], dtype=int)
     else:
         all_masks = np.zeros(img_stack.shape, dtype=int)
@@ -108,7 +111,7 @@ def _run_sam_stack(img_stack, model, pbar):
     for idx in range(img_stack.shape[0]):
         img_slice = img_stack[idx]
         # Expand to 3-channel if not rgb
-        if not guess_rgb(img_slice.shape):
+        if not guess_rgb(img_slice.shape, dim=-1):
             img_slice = np.stack((img_slice,) * 3, axis=-1)
         img_slice = img_slice[..., :3]
         # Normalize the slice
