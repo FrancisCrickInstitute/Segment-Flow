@@ -19,4 +19,4 @@ dependencies:
     - git+https://github.com/facebookresearch/segment-anything-2.git
     - opencv-python
     - requests
-    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
+    - git+ssh://git@github.com/FrancisCrickInstitute/aiod_utils.git
