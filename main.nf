@@ -43,6 +43,8 @@ include { downloadModel; splitStacks; runSAM; runSAM2; runUNET; runMITONET; comb
 
 def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
+// Could consider https://stackoverflow.com/a/71529563 for auto-printing
+
 log.info """\
          ====================================================
                         AI ONDEMAND PIPELINE
@@ -59,11 +61,11 @@ log.info """\
          Cache directory : ${params.model_dir}
          Work directory  : ${workDir}
          Profile         : ${workflow.profile}
+         ---
+         Full Command    : ${workflow.commandLine}
          ====================================================
          """.stripIndent()
 
-// Print the command line arguments used for traceability
-log.info "Command line arguments: $workflow.commandLine"
 
 // Function to get the name of the mask file given the image and model-version-task
 def getMaskName(img_file) {
