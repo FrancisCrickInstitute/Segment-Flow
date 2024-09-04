@@ -25,6 +25,7 @@ def run_sam(
     model_chkpt: Union[Path, str],
     model_config: dict,
     idxs: list[int, ...],
+    preprocess_params: Union[Path, str],
 ):
     # Handle extra finetuned/other models
     if "MicroSAM" in model_type:
@@ -44,7 +45,7 @@ def run_sam(
     # Load the image
     # SAM wants channels last if present (only single or RGB though!)
     # NOTE: skimage is current fallback, and returns channels last
-    img = load_img(fpath, idxs, dim_order="ZYXC")
+    img = load_img(fpath, idxs, preprocess_params, dim_order="ZYXC")
     if img.max() > 255:
         warnings.warn(
             "Image values are greater than 255, converting to uint8. This may result in loss of information."
@@ -172,4 +173,5 @@ if __name__ == "__main__":
         model_chkpt=cli_args.model_chkpt,
         model_config=model_config,
         idxs=cli_args.idxs,
+        preprocess_params=cli_args.preprocess_params,
     )

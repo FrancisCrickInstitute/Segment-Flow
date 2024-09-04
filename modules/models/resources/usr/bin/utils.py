@@ -1,10 +1,11 @@
 import argparse
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
 from skimage.segmentation import relabel_sequential
 
+import aiod_utils
 import aiod_utils.io as aiod_io
 
 
@@ -57,6 +58,9 @@ def create_argparser_inference():
     )
     parser.add_argument("--model-type", help="Select model type", default="default")
     parser.add_argument("--model-config", help="Model config path")
+    parser.add_argument(
+        "--preprocess-params", help="Preprocessing parameters YAML file"
+    )
 
     return parser
 
@@ -68,7 +72,9 @@ def guess_rgb(img_shape, dim: int = 0):
     return ndim > 2 and channel_dim in (3, 4)
 
 
-def load_img(fpath, idxs: list[int, ...], **kwargs):
+def load_img(
+    fpath, idxs: list[int, ...], preprocess_params: Union[str, Path], **kwargs
+):
     # By default we return array in [CD]HW format, depending on input
     # Squeeze by default to remove any singleton dimensions (primarily C=1)
     img = aiod_io.load_image(fpath, return_array=True, **kwargs).squeeze()
@@ -95,6 +101,9 @@ def load_img(fpath, idxs: list[int, ...], **kwargs):
             img = img[..., start_x:end_x, start_y:end_y]
     else:
         img = img[..., start_z:end_z, start_x:end_x, start_y:end_y]
+
+    # Apply preprocessing if provided
+    img = aiod_utils.run_preprocess(img, preprocess_params)
     return img
 
 

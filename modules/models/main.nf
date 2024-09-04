@@ -1,3 +1,5 @@
+import groovy.json.JsonOutput
+
 process splitStacks {
     // Re-use the combine stacks conda env
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
@@ -66,6 +68,7 @@ process runSAM {
 
     script:
     """
+    echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
     python ${moduleDir}/resources/usr/bin/run_sam.py \
     --img-path ${image_path} \
     --mask-fname "${mask_fname}" \
@@ -73,7 +76,8 @@ process runSAM {
     --model-chkpt ${model_chkpt} \
     --model-type ${model_type} \
     --model-config ${model_config} \
-    --idxs ${idxs.join(" ")}
+    --idxs ${idxs.join(" ")} \
+    --preprocess-params preprocess_params.json
     """
 }
 
@@ -93,6 +97,7 @@ process runSAM2 {
 
     script:
     """
+    echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
     python ${moduleDir}/resources/usr/bin/run_sam2.py \
     --img-path ${image_path} \
     --mask-fname "${mask_fname}" \
@@ -100,7 +105,8 @@ process runSAM2 {
     --model-chkpt ${model_chkpt} \
     --model-type ${model_type} \
     --model-config ${model_config} \
-    --idxs ${idxs.join(" ")}
+    --idxs ${idxs.join(" ")} \
+    --preprocess-params preprocess_params.json
     """
 }
 
@@ -119,14 +125,15 @@ process runUNET {
 
     script:
     """
-    echo ${moduleDir}/envs/${task.ext.condaDir}/conda_unet.yml
+    echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
     python ${moduleDir}/resources/usr/bin/run_unet.py \
     --img-path ${image_path} \
     --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
     --model-chkpt ${model_chkpt} \
     --model-config ${model_config} \
-    --idxs ${idxs.join(" ")}
+    --idxs ${idxs.join(" ")} \
+    --preprocess-params preprocess_params.json
     """
 }
 
@@ -147,6 +154,7 @@ process runMITONET {
 
     script:
     """
+    echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
     python ${moduleDir}/resources/usr/bin/run_mitonet.py \
     --img-path ${image_path} \
     --mask-fname "${mask_fname}" \
@@ -154,7 +162,8 @@ process runMITONET {
     --model-chkpt ${model_chkpt} \
     --model-type ${model_type} \
     --model-config ${model_config} \
-    --idxs ${idxs.join(" ")}
+    --idxs ${idxs.join(" ")} \
+    --preprocess-params preprocess_params.json
     """
 }
 

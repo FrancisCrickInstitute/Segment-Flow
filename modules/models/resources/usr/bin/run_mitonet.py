@@ -116,10 +116,10 @@ def run_3d(engine, img, norms, inference_kwargs):
 
 
 if __name__ == "__main__":
-    parser = parser = create_argparser_inference()
+    parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
-    img = load_img(cli_args.img_path, cli_args.idxs)
+    img = load_img(cli_args.img_path, cli_args.idxs, cli_args.preprocess_params)
 
     with open(cli_args.model_config, "r") as f:
         config = yaml.safe_load(f)
