@@ -188,6 +188,7 @@ process combineStacks {
     echo ${task.memory}
     echo ${masks*.size().sum() as MemoryUnit}
     echo ${task.cpus}
+    echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
@@ -196,6 +197,7 @@ process combineStacks {
     --image-size ${meta.num_slices} ${meta.height} ${meta.width} \
     --overlap $overlap \
     --iou-threshold ${params.iou_threshold} \
+    --preprocess-params preprocess_params.json \
     ${postprocess}
     """
 }

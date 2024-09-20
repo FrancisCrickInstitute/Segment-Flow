@@ -1,10 +1,11 @@
-from pathlib import Path
 import os
+from pathlib import Path
 import psutil
+from typing import Union
 
+from aiod_utils.preprocess import get_output_shape
 import dask.array as da
 import dask_image.ndmeasure
-
 from numba import jit, prange
 from numba.core import types
 from numba.typed import Dict
@@ -17,7 +18,10 @@ from utils import reduce_dtype, align_segment_labels, extract_idxs_from_fname
 
 
 def combine_masks(
-    masks: list[str], overlap: list[float, ...], image_size: tuple[int, ...]
+    masks: list[str],
+    overlap: list[float, ...],
+    image_size: tuple[int, ...],
+    preprocess_params: Union[str, Path],
 ):
     """
     Combine masks from each of the substacks into a single array/dataset.
@@ -35,7 +39,9 @@ def combine_masks(
     )
     # Create the array to hold the masks
     # NOTE: Using uint16 to be safe, but ideally should be taken from inputs (but slight chicken & egg)
-    all_masks = np.zeros(image_size, dtype=np.uint16)
+    # Get output shape given preprocessing
+    output_shape = get_output_shape(options=preprocess_params, input_shape=image_size)
+    all_masks = np.zeros(output_shape, dtype=np.uint16)
     # Loop over each mask and insert into the array
     # Add the masks together if overlap is >0
     # NOTE: Adding together only really makes sense for binary masks
@@ -269,6 +275,9 @@ if __name__ == "__main__":
         default=0.8,
         help="IoU threshold for aligning masks (in SAM)",
     )
+    parser.add_argument(
+        "--preprocess-params", help="Preprocessing parameters YAML file"
+    )
 
     cli_args = parser.parse_args()
 
@@ -277,7 +286,10 @@ if __name__ == "__main__":
     # Combine the masks
     if len(cli_args.masks) > 1:
         combined_masks = combine_masks(
-            cli_args.masks, overlap=cli_args.overlap, image_size=cli_args.image_size
+            cli_args.masks,
+            overlap=cli_args.overlap,
+            image_size=cli_args.image_size,
+            preprocess_params=cli_args.preprocess_params,
         )
         mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
         print(f"Memory used after loading stack: {mem_used:.2f} GB")
