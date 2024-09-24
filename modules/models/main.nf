@@ -125,6 +125,7 @@ process runUNET {
 
     script:
     """
+    echo python
     echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
     python ${moduleDir}/resources/usr/bin/run_unet.py \
     --img-path ${image_path} \
