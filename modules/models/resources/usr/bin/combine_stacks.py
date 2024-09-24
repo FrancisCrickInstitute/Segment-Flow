@@ -39,6 +39,9 @@ def combine_masks(
     )
     # Create the array to hold the masks
     # NOTE: Using uint16 to be safe, but ideally should be taken from inputs (but slight chicken & egg)
+    # Ensure image size appropriate to given dims
+    if image_size[0] == 1:
+        image_size = image_size[1:]
     # Get output shape given preprocessing
     output_shape = get_output_shape(options=preprocess_params, input_shape=image_size)
     all_masks = np.zeros(output_shape, dtype=np.uint16)
