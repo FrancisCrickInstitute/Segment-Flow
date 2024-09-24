@@ -42,6 +42,9 @@ def combine_masks(
     # Ensure image size appropriate to given dims
     if image_size[0] == 1:
         image_size = image_size[1:]
+        is_2d = True
+    else:
+        is_2d = False
     # Get output shape given preprocessing
     output_shape = get_output_shape(options=preprocess_params, input_shape=image_size)
     all_masks = np.zeros(output_shape, dtype=np.uint16)
@@ -53,7 +56,14 @@ def combine_masks(
         for mask in masks:
             idxs = extract_idxs_from_fname(mask)
             mask = np.load(mask)
-            all_masks = insert_mask(all_masks, mask, idxs, xy_tiling, False)
+            all_masks = insert_mask(
+                all_masks=all_masks,
+                mask=mask,
+                idxs=idxs,
+                xy_tiling=xy_tiling,
+                is_overlap=False,
+                is_2d=is_2d,
+            )
     # TODO: Extract this, and handle binary/labelled masks properly, with specified vote mechanism
     else:
         # Combine the masks
@@ -63,7 +73,10 @@ def combine_masks(
             )
             mask = np.load(mask)
             # Just sum, naive method
-            all_masks[start_z:end_z, start_x:end_x, start_y:end_y] += mask
+            if is_2d:
+                all_masks[start_x:end_x, start_y:end_y] += mask
+            else:
+                all_masks[start_z:end_z, start_x:end_x, start_y:end_y] += mask
     return reduce_dtype(all_masks)
 
 
@@ -73,20 +86,30 @@ def insert_mask(
     idxs: tuple[int, int, int, int, int, int],
     xy_tiling: bool,
     is_overlap: bool,
+    is_2d: bool,
 ):
     # Extract the indices
     start_x, end_x, start_y, end_y, start_z, end_z = idxs
     # Ensure labels are unique across a slice
     if xy_tiling:
         # Get the current maximum value across the relevant slices
-        max_val = all_masks[start_z:end_z, ...].max()
+        if is_2d:
+            max_val = all_masks.max()
+        else:
+            max_val = all_masks[start_z:end_z, ...].max()
         # # Check if we need to upcast the array
         # if max_val + mask.max() > np.iinfo(all_masks.dtype).max:
         #     all_masks = all_masks.astype(np.uint32, copy=False)
-        all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask + max_val
+        if is_2d:
+            all_masks[start_x:end_x, start_y:end_y] = mask + max_val
+        else:
+            all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask + max_val
     else:
         # Insert the mask into the array
-        all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask
+        if is_2d:
+            all_masks[start_x:end_x, start_y:end_y] = mask
+        else:
+            all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask
     return all_masks
 
 
