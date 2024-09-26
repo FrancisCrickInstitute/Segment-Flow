@@ -4,6 +4,7 @@ import psutil
 from typing import Union
 
 from aiod_utils.preprocess import get_output_shape, load_methods
+from aiod_utils.io import extract_idxs_from_fname
 import dask.array as da
 import dask_image.ndmeasure
 from numba import jit, prange
@@ -14,7 +15,7 @@ import skimage.measure
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
 
-from utils import reduce_dtype, align_segment_labels, extract_idxs_from_fname
+from utils import reduce_dtype, align_segment_labels
 
 
 def combine_masks(

@@ -33,43 +33,6 @@ def extract_idxs(idxs: list[int, ...]):
     return start_x, end_x, start_y, end_y, start_z, end_z
 
 
-def extract_idxs_from_fname(
-    fname: str, downsample_factor: Optional[list[int, ...]] = None
-):
-    # Extract the indices from the filename
-    idx_ranges = Path(fname).stem.split("_")[-3:]
-    start_x, end_x = map(int, idx_ranges[0].split("x")[1].split("-"))
-    start_y, end_y = map(int, idx_ranges[1].split("y")[1].split("-"))
-    start_z, end_z = map(int, idx_ranges[2].split("z")[1].split("-"))
-    # Apply downsampling to indices if provided
-    if downsample_factor is not None:
-        if len(downsample_factor) == 2:
-            down_y, down_x = downsample_factor
-            down_z = 1
-        else:
-            down_z, down_y, down_x = downsample_factor
-        start_x, end_x = round_idxs(start_x, end_x, down_x)
-        start_y, end_y = round_idxs(start_y, end_y, down_y)
-        start_z, end_z = round_idxs(start_z, end_z, down_z)
-    return start_x, end_x, start_y, end_y, start_z, end_z
-
-
-def round_idxs(start: int, end: int, downsample_factor: int):
-    """
-    When splitting and downsampling, we end up with indivisible block sizes.
-    We handle this by removing whatever is getting padded in block_reduce
-    We need to convert idxs in fnames to downsampled idxs, which may not divide cleanly.
-    If we round down the start we increase size, so need to round different according to whether start or end is indivisable.
-    """
-    if start % downsample_factor != 0:
-        start = int(np.ceil(start / downsample_factor))
-        end = int(np.floor(end / downsample_factor))
-    else:
-        start = int(np.floor(start / downsample_factor))
-        end = int(np.floor(end / downsample_factor))
-    return start, end
-
-
 def create_argparser_inference():
     parser = argparse.ArgumentParser()
 
