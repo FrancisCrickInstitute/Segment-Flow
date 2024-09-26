@@ -3,7 +3,7 @@ from pathlib import Path
 import psutil
 from typing import Union
 
-from aiod_utils.preprocess import get_output_shape
+from aiod_utils.preprocess import get_output_shape, load_methods
 import dask.array as da
 import dask_image.ndmeasure
 from numba import jit, prange
@@ -47,6 +47,13 @@ def combine_masks(
         is_2d = False
     # Get output shape given preprocessing
     output_shape = get_output_shape(options=preprocess_params, input_shape=image_size)
+    # Need to handle the indices as well if downsampling occurred
+    # FIXME: Too hard-coded for my liking
+    if image_size != output_shape:
+        preprocess_params = load_methods(preprocess_params)
+        for d in preprocess_params:
+            if d["name"] == "Downsample":
+                downsample_factor = d["params"]["block_size"]
     all_masks = np.zeros(output_shape, dtype=np.uint16)
     # Loop over each mask and insert into the array
     # Add the masks together if overlap is >0
@@ -54,7 +61,7 @@ def combine_masks(
     overlap = [float(val) for val in overlap]
     if sum(overlap) == 0.0:
         for mask in masks:
-            idxs = extract_idxs_from_fname(mask)
+            idxs = extract_idxs_from_fname(mask, downsample_factor=downsample_factor)
             mask = np.load(mask)
             all_masks = insert_mask(
                 all_masks=all_masks,
@@ -69,7 +76,7 @@ def combine_masks(
         # Combine the masks
         for mask in masks:
             start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
-                mask
+                mask, downsample_factor=downsample_factor
             )
             mask = np.load(mask)
             # Just sum, naive method
@@ -100,10 +107,13 @@ def insert_mask(
         # # Check if we need to upcast the array
         # if max_val + mask.max() > np.iinfo(all_masks.dtype).max:
         #     all_masks = all_masks.astype(np.uint32, copy=False)
+        # Add a constant to all non-zero values to ensure uniqueness
+        mask[mask > 0] += max_val
+        # Insert the mask into the array
         if is_2d:
-            all_masks[start_x:end_x, start_y:end_y] = mask + max_val
+            all_masks[start_x:end_x, start_y:end_y] = mask
         else:
-            all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask + max_val
+            all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask
     else:
         # Insert the mask into the array
         if is_2d:
