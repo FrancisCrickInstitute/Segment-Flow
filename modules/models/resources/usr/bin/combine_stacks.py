@@ -50,6 +50,7 @@ def combine_masks(
     output_shape = get_output_shape(options=preprocess_params, input_shape=image_size)
     # Need to handle the indices as well if downsampling occurred
     # FIXME: Too hard-coded for my liking
+    downsample_factor = None
     if image_size != output_shape:
         preprocess_params = load_methods(preprocess_params)
         for d in preprocess_params:
