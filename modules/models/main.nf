@@ -51,10 +51,9 @@ process downloadModel {
     """
 }
 
-process runSAM {
+process runMODEL {
     label 'small_gpu'
-    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_sam.yml"
-    // Switch this to use publishDir and avoid path manipulation in python?
+    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_${params.model}.yml"
 
     input:
     tuple val(meta), path(image_path), val(mask_fname), val(idxs)
@@ -69,94 +68,7 @@ process runSAM {
     script:
     """
     echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
-    python ${moduleDir}/resources/usr/bin/run_sam.py \
-    --img-path ${image_path} \
-    --mask-fname "${mask_fname}" \
-    --output-dir ${mask_output_dir} \
-    --model-chkpt ${model_chkpt} \
-    --model-type ${model_type} \
-    --model-config ${model_config} \
-    --idxs ${idxs.join(" ")} \
-    --preprocess-params preprocess_params.json
-    """
-}
-
-process runSAM2 {
-    label 'small_gpu'
-    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_sam2.yml"
-
-    input:
-    tuple val(meta), path(image_path), val(mask_fname), val(idxs)
-    val mask_output_dir
-    path model_config
-    path model_chkpt
-    val model_type
-
-    output:
-    tuple val("${image_path.simpleName}"), val(meta), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.npy"), emit: mask
-
-    script:
-    """
-    echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
-    python ${moduleDir}/resources/usr/bin/run_sam2.py \
-    --img-path ${image_path} \
-    --mask-fname "${mask_fname}" \
-    --output-dir ${mask_output_dir} \
-    --model-chkpt ${model_chkpt} \
-    --model-type ${model_type} \
-    --model-config ${model_config} \
-    --idxs ${idxs.join(" ")} \
-    --preprocess-params preprocess_params.json
-    """
-}
-
-process runUNET {
-    label 'small_gpu'
-    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_unet.yml"
-
-    input:
-    tuple val(meta), path(image_path), val(mask_fname), val(idxs)
-    val mask_output_dir
-    path model_config
-    path model_chkpt
-
-    output:
-    tuple val("${image_path.simpleName}"), val(meta), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.npy"), emit: mask
-
-    script:
-    """
-    which python
-    echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
-    python ${moduleDir}/resources/usr/bin/run_unet.py \
-    --img-path ${image_path} \
-    --mask-fname "${mask_fname}" \
-    --output-dir ${mask_output_dir} \
-    --model-chkpt ${model_chkpt} \
-    --model-config ${model_config} \
-    --idxs ${idxs.join(" ")} \
-    --preprocess-params preprocess_params.json
-    """
-}
-
-process runMITONET {
-    label 'small_gpu'
-    // time { 1.m * params.stack_size * params.img_size_tier * task.attempt }
-    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_mitonet.yml"
-
-    input:
-    tuple val(meta), path(image_path), val(mask_fname), val(idxs)
-    val mask_output_dir
-    path model_config
-    path model_chkpt
-    val model_type
-
-    output:
-    tuple val("${image_path.simpleName}"), val(meta), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.npy"), emit: mask
-
-    script:
-    """
-    echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
-    python ${moduleDir}/resources/usr/bin/run_mitonet.py \
+    python ${moduleDir}/resources/usr/bin/run_${params.model}.py \
     --img-path ${image_path} \
     --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \

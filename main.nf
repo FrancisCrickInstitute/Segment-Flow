@@ -39,7 +39,7 @@ params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}"
 
 // Import processes from model modules
-include { downloadModel; splitStacks; runSAM; runSAM2; runUNET; runMITONET; combineStacks } from './modules/models'
+include { downloadModel; splitStacks; runMODEL; combineStacks } from './modules/models'
 
 def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
@@ -75,7 +75,8 @@ def getMaskName(img_file) {
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
 workflow {
     // TODO: Move the model-based stuff into a workflow under the models module?
-
+    def models = ["cellpose", "sam", "sam2", "seai_unet", "mitonet"]
+    assert models.contains( params.model ), "Model ${params.model} not yet implemented!"
     // Download model checkpoint if it doesn't exist
     chkpt_file = file( params.model_chkpt_path )
 
@@ -118,39 +119,13 @@ workflow {
 
     // TODO: Should be delegated to a workflow in the models module?
     // Select appropriate model
-    if( params.model == "sam" )
-        mask_out = runSAM (
-            img_ch,
-            mask_output_dir,
-            params.model_config,
-            chkpt_ch,
-            params.model_type
-        ).mask
-    else if( params.model == "sam2" )
-        mask_out = runSAM2 (
-            img_ch,
-            mask_output_dir,
-            params.model_config,
-            chkpt_ch,
-            params.model_type
-        ).mask
-    else if( params.model == "seai_unet" )
-        mask_out = runUNET (
-            img_ch,
-            mask_output_dir,
-            params.model_config,
-            chkpt_ch,
-        ).mask
-    else if( params.model == "mitonet" )
-        mask_out = runMITONET (
-            img_ch,
-            mask_output_dir,
-            params.model_config,
-            chkpt_ch,
-            params.model_type
-        ).mask
-    else
-        error "Model ${params.model} not yet implemented!"
+    mask_out = runMODEL (
+        img_ch,
+        mask_output_dir,
+        params.model_config,
+        chkpt_ch,
+        params.model_type
+    ).mask
 
     // Group all the outputs per image together to combine
     mask_out
