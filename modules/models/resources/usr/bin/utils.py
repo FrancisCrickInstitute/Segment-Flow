@@ -52,6 +52,12 @@ def create_argparser_inference():
     parser.add_argument(
         "--preprocess-params", help="Preprocessing parameters YAML file"
     )
+    parser.add_argument(
+        "--channels", type=int, help="Number of channels in the input image"
+    )
+    parser.add_argument(
+        "--num-slices", type=int, help="Number of Z slices in the input image"
+    )
 
     return parser
 
@@ -96,6 +102,16 @@ def load_img(
     # Apply preprocessing if provided
     img = aiod_utils.run_preprocess(img, preprocess_params)
     return img
+
+
+def translate_from_order(l: list, dim_order: str, default_order: str = "CZYX"):
+    # Get the translation from given order to default order
+    mapper = {k: v for v, k in enumerate(default_order) if k in dim_order}
+    # Ensure consecutive indices
+    mapper = {k: i for i, k in enumerate(mapper)}
+    # Get the translation from given order to default order
+    trans = [mapper[dim] for dim in dim_order]
+    return [l[i] for i in trans]
 
 
 def reduce_dtype(arr: np.ndarray, max_val: Optional[int] = None):

@@ -76,6 +76,8 @@ process runMODEL {
     --model-type ${model_type} \
     --model-config ${model_config} \
     --idxs ${idxs.join(" ")} \
+    --channels ${meta.channels} \
+    --num-slices ${meta.num_slices} \
     --preprocess-params preprocess_params.json
     """
 }
