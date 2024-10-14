@@ -24,7 +24,10 @@ if __name__ == "__main__":
     stack = load_img(
         fpath=cli_args.img_path,
         idxs=cli_args.idxs,
+        channels=cli_args.channels,
+        num_slices=cli_args.num_slices,
         preprocess_params=cli_args.preprocess_params,
+        dim_order="CZYX",
     )
     # Get the segmentations
     preds = do_predictions(
