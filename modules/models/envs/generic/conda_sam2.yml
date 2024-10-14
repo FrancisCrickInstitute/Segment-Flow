@@ -2,21 +2,17 @@ name: sam2_conda
 channels:
   - pytorch
   - conda-forge
-  - nvidia
-  - nvidia/label/cuda-12.1.0
   - defaults
 dependencies:
   - python=3.10
   - pyyaml
-  - nvidia/label/cuda-12.1.0::cuda-toolkit
   - pytorch::pytorch>=2.3.1
   - pytorch::torchvision>=0.18.1
-  - pytorch::pytorch-cuda=12.1
   - pip
   - pip:
     - numpy
     - scikit-image
-    - git+https://github.com/facebookresearch/segment-anything-2.git
+    - git+https://github.com/facebookresearch/sam2.git
     - opencv-python
     - requests
     - git+ssh://git@github.com/FrancisCrickInstitute/aiod_utils.git
