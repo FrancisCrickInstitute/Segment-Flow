@@ -16,7 +16,7 @@ dependencies:
   - pip:
     - numpy
     - scikit-image
-    - git+https://github.com/facebookresearch/segment-anything-2.git
+    - git+https://github.com/facebookresearch/sam2.git
     - opencv-python
     - requests
     - git+ssh://git@github.com/FrancisCrickInstitute/aiod_utils.git
