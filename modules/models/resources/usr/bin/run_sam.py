@@ -18,6 +18,7 @@ from model_utils import get_device
 
 
 def run_sam(
+    img: np.ndarray,
     save_dir: Union[Path, str],
     save_name: str,
     fpath: Union[Path, str],
@@ -25,7 +26,6 @@ def run_sam(
     model_chkpt: Union[Path, str],
     model_config: dict,
     idxs: list[int, ...],
-    preprocess_params: Union[Path, str],
 ):
     # Handle extra finetuned/other models
     if "MicroSAM" in model_type:
@@ -44,8 +44,6 @@ def run_sam(
     model = SamAutomaticMaskGenerator(sam, **model_config)
     # Load the image
     # SAM wants channels last if present (only single or RGB though!)
-    # NOTE: skimage is current fallback, and returns channels last
-    img = load_img(fpath, idxs, preprocess_params, dim_order="ZYXC")
     if img.max() > 255:
         warnings.warn(
             "Image values are greater than 255, converting to uint8. This may result in loss of information."
@@ -95,9 +93,9 @@ def _run_sam_stack(img_stack, model, pbar):
     # Initialize the container of all masks
     if guess_rgb(img_stack.shape, dim=-1):
         print(img_stack.shape, img_stack.shape[:3])
-        all_masks = np.zeros(img_stack.shape[:3], dtype=int)
+        all_masks = np.zeros(img_stack.shape[:3], dtype=np.uint32)
     else:
-        all_masks = np.zeros(img_stack.shape, dtype=int)
+        all_masks = np.zeros(img_stack.shape, dtype=np.uint32)
     # Get the contrast limits
     if img_stack.dtype == np.uint8:
         contrast_limits = (0, 255)
@@ -165,7 +163,21 @@ if __name__ == "__main__":
     with open(cli_args.model_config, "r") as f:
         model_config = yaml.safe_load(f)
 
+    img = load_img(
+        fpath=cli_args.img_path,
+        idxs=cli_args.idxs,
+        channels=cli_args.channels,
+        num_slices=cli_args.num_slices,
+        preprocess_params=cli_args.preprocess_params,
+        dim_order="ZYXC",
+    )
+
+    # SAM doesn't like singleton channels
+    if img.ndim == 4 and img.shape[-1] == 1:
+        img = img.squeeze(-1)
+
     img, masks = run_sam(
+        img=img,
         save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
         fpath=cli_args.img_path,
@@ -173,5 +185,4 @@ if __name__ == "__main__":
         model_chkpt=cli_args.model_chkpt,
         model_config=model_config,
         idxs=cli_args.idxs,
-        preprocess_params=cli_args.preprocess_params,
     )

@@ -119,7 +119,14 @@ if __name__ == "__main__":
     parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
-    img = load_img(cli_args.img_path, cli_args.idxs, cli_args.preprocess_params)
+    img = load_img(
+        fpath=cli_args.img_path,
+        idxs=cli_args.idxs,
+        channels=cli_args.channels,
+        num_slices=cli_args.num_slices,
+        preprocess_params=cli_args.preprocess_params,
+        dim_order="CZYX",
+    )
 
     with open(cli_args.model_config, "r") as f:
         config = yaml.safe_load(f)

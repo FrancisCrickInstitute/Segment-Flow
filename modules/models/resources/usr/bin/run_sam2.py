@@ -41,14 +41,13 @@ BASE_CONFIGS = {
 
 
 def run_sam2(
+    img: np.ndarray,
     save_dir: Union[Path, str],
     save_name: str,
-    fpath: Union[Path, str],
     model_type: str,
     model_chkpt: Union[Path, str],
     model_config: dict,
     idxs: list[int, ...],
-    preprocess_params: Union[Path, str],
 ):
     # Need to handle model types and get the appropriate model
     if model_type == "default":
@@ -68,8 +67,6 @@ def run_sam2(
         )
     # Create the AMG model
     model = SAM2AutomaticMaskGenerator(sam2, **model_config)
-    # Load the image
-    img = load_img(fpath, idxs, preprocess_params, dim_order="ZYXC")
     if img.max() > 255:
         warnings.warn(
             "Image values are greater than 255, converting to uint8. This may result in loss of information."
@@ -193,13 +190,25 @@ if __name__ == "__main__":
     with open(cli_args.model_config, "r") as f:
         model_config = yaml.safe_load(f)
 
+    img = load_img(
+        fpath=cli_args.img_path,
+        idxs=cli_args.idxs,
+        channels=cli_args.channels,
+        num_slices=cli_args.num_slices,
+        preprocess_params=cli_args.preprocess_params,
+        dim_order="ZYXC",
+    )
+
+    # SAM doesn't like singleton channels
+    if img.ndim == 4 and img.shape[-1] == 1:
+        img = img.squeeze(-1)
+
     img, masks = run_sam2(
+        img=img,
         save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
-        fpath=cli_args.img_path,
         model_type=cli_args.model_type,
         model_chkpt=cli_args.model_chkpt,
         model_config=model_config,
         idxs=cli_args.idxs,
-        preprocess_params=cli_args.preprocess_params,
     )
