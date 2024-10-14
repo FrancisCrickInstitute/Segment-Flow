@@ -70,37 +70,106 @@ def guess_rgb(img_shape, dim: int = 0):
 
 
 def load_img(
-    fpath, idxs: list[int, ...], preprocess_params: Union[str, Path], **kwargs
+    fpath,
+    idxs: list[int, ...],
+    preprocess_params: Union[str, Path],
+    channels: Optional[int] = None,
+    num_slices: Optional[int] = None,
+    **kwargs,
 ):
     # By default we return array in [CD]HW format, depending on input
-    # Squeeze by default to remove any singleton dimensions (primarily C=1)
-    img = aiod_io.load_image(fpath, return_array=True, **kwargs).squeeze()
+    if "dim_order" in kwargs:
+        dim_order = kwargs.pop("dim_order")
+    else:
+        dim_order = "CZYX"
+    # TODO: Better to return Dask and index as needed?
+    img = aiod_io.load_image(fpath, return_array=True, dim_order=dim_order, **kwargs)
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
 
-    # Handle case where no depth, but multiple channels
-    if start_z == 0 and end_z == 1:
-        depth = False
-    else:
-        depth = True
+    img = transpose_dims(img, dim_order, channels, num_slices)
 
-    # No slicing to be done if not a stack
+    slices = [
+        np.s_[:],
+        np.s_[start_z:end_z],
+        np.s_[start_x:end_x],
+        np.s_[start_y:end_y],
+    ]
+    #
+    trans_dim_order = dim_order
+    # Remove slice objects as and if necessary
+    # Keep HW only
     if img.ndim == 2:
-        img = img[start_x:end_x, start_y:end_y]
-    elif (img.ndim == 3) and depth:
-        img = img[start_z:end_z, start_x:end_x, start_y:end_y]
-    elif (img.ndim == 3) and not depth:
-        # If RGB(A) in last dim (i.e. from skimage), slice accordingly
-        if guess_rgb(img.shape, dim=-1):
-            img = img[start_x:end_x, start_y:end_y, ...]
-        # Otherwise assume channel is first dim
-        else:
-            img = img[..., start_x:end_x, start_y:end_y]
+        slices = slices[2:]
+        trans_dim_order = "YX"
+    elif img.ndim == 3:
+        # Keep CHW only if no slices (or 1 slice and channels)
+        if (num_slices is None) or (num_slices == 1 and channels is not None):
+            slices = [slices[0]] + slices[2:]
+            trans_dim_order = "CYX"
+        # Keep DHW only if no channels
+        elif channels is None:
+            slices = slices[1:]
+            trans_dim_order = "ZYX"
+    # Reorder slices based on dim_order
+    slices = translate_from_order(slices, trans_dim_order)
+    # Slice the image based on the given indices
+    img = img[tuple(slices)]
+
+    # Preprocessing currently expects a squeezed image
+    # As most of them don't use channel info
+    if channels is not None and channels == 1:
+        # Get channel axis
+        channel_axis = dim_order.index("C")
+        img = np.squeeze(img, axis=channel_axis)
+        squeezed = True
     else:
-        img = img[..., start_z:end_z, start_x:end_x, start_y:end_y]
+        squeezed = False
 
     # Apply preprocessing if provided
     img = aiod_utils.run_preprocess(img, preprocess_params)
+    if squeezed:
+        img = np.expand_dims(img, axis=channel_axis)
+    return img
+
+
+def transpose_dims(
+    img,
+    dim_order: str,
+    channels: Optional[int] = None,
+    num_slices: Optional[int] = None,
+):
+    # TODO: dim_order has already been used in the load img
+    # This function is about verifying that has happened, so remove
+    # the default expectations below and check using the provided dim_order
+    # Nothing to do if no channels or slices provided
+    if channels is None and num_slices is None:
+        return img
+    # If channels and slices are both 1, nothing to do
+    if channels == 1 and num_slices == 1:
+        return img
+    # FIXME: Check if ndim == 3 and which is missing, then remove from dim_order
+    # Get shape and containers
+    shape = list(img.shape)
+    source = []
+    dest = []
+    if channels is not None:
+        channel_axis = dim_order.index("C")
+        channel_curr_idx = shape.index(channels)
+        if channel_curr_idx != channel_axis:
+            source.append(channel_curr_idx)
+            dest.append(channel_axis)
+    # Expectation is that slices are second dim
+    if num_slices is not None and num_slices > 1:
+        z_axis = dim_order.index("Z")
+        z_curr_idx = shape.index(num_slices)
+        if z_curr_idx != z_axis:
+            source.append(z_curr_idx)
+            dest.append(z_axis)
+    # We ignore HW for now, as assumed these are not ever changed
+    # Move the axes to the correct positions if necessary
+    if source:
+        img = np.moveaxis(img, source, dest)
     return img
 
 
