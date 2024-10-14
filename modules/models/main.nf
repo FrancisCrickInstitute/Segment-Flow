@@ -68,6 +68,7 @@ process runMODEL {
     script:
     """
     echo '${JsonOutput.toJson(params.preprocess)}' > preprocess_params.json
+    export CELLPOSE_LOCAL_MODELS_PATH=${params.model_chkpt_dir}
     python ${moduleDir}/resources/usr/bin/run_${params.model}.py \
     --img-path ${image_path} \
     --mask-fname "${mask_fname}" \
