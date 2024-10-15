@@ -101,16 +101,17 @@ def load_img(
     # Keep HW only
     if img.ndim == 2:
         slices = slices[2:]
-        trans_dim_order = "YX"
+        trans_dim_order = trans_dim_order.replace("Z", "").replace("C", "")
     elif img.ndim == 3:
         # Keep CHW only if no slices (or 1 slice and channels)
         if (num_slices is None) or (num_slices == 1 and channels is not None):
             slices = [slices[0]] + slices[2:]
-            trans_dim_order = "CYX"
+            trans_dim_order = trans_dim_order.replace("Z", "")
         # Keep DHW only if no channels
         elif channels is None:
             slices = slices[1:]
-            trans_dim_order = "ZYX"
+            trans_dim_order = trans_dim_order.replace("C", "")
+
     # Reorder slices based on dim_order
     slices = translate_from_order(slices, trans_dim_order)
     # Slice the image based on the given indices
