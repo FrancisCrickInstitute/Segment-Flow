@@ -148,7 +148,20 @@ def transpose_dims(
     # If channels and slices are both 1, nothing to do
     if channels == 1 and num_slices == 1:
         return img
+    # For 2D, we can just return the image
+    if img.ndim == 2:
+        return img
     # FIXME: Check if ndim == 3 and which is missing, then remove from dim_order
+    if img.ndim == 3:
+        # Remove channels if None, or if 1 and has slices
+        # NOTE: Could cause issues because not squeezing?
+        if channels is None or (
+            channels == 1 and num_slices is not None and num_slices > 1
+        ):
+            dim_order = dim_order.replace("C", "")
+        # If slices is 1, then we remove the z axis
+        if num_slices is None or (num_slices <= 1 and channels is not None):
+            dim_order = dim_order.replace("Z", "")
     # Get shape and containers
     shape = list(img.shape)
     source = []
