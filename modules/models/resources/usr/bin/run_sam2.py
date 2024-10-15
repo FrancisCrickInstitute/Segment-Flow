@@ -199,9 +199,8 @@ if __name__ == "__main__":
         dim_order="ZYXC",
     )
 
-    # SAM doesn't like singleton channels
-    if img.ndim == 4 and img.shape[-1] == 1:
-        img = img.squeeze(-1)
+    # Squeze it!
+    img = np.squeeze(img)
 
     img, masks = run_sam2(
         img=img,
