@@ -348,6 +348,8 @@ if __name__ == "__main__":
     # NOTE: Postprocessing funcs above handle this themselves
     else:
         combined_masks = reduce_dtype(combined_masks)
+    # Squeeze the array in case there is only one slice
+    combined_masks = np.squeeze(combined_masks)
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
     print(f"Memory used in combination: {mem_used:.2f} GB")
     # Save the masks
