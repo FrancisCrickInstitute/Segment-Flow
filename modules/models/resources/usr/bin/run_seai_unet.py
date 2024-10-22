@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import skimage.measure
 import skimage.io
 
@@ -29,6 +30,7 @@ if __name__ == "__main__":
         preprocess_params=cli_args.preprocess_params,
         dim_order="CZYX",
     )
+    stack = np.squeeze(stack)
     # Get the segmentations
     preds = do_predictions(
         trainer=trainer,
