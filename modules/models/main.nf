@@ -63,7 +63,7 @@ process runMODEL {
     val model_type
 
     output:
-    tuple val("${image_path.simpleName}"), val(meta), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.npy"), emit: mask
+    tuple val("${image_path.simpleName}"), val(meta), val(mask_fname), val(mask_output_dir), val("${mask_output_dir}/${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
 
     script:
     """

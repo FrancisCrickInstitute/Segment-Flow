@@ -49,4 +49,5 @@ if __name__ == "__main__":
         save_name=cli_args.mask_fname,
         masks=labelled_stack,
         idxs=cli_args.idxs,
+        mask_type="binary",
     )

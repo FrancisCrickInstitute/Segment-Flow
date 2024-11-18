@@ -7,23 +7,33 @@ from skimage.segmentation import relabel_sequential
 
 import aiod_utils
 import aiod_utils.io as aiod_io
+import aiod_utils.rle as aiod_rle
 
 
-def save_masks(save_dir, save_name, masks, idxs: list[int, ...]):
+def save_masks(
+    save_dir, save_name, masks, idxs: list[int, ...], metadata: dict = {}, **kwargs
+):
     save_dir.mkdir(parents=True, exist_ok=True)
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
     # Define path with all the indices
     save_path = (
         save_dir
-        / f"{save_name}_x{start_x}-{end_x}_y{start_y}-{end_y}_z{start_z}-{end_z}.npy"
+        / f"{save_name}_x{start_x}-{end_x}_y{start_y}-{end_y}_z{start_z}-{end_z}"
     )
     # Relabel the inputs to minimise int size and thus output file size
     masks, _, _ = relabel_sequential(masks)
     # Reduce dtype to save space
     masks = reduce_dtype(masks)
-    # TODO: Longer-term, use zarr/dask to save to disk
-    np.save(save_path, masks)
+    # Encode the masks and save them (inserting metadata if provided)
+    # NOTE: kwargs is there to allow specifying mask encoding type — otherwise inferred from masks
+    encoded_masks = aiod_rle.encode(
+        masks,
+        metadata=metadata,
+        **kwargs,
+    )
+    aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path.with_suffix(".rle"))
+    # TODO: For what use is returning the save path?
     return save_path
 
 

@@ -3,8 +3,9 @@ from pathlib import Path
 import psutil
 from typing import Union
 
-from aiod_utils.preprocess import get_output_shape, load_methods
+from aiod_utils.preprocess import get_output_shape, get_downsample_factor
 from aiod_utils.io import extract_idxs_from_fname
+import aiod_utils.rle as aiod_rle
 import dask.array as da
 import dask_image.ndmeasure
 from numba import jit, prange
@@ -49,13 +50,8 @@ def combine_masks(
     # Get output shape given preprocessing
     output_shape = get_output_shape(options=preprocess_params, input_shape=image_size)
     # Need to handle the indices as well if downsampling occurred
-    # FIXME: Too hard-coded for my liking
-    downsample_factor = None
-    if image_size != output_shape:
-        preprocess_params = load_methods(preprocess_params)
-        for d in preprocess_params:
-            if d["name"] == "Downsample":
-                downsample_factor = d["params"]["block_size"]
+    downsample_factor = get_downsample_factor(preprocess_params)
+    # Create the array to hold the masks (uint16 should be fine...?)
     all_masks = np.zeros(output_shape, dtype=np.uint16)
     # Loop over each mask and insert into the array
     # Add the masks together if overlap is >0
@@ -64,7 +60,8 @@ def combine_masks(
     if sum(overlap) == 0.0:
         for mask in masks:
             idxs = extract_idxs_from_fname(mask, downsample_factor=downsample_factor)
-            mask = np.load(mask)
+            mask = aiod_rle.load_encoding(mask)
+            mask, _ = aiod_rle.decode(mask)
             all_masks = insert_mask(
                 all_masks=all_masks,
                 mask=mask,
@@ -80,7 +77,8 @@ def combine_masks(
             start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
                 mask, downsample_factor=downsample_factor
             )
-            mask = np.load(mask)
+            mask = aiod_rle.load_encoding(mask)
+            mask, _ = aiod_rle.decode(mask)
             # Just sum, naive method
             if is_2d:
                 all_masks[start_x:end_x, start_y:end_y] += mask
@@ -233,7 +231,9 @@ def connect_sam(all_masks, iou_threshold):
             # Get the max label from the current slice to assign to to ensure no conflict
             max_label = curr_labels.max() + 1
             # Create an array mapping the next labels to the current labels
-            mapping_arr = np.full(next_labels.max() + 1, fill_value=0, dtype=np.uint16)
+            mapping_arr = np.full(
+                int(next_labels.max() + 1), fill_value=0, dtype=np.uint16
+            )
             # Iterate over the matches and check which ones sufficiently overlap
             for iou, (curr_label, next_label) in zip(ious, box_matches):
                 # If threshold met, remap label
@@ -332,7 +332,9 @@ if __name__ == "__main__":
         mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
         print(f"Memory used after loading stack: {mem_used:.2f} GB")
     else:
-        combined_masks = np.load(cli_args.masks[0])
+        combined_masks = aiod_rle.load_encoding(cli_args.masks[0])
+        # NOTE: Extract metadata later from preprocess params
+        combined_masks, _ = aiod_rle.decode(combined_masks)
     print(f"Combined masks shape: {combined_masks.shape}")
     if cli_args.postprocess:
         print("Postprocessing masks...")
@@ -353,8 +355,18 @@ if __name__ == "__main__":
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
     print(f"Memory used in combination: {mem_used:.2f} GB")
     # Save the masks
-    save_path = Path(cli_args.output_dir) / f"{cli_args.mask_fname}_all.npy"
-    np.save(save_path, combined_masks)
+    save_path = Path(cli_args.output_dir) / f"{cli_args.mask_fname}_all.rle"
+    # Get downsample factor for metadata if used
+    downsample_factor = get_downsample_factor(cli_args.preprocess_params)
+    if downsample_factor is not None:
+        metadata = {"downsample_factor": downsample_factor}
+    else:
+        metadata = {}
+    encoded_masks = aiod_rle.encode(combined_masks, metadata=metadata)
+    # Free up memory (though too late at this point)
+    del combined_masks
+    # Save the masks
+    aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
     # Remove the individual masks now that they are combined
     for mask_path in cli_args.masks:
         # Remove the mask
