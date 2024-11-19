@@ -58,10 +58,15 @@ def combine_masks(
     # NOTE: Adding together only really makes sense for binary masks
     overlap = [float(val) for val in overlap]
     if sum(overlap) == 0.0:
-        for mask in masks:
-            idxs = extract_idxs_from_fname(mask, downsample_factor=downsample_factor)
-            mask = aiod_rle.load_encoding(mask)
+        for mask_path in masks:
+            idxs = extract_idxs_from_fname(
+                mask_path, downsample_factor=downsample_factor
+            )
+            mask = aiod_rle.load_encoding(mask_path)
             mask, _ = aiod_rle.decode(mask)
+            # Cast boolean to allow addition
+            if mask.dtype == bool:
+                mask = mask.astype(np.uint8)
             all_masks = insert_mask(
                 all_masks=all_masks,
                 mask=mask,
@@ -73,12 +78,15 @@ def combine_masks(
     # TODO: Extract this, and handle binary/labelled masks properly, with specified vote mechanism
     else:
         # Combine the masks
-        for mask in masks:
+        for mask_path in masks:
             start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
-                mask, downsample_factor=downsample_factor
+                mask_path, downsample_factor=downsample_factor
             )
-            mask = aiod_rle.load_encoding(mask)
+            mask = aiod_rle.load_encoding(mask_path)
             mask, _ = aiod_rle.decode(mask)
+            # Cast boolean to allow addition
+            if mask.dtype == bool:
+                mask = mask.astype(np.uint8)
             # Just sum, naive method
             if is_2d:
                 all_masks[start_x:end_x, start_y:end_y] += mask
