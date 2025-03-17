@@ -1,9 +1,8 @@
 import os
 from pathlib import Path
 import psutil
-from typing import Union
 
-from aiod_utils.preprocess import get_output_shape, get_downsample_factor
+from aiod_utils.preprocess import get_downsample_factor
 from aiod_utils.io import extract_idxs_from_fname
 import aiod_utils.rle as aiod_rle
 import dask.array as da
@@ -16,7 +15,7 @@ import skimage.measure
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
 
-from utils import reduce_dtype, align_segment_labels
+from utils import reduce_dtype
 
 
 def combine_masks(
@@ -106,6 +105,7 @@ def insert_mask(
             max_val = all_masks.max()
         else:
             max_val = all_masks[start_z:end_z, ...].max()
+        # TODO: Handle the below, why is it commented out?
         # # Check if we need to upcast the array
         # if max_val + mask.max() > np.iinfo(all_masks.dtype).max:
         #     all_masks = all_masks.astype(np.uint32, copy=False)

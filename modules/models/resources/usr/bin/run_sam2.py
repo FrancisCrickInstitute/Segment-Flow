@@ -15,7 +15,6 @@ from utils import (
     create_argparser_inference,
     guess_rgb,
     load_img,
-    extract_idxs,
 )
 from model_utils import get_device
 

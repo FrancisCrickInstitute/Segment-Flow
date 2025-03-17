@@ -1,11 +1,9 @@
 import argparse
-from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
 from skimage.segmentation import relabel_sequential
 
-import aiod_utils
 import aiod_utils.io as aiod_io
 import aiod_utils.rle as aiod_rle
 
