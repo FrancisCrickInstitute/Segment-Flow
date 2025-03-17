@@ -23,7 +23,6 @@ def combine_masks(
     masks: list[str],
     overlap: list[float, ...],
     image_size: tuple[int, ...],
-    preprocess_params: Union[str, Path],
 ):
     """
     Combine masks from each of the substacks into a single array/dataset.
@@ -47,21 +46,16 @@ def combine_masks(
         is_2d = True
     else:
         is_2d = False
-    # Get output shape given preprocessing
-    output_shape = get_output_shape(options=preprocess_params, input_shape=image_size)
-    # Need to handle the indices as well if downsampling occurred
-    downsample_factor = get_downsample_factor(preprocess_params)
+    # NOTE: image_size will now always take account of downsampling
     # Create the array to hold the masks (uint16 should be fine...?)
-    all_masks = np.zeros(output_shape, dtype=np.uint16)
+    all_masks = np.zeros(image_size, dtype=np.uint16)
     # Loop over each mask and insert into the array
     # Add the masks together if overlap is >0
     # NOTE: Adding together only really makes sense for binary masks
     overlap = [float(val) for val in overlap]
     if sum(overlap) == 0.0:
         for mask_path in masks:
-            idxs = extract_idxs_from_fname(
-                mask_path, downsample_factor=downsample_factor
-            )
+            idxs = extract_idxs_from_fname(mask_path)
             mask = aiod_rle.load_encoding(mask_path)
             mask, _ = aiod_rle.decode(mask)
             # Cast boolean to allow addition
@@ -80,7 +74,7 @@ def combine_masks(
         # Combine the masks
         for mask_path in masks:
             start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
-                mask_path, downsample_factor=downsample_factor
+                mask_path
             )
             mask = aiod_rle.load_encoding(mask_path)
             mask, _ = aiod_rle.decode(mask)
@@ -321,9 +315,6 @@ if __name__ == "__main__":
         default=0.8,
         help="IoU threshold for aligning masks (in SAM)",
     )
-    parser.add_argument(
-        "--preprocess-params", help="Preprocessing parameters YAML file"
-    )
 
     cli_args = parser.parse_args()
 
@@ -335,7 +326,6 @@ if __name__ == "__main__":
             cli_args.masks,
             overlap=cli_args.overlap,
             image_size=cli_args.image_size,
-            preprocess_params=cli_args.preprocess_params,
         )
         mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
         print(f"Memory used after loading stack: {mem_used:.2f} GB")
@@ -365,8 +355,12 @@ if __name__ == "__main__":
     # Save the masks
     save_path = Path(cli_args.output_dir) / f"{cli_args.mask_fname}_all.rle"
     # Get downsample factor for metadata if used
-    downsample_factor = get_downsample_factor(cli_args.preprocess_params)
-    if downsample_factor is not None:
+    # NOTE: Our Napari plugin uses this as an identifier to rescale for visualization
+    # FIXME: This is brittle and poor, the params should be extracted from the preprocess params
+    # Which themselves should be tied to the image that they produced
+    if "Downsample" in cli_args.mask_fname:
+        downsample_factor = get_downsample_factor(filename=cli_args.mask_fname)
+        # Extract the downsample factor from the filename
         metadata = {"downsample_factor": downsample_factor}
     else:
         metadata = {}
