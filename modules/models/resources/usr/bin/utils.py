@@ -60,9 +60,6 @@ def create_argparser_inference():
     parser.add_argument("--model-type", help="Select model type", default="default")
     parser.add_argument("--model-config", help="Model config path")
     parser.add_argument(
-        "--preprocess-params", help="Preprocessing parameters YAML file"
-    )
-    parser.add_argument(
         "--channels", type=int, help="Number of channels in the input image"
     )
     parser.add_argument(
@@ -82,7 +79,6 @@ def guess_rgb(img_shape, dim: int = 0):
 def load_img(
     fpath,
     idxs: list[int, ...],
-    preprocess_params: Union[str, Path],
     channels: Optional[int] = None,
     num_slices: Optional[int] = None,
     **kwargs,
@@ -137,8 +133,6 @@ def load_img(
     else:
         squeezed = False
 
-    # Apply preprocessing if provided
-    img = aiod_utils.run_preprocess(img, preprocess_params)
     if squeezed:
         img = np.expand_dims(img, axis=channel_axis)
     return img
