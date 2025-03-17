@@ -353,7 +353,7 @@ if __name__ == "__main__":
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
     print(f"Memory used in combination: {mem_used:.2f} GB")
     # Save the masks
-    save_path = Path(cli_args.output_dir) / f"{cli_args.mask_fname}_all.rle"
+    save_path = f"{cli_args.mask_fname}_all.rle"
     # Get downsample factor for metadata if used
     # NOTE: Our Napari plugin uses this as an identifier to rescale for visualization
     # FIXME: This is brittle and poor, the params should be extracted from the preprocess params
@@ -369,7 +369,6 @@ if __name__ == "__main__":
     del combined_masks
     # Save the masks
     aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
-    # Remove the individual masks now that they are combined
+    # Remove the (symlinked) individual masks now that they are combined
     for mask_path in cli_args.masks:
-        # Remove the mask
         (Path(cli_args.output_dir) / mask_path).unlink()

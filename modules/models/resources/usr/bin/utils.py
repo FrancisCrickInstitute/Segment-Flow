@@ -17,10 +17,7 @@ def save_masks(
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
     # Define path with all the indices
-    save_path = (
-        save_dir
-        / f"{save_name}_x{start_x}-{end_x}_y{start_y}-{end_y}_z{start_z}-{end_z}"
-    )
+    save_path = f"{save_name}_x{start_x}-{end_x}_y{start_y}-{end_y}_z{start_z}-{end_z}"
     # Relabel the inputs to minimise int size and thus output file size
     masks, _, _ = relabel_sequential(masks)
     # Reduce dtype to save space
@@ -32,7 +29,7 @@ def save_masks(
         metadata=metadata,
         **kwargs,
     )
-    aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path.with_suffix(".rle"))
+    aiod_rle.save_encoding(rle=encoded_masks, fpath=str(save_path) + ".rle")
     # TODO: For what use is returning the save path?
     return save_path
 
