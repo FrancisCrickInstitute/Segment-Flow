@@ -124,7 +124,6 @@ if __name__ == "__main__":
         idxs=cli_args.idxs,
         channels=cli_args.channels,
         num_slices=cli_args.num_slices,
-        preprocess_params=cli_args.preprocess_params,
         dim_order="CZYX",
     )
 
@@ -204,6 +203,7 @@ if __name__ == "__main__":
         save_name=cli_args.mask_fname,
         masks=pan_seg,
         idxs=cli_args.idxs,
+        mask_type="binary",  # Much faster this way
     )
 
 # python run_mitonet.py --model-chkpt /Users/shandc/Documents/ai-on-demand/src/ai_on_demand/.nextflow/cache/mitonet/mitonet_mini.pt --img-path /Users/shandc/Documents/data/napari_examples/example_stack.tiff

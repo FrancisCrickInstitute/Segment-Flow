@@ -27,7 +27,6 @@ if __name__ == "__main__":
         idxs=cli_args.idxs,
         channels=cli_args.channels,
         num_slices=cli_args.num_slices,
-        preprocess_params=cli_args.preprocess_params,
         dim_order="CZYX",
     )
     stack = np.squeeze(stack)

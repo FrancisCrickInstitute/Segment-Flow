@@ -1,11 +1,9 @@
 import argparse
-from pathlib import Path
-from typing import Optional, Union
+from typing import Optional
 
 import numpy as np
 from skimage.segmentation import relabel_sequential
 
-import aiod_utils
 import aiod_utils.io as aiod_io
 import aiod_utils.rle as aiod_rle
 
@@ -17,10 +15,7 @@ def save_masks(
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
     # Define path with all the indices
-    save_path = (
-        save_dir
-        / f"{save_name}_x{start_x}-{end_x}_y{start_y}-{end_y}_z{start_z}-{end_z}"
-    )
+    save_path = f"{save_name}_x{start_x}-{end_x}_y{start_y}-{end_y}_z{start_z}-{end_z}"
     # Relabel the inputs to minimise int size and thus output file size
     masks, _, _ = relabel_sequential(masks)
     # Reduce dtype to save space
@@ -32,7 +27,7 @@ def save_masks(
         metadata=metadata,
         **kwargs,
     )
-    aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path.with_suffix(".rle"))
+    aiod_rle.save_encoding(rle=encoded_masks, fpath=str(save_path) + ".rle")
     # TODO: For what use is returning the save path?
     return save_path
 
@@ -60,9 +55,6 @@ def create_argparser_inference():
     parser.add_argument("--model-type", help="Select model type", default="default")
     parser.add_argument("--model-config", help="Model config path")
     parser.add_argument(
-        "--preprocess-params", help="Preprocessing parameters YAML file"
-    )
-    parser.add_argument(
         "--channels", type=int, help="Number of channels in the input image"
     )
     parser.add_argument(
@@ -82,7 +74,6 @@ def guess_rgb(img_shape, dim: int = 0):
 def load_img(
     fpath,
     idxs: list[int, ...],
-    preprocess_params: Union[str, Path],
     channels: Optional[int] = None,
     num_slices: Optional[int] = None,
     **kwargs,
@@ -137,8 +128,6 @@ def load_img(
     else:
         squeezed = False
 
-    # Apply preprocessing if provided
-    img = aiod_utils.run_preprocess(img, preprocess_params)
     if squeezed:
         img = np.expand_dims(img, axis=channel_axis)
     return img
