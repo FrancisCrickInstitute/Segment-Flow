@@ -1,5 +1,6 @@
 process preprocessImage {
-    conda '/Users/shandc/miniconda3/envs/aiod'
+    // Re-use the combine stacks conda env
+    conda "${moduleDir}/envs/conda_combine_stacks.yml"
     memory { 500.MB * task.attempt as MemoryUnit }
     time { 5.m * task.attempt }
 
