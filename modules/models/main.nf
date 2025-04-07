@@ -108,7 +108,7 @@ process combineStacks {
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
     // Add a minimum amount of memory, otherwise scale as a multiple of the input mask size
     // NOTE: Masks are RLE-compressed, so multiply by buffer (5) by average compression factor (1000)
-    memory { (Math.max((5.GB).toBytes(), masks*.size().sum() * 5000) * task.attempt) as MemoryUnit }
+    memory { (Math.max((5.GB).toBytes(), masks*.size().sum() * 10000) * task.attempt) as MemoryUnit }
     // Give more base time if postprocessing
     time { params.postprocess ? 45.m * Math.pow(2, task.attempt) : 10.min * Math.pow(2, task.attempt) }
     publishDir "$mask_output_dir", mode: 'copy'
@@ -124,6 +124,7 @@ process combineStacks {
     def postprocess = postprocess ? "--postprocess" : ""
     overlap = params.overlap.replace(",", " ")
     """
+    echo ${task.memory}
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
     --output-dir ${mask_output_dir} \
