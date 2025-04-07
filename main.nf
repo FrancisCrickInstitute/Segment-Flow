@@ -106,7 +106,7 @@ workflow {
             }
             | set { img_ch1 }
         // Preprocess the images, outputting one per preprocess set
-        preprocessImage( img_ch1, params.img_dir )
+        preprocessImage( img_ch1, file(params.img_dir) )
         preprocessImage.out.prep_imgs
             | flatten()
             | map{ img -> [img.name, img] }
@@ -123,7 +123,7 @@ workflow {
         channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
             | map{ row -> [row.img_path, file(row.img_path)]}
             | set { img_names }
-        splitStacks( params.img_dir )
+        splitStacks( file(params.img_dir) )
     }
 
     // Now prepare each substack for each (poss preprocessed) image
