@@ -1,7 +1,7 @@
 process preprocessImage {
     // Re-use the combine stacks conda env
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
-    memory { 500.MB * task.attempt as MemoryUnit }
+    memory { (Math.max((10.GB).toBytes(), image_path.size() * 2) * task.attempt) as MemoryUnit }
     time { 5.m * task.attempt }
 
     input:
