@@ -19,7 +19,7 @@ def save_masks(
     # Relabel the inputs to minimise int size and thus output file size
     masks, _, _ = relabel_sequential(masks)
     # Reduce dtype to save space
-    masks = reduce_dtype(masks)
+    masks = aiod_io.reduce_dtype(masks)
     # Encode the masks and save them (inserting metadata if provided)
     # NOTE: kwargs is there to allow specifying mask encoding type — otherwise inferred from masks
     encoded_masks = aiod_rle.encode(

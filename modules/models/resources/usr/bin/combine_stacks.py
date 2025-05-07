@@ -3,7 +3,7 @@ from pathlib import Path
 import psutil
 
 from aiod_utils.preprocess import get_downsample_factor
-from aiod_utils.io import extract_idxs_from_fname
+from aiod_utils.io import extract_idxs_from_fname, reduce_dtype
 import aiod_utils.rle as aiod_rle
 import dask.array as da
 import dask_image.ndmeasure
@@ -14,8 +14,6 @@ import numpy as np
 import skimage.measure
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
-
-from utils import reduce_dtype
 
 
 def combine_masks(
