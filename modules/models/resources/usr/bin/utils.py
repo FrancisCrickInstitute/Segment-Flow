@@ -196,21 +196,6 @@ def translate_from_order(l: list, dim_order: str, default_order: str = "CZYX"):
     return [l[i] for i in trans]
 
 
-def reduce_dtype(arr: np.ndarray, max_val: Optional[int] = None):
-    # Get the max value in the array if not provided
-    if max_val is None:
-        max_val = arr.max()
-    # Get the appropriate dtype from the max value
-    if max_val < 256:
-        best_dtype = np.uint8
-    elif max_val < 65536:
-        best_dtype = np.uint16
-    # Surely it doesn't need more than 32 bits...
-    else:
-        best_dtype = np.uint32
-    return arr.astype(best_dtype, copy=False)
-
-
 def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
     # From https://github.com/MIC-DKFZ/napari-sam/blob/main/src/napari_sam/_widget.py#L1118
     """
@@ -256,3 +241,7 @@ def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
                     new_next_slice[next_slice == next_label] = next_label
             all_masks[i + 1] = new_next_slice
     return all_masks
+
+
+def get_mask_type_from_model(model_type: str):
+    return "instance" if "sam" in model_type else "binary"

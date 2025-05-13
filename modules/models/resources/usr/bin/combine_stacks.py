@@ -15,11 +15,14 @@ import skimage.measure
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
 
+from utils import get_mask_type_from_model
+
 
 def combine_masks(
     masks: list[str],
     overlap: list[float, ...],
     image_size: tuple[int, ...],
+    model: str,
 ):
     """
     Combine masks from each of the substacks into a single array/dataset.
@@ -54,7 +57,7 @@ def combine_masks(
         for mask_path in masks:
             idxs = extract_idxs_from_fname(mask_path)
             mask = aiod_rle.load_encoding(mask_path)
-            mask, _ = aiod_rle.decode(mask)
+            mask, _ = aiod_rle.decode(mask, mask_type=get_mask_type_from_model(model))
             # Cast boolean to allow addition
             if mask.dtype == bool:
                 mask = mask.astype(np.uint8)
@@ -74,7 +77,7 @@ def combine_masks(
                 mask_path
             )
             mask = aiod_rle.load_encoding(mask_path)
-            mask, _ = aiod_rle.decode(mask)
+            mask, _ = aiod_rle.decode(mask, mask_type=get_mask_type_from_model(model))
             # Cast boolean to allow addition
             if mask.dtype == bool:
                 mask = mask.astype(np.uint8)
@@ -324,13 +327,17 @@ if __name__ == "__main__":
             cli_args.masks,
             overlap=cli_args.overlap,
             image_size=cli_args.image_size,
+            model=cli_args.model,
         )
         mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
         print(f"Memory used after loading stack: {mem_used:.2f} GB")
     else:
         combined_masks = aiod_rle.load_encoding(cli_args.masks[0])
         # NOTE: Extract metadata later from preprocess params
-        combined_masks, _ = aiod_rle.decode(combined_masks)
+        combined_masks, _ = aiod_rle.decode(
+            combined_masks,
+            mask_type=get_mask_type_from_model(cli_args.model),
+        )
     print(f"Combined masks shape: {combined_masks.shape}")
     if cli_args.postprocess:
         print("Postprocessing masks...")
@@ -362,7 +369,11 @@ if __name__ == "__main__":
         metadata = {"downsample_factor": downsample_factor}
     else:
         metadata = {}
-    encoded_masks = aiod_rle.encode(combined_masks, metadata=metadata)
+    encoded_masks = aiod_rle.encode(
+        combined_masks,
+        metadata=metadata,
+        mask_type=get_mask_type_from_model(cli_args.model),
+    )
     # Free up memory (though too late at this point)
     del combined_masks
     # Save the masks
