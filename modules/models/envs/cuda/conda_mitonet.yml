@@ -5,7 +5,7 @@ channels:
   - nvidia
   - defaults
 dependencies:
-  - python=3.10
+  - python=3.11
   - pytorch::pytorch==2.0.1
   - pytorch::torchvision==0.15.2
   - pytorch::torchaudio==2.0.2
