@@ -13,7 +13,7 @@ dependencies:
   - pyyaml
   - pip
   - pip:
-    - numpy
+    - numpy==1.26.4
     - scikit-image
     - empanada-dl
     - git+ssh://git@github.com/FrancisCrickInstitute/aiod_utils.git

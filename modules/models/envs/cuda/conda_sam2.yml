@@ -14,7 +14,7 @@ dependencies:
   - pytorch::pytorch-cuda=12.1
   - pip
   - pip:
-    - numpy
+    - numpy==1.26.4
     - scikit-image
     - git+https://github.com/facebookresearch/sam2.git
     - opencv-python
