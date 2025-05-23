@@ -65,6 +65,8 @@ if __name__ == "__main__":
     else:
         config["z_axis"] = None
 
+    config["do_3D"] = True if cli_args.num_slices > 1 else False
+
     # Extract the segment and nucleus channels
     config["channels"] = [
         config["segment_channel"],
