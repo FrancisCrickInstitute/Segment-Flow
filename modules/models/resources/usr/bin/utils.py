@@ -243,5 +243,10 @@ def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
     return all_masks
 
 
-def get_mask_type_from_model(model_type: str):
-    return "instance" if "sam" in model_type else "binary"
+def get_mask_type_from_model(model_type: str) -> str:
+    instance_models = ["sam", "cellpose", "cellposesam"]
+    for model in instance_models:
+        if model in model_type:
+            return "instance"
+    else:
+        return "binary"
