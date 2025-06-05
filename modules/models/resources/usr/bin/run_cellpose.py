@@ -32,7 +32,7 @@ def run_cellpose(
         min_size=config["min_size"],
     )
 
-    save_masks(Path(save_dir), save_name, masks, idxs=idxs, mask_type="binary")
+    save_masks(Path(save_dir), save_name, masks, idxs=idxs, mask_type="instance")
 
 
 if __name__ == "__main__":
