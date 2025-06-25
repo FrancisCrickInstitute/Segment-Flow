@@ -13,6 +13,7 @@ from utils import (
     guess_rgb,
     load_img,
     extract_idxs,
+    get_model_name_type,
 )
 from model_utils import get_device
 
@@ -38,8 +39,12 @@ def run_sam(
     try:
         sam = sam_model_registry[model_type](checkpoint=model_chkpt)
     except KeyError:
-        sam = sam_model_registry["vit_b"](checkpoint=model_chkpt)
-    sam.to(get_device())
+        warnings.warn(
+            f"Model type '{model_type}' not found in registry, defaulting to 'vit_b'."
+        )
+        model_type = "vit_b"
+        sam = sam_model_registry[model_type](checkpoint=model_chkpt)
+    sam.to(get_device(model_type=get_model_name_type(model_type)))
     # Create the model
     model = SamAutomaticMaskGenerator(sam, **model_config)
     # Load the image
@@ -92,7 +97,6 @@ def _run_sam_slice(img_slice, model, pbar):
 def _run_sam_stack(img_stack, model, pbar):
     # Initialize the container of all masks
     if guess_rgb(img_stack.shape, dim=-1):
-        print(img_stack.shape, img_stack.shape[:3])
         all_masks = np.zeros(img_stack.shape[:3], dtype=np.uint32)
     else:
         all_masks = np.zeros(img_stack.shape, dtype=np.uint32)

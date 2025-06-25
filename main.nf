@@ -75,7 +75,7 @@ def getMaskName(img_file) {
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
 workflow {
     // TODO: Move the model-based stuff into a workflow under the models module?
-    def models = ["cellpose", "sam", "sam2", "seai_unet", "mitonet"]
+    def models = ["cellpose", "cellposesam", "sam", "sam2", "seai_unet", "mitonet"]
     assert models.contains( params.model ), "Model ${params.model} not yet implemented!"
     // Download model checkpoint if it doesn't exist
     chkpt_file = file( params.model_chkpt_path )
@@ -183,15 +183,15 @@ workflow.onComplete {
     def end_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
     if ( workflow.success ) {
         log.info """\
-                 ================================================
+                 ======================================================================
                  AIoD finished SUCCESSFULLY at ${end_timestamp} after $workflow.duration
-                 ================================================
+                 ======================================================================
                  """.stripIndent()
     } else {
         log.info """\
-            ================================================
+            ======================================================================
             AIoD finished WITH ERRORS at ${end_timestamp} after $workflow.duration
-            ================================================
+            ======================================================================
             """.stripIndent()
     }
 }

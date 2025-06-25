@@ -1,4 +1,6 @@
 import argparse
+import inspect
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -250,3 +252,20 @@ def get_mask_type_from_model(model_type: str) -> str:
             return "instance"
     else:
         return "binary"
+
+
+def get_model_name_type(model_type: str) -> str:
+    """
+    Get the model name from the script that called his function and model type.
+
+    model_type: str
+        The variant/version of the model.
+    """
+    # Get the file name of the script that called this function
+    # NOTE: This should generally work, though inspecting with e.g. pdb will change the results
+    f = inspect.stack()[1].filename
+    # Strip the model name from the file path
+    # NOTE: Stick to current run_<MODEL_NAME> convention for future script types
+    model_name = Path(f).stem.split("_")[-1]
+    # Add the model type to the name
+    return f"{model_name}_{model_type}"

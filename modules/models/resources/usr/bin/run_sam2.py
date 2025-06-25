@@ -15,6 +15,7 @@ from utils import (
     create_argparser_inference,
     guess_rgb,
     load_img,
+    get_model_name_type,
 )
 from model_utils import get_device
 
@@ -54,7 +55,7 @@ def run_sam2(
     if model_type not in BASE_CONFIGS:
         raise ValueError(f"Model type {model_type} not found!")
     base_config = get_sam2_config(model_type)
-    device = get_device()
+    device = get_device(model_type=get_model_name_type(model_type))
     hydra.core.global_hydra.GlobalHydra.instance().clear()
     with initialize_config_dir(config_dir=str(Path.cwd())):
         sam2 = build_sam2(

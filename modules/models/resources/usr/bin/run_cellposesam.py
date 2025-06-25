@@ -2,9 +2,10 @@ from pathlib import Path
 from typing import Union
 
 from cellpose import models
+import torch
 import yaml
 
-from utils import save_masks, create_argparser_inference, load_img
+from utils import save_masks, create_argparser_inference, load_img, get_model_name_type
 from model_utils import get_device
 
 
@@ -14,11 +15,12 @@ def run_cellpose(
     idxs: list[int, ...],
     config: dict,
     model_chkpt: str,
+    device: torch.device,
 ):
     # NOTE: This is just a link to the Cellpose-SAM model, but circumvents Cellpose's fixed model location
     # Initialize Cellpose-SAM model
     cp_model = models.CellposeModel(
-        gpu=get_device().type == "cuda",
+        gpu=device.type == "cuda",
         pretrained_model=str(Path(model_chkpt).readlink()),
     )
     # Extract model config arguments
@@ -73,10 +75,13 @@ if __name__ == "__main__":
     # TODO: Does Cellpose-SAM still need this or does it better handle 3D in 2D mode?
     config["do_3D"] = True if cli_args.num_slices > 1 else False
 
+    device = get_device(model_type=get_model_name_type(cli_args.model_type))
+
     run_cellpose(
         save_dir=cli_args.output_dir,
         save_name=cli_args.mask_fname,
         idxs=cli_args.idxs,
         config=config,
         model_chkpt=cli_args.model_chkpt,
+        device=device,
     )

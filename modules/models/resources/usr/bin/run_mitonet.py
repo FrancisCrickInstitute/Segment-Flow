@@ -5,11 +5,11 @@ from empanada.inference.engines import (
     PanopticDeepLabRenderEngine3d,
 )
 import numpy as np
-import skimage.io
+import skimage
 import torch
 import yaml
 
-from utils import save_masks, create_argparser_inference, load_img
+from utils import save_masks, create_argparser_inference, load_img, get_model_name_type
 from model_utils import get_device
 
 
@@ -129,7 +129,7 @@ if __name__ == "__main__":
 
     with open(cli_args.model_config, "r") as f:
         config = yaml.safe_load(f)
-    device = get_device()
+    device = get_device(model_type=get_model_name_type(cli_args.model_type))
     model = torch.jit.load(cli_args.model_chkpt, map_location=device)
     # NOTE: These are fixed from MitoNet configs, no matter the version
     norms = {"mean": 0.57571, "std": 0.12765}

@@ -7,7 +7,7 @@ import skimage.io
 from em_segment.modules.loading import load_from_yaml
 from em_segment.predictions import do_predictions
 from model_utils import get_device
-from utils import save_masks, create_argparser_inference, load_img
+from utils import save_masks, create_argparser_inference, load_img, get_model_name_type
 
 if __name__ == "__main__":
     parser = create_argparser_inference()
@@ -38,7 +38,11 @@ if __name__ == "__main__":
         stack_name=Path(cli_args.img_path).stem,
         stack_filepath=cli_args.img_path,
         chkpt_path=chkpt_path,
-        load_kwargs={"map_location": get_device()},
+        load_kwargs={
+            "map_location": get_device(
+                model_type=get_model_name_type(get_model_name_type(cli_args.model_type))
+            )
+        },
     )
     # Get connected components
     labelled_stack = skimage.measure.label(preds > 0.5)

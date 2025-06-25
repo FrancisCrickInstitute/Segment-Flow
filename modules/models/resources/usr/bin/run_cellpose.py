@@ -4,7 +4,7 @@ from typing import Union
 from cellpose import models
 import yaml
 
-from utils import save_masks, create_argparser_inference, load_img
+from utils import save_masks, create_argparser_inference, load_img, get_model_name_type
 from model_utils import get_device
 
 
@@ -73,7 +73,10 @@ if __name__ == "__main__":
     ]
 
     # Create the Cellpose model with available device
-    cp_model = models.Cellpose(model_type=cli_args.model_type, device=get_device())
+    cp_model = models.Cellpose(
+        model_type=cli_args.model_type,
+        device=get_device(model_type=get_model_name_type(cli_args.model_type)),
+    )
 
     run_cellpose(
         save_dir=cli_args.output_dir,
