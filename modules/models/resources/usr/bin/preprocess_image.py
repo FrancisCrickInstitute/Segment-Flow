@@ -7,12 +7,12 @@ from pathlib import Path
 import pandas as pd
 import skimage.io
 
-from aiod_utils.preprocess import get_preprocess_params, run_preprocess, load_methods
+from aiod_utils.preprocess import get_params_str, run_preprocess, load_methods
 from aiod_utils.io import load_image
 
 
 def construct_fname(img_path, preprocess_params):
-    suffix = get_preprocess_params(preprocess_params, to_save=True)
+    suffix = get_params_str(preprocess_params, to_save=True)
     img_path = Path(img_path)
     return f"{img_path.stem}_{suffix}{img_path.suffix}"
 
