@@ -4,7 +4,6 @@ channels:
   - conda-forge
   - nvidia
   - nvidia/label/cuda-12.1.0
-  - defaults
 dependencies:
   - python=3.11
   - pyyaml

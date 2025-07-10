@@ -1,6 +1,5 @@
 name: cellposesam_conda
 channels:
-  - defaults
   - conda-forge
 dependencies:
   - python=3.11

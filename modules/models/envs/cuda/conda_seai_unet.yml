@@ -1,12 +1,11 @@
 name: unet_conda
 channels:
-  - defaults
   - conda-forge
 dependencies:
   - python=3.11
   - pyyaml
   - pip
   - pip:
-    - git+ssh://git@github.com/FrancisCrickInstitute/em-segment-pytorch.git
+    - git+ssh://git@github.com/FrancisCrickInstitute/em-segment-pytorch.git@er-update-reqs
     - imagecodecs
     - git+ssh://git@github.com/FrancisCrickInstitute/aiod_utils.git
