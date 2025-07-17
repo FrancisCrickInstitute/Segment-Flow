@@ -8,4 +8,4 @@ dependencies:
   - pip:
     - numpy==1.26.4
     - cellpose>=4
-    - git+ssh://git@github.com/FrancisCrickInstitute/aiod_utils.git
+    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

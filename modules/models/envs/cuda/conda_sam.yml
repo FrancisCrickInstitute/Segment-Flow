@@ -19,4 +19,4 @@ dependencies:
     - scikit-image
     - git+https://github.com/FrancisCrickInstitute/segment-anything.git
     - opencv-python
-    - git+ssh://git@github.com/FrancisCrickInstitute/aiod_utils.git
+    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

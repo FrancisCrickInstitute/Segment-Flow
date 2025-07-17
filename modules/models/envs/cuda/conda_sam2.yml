@@ -18,4 +18,4 @@ dependencies:
     - git+https://github.com/facebookresearch/sam2.git
     - opencv-python
     - requests
-    - git+ssh://git@github.com/FrancisCrickInstitute/aiod_utils.git
+    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

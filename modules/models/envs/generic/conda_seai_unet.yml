@@ -7,6 +7,6 @@ dependencies:
   - pyyaml
   - pip
   - pip:
-    - git+ssh://git@github.com/FrancisCrickInstitute/em-segment-pytorch.git
+    - git+https://github.com/FrancisCrickInstitute/em-segment-pytorch.git
     - imagecodecs
-    - git+ssh://git@github.com/FrancisCrickInstitute/aiod_utils.git
+    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
