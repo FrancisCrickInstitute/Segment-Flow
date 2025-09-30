@@ -1,4 +1,4 @@
-name: mitonet_conda
+name: empanada_conda
 channels:
   - defaults
   - conda-forge
