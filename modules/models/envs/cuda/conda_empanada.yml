@@ -3,14 +3,13 @@ channels:
   - pytorch
   - conda-forge
   - nvidia
-  - nvidia/label/cuda-11.8.0
+  - nvidia/label/cuda-12.1.0
 dependencies:
   - python=3.11
-  - nvidia/label/cuda-11.8.0::cuda-toolkit
-  - pytorch::pytorch==2.0.1
-  - pytorch::torchvision==0.15.2
-  - pytorch::torchaudio==2.0.2
-  - pytorch::pytorch-cuda=11.8
+  - nvidia/label/cuda-12.1.0::cuda-toolkit
+  - pytorch::pytorch==2.3.1
+  - pytorch::torchvision==0.18.1
+  - pytorch::pytorch-cuda=12.1
   - pyyaml
   - pip
   - pip:
