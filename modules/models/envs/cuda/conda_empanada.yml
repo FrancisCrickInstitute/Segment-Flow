@@ -2,18 +2,13 @@ name: empanada_conda
 channels:
   - pytorch
   - conda-forge
-  - nvidia
-  - nvidia/label/cuda-12.1.0
 dependencies:
   - python=3.11
-  - nvidia/label/cuda-12.1.0::cuda-toolkit
-  - pytorch::pytorch==2.3.1
-  - pytorch::torchvision==0.18.1
-  - pytorch::pytorch-cuda=12.1
   - pyyaml
   - pip
   - pip:
     - numpy==1.26.4
+    - torch
     - scikit-image
     - empanada-dl
     - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
