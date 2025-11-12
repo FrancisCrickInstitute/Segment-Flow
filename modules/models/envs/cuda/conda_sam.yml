@@ -11,6 +11,8 @@ dependencies:
   - pip:
     - numpy>=1.24,<2
     - torch
+    - torchvision
+    - torchaudio
     - scikit-image
     - git+https://github.com/FrancisCrickInstitute/segment-anything.git
     - opencv-python
