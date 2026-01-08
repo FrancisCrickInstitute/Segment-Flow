@@ -197,6 +197,10 @@ workflow {
     combineStacks( mask_ch, params.postprocess )
 }
 
+workflow finetune{
+    finetuneModel()
+}
+
 // Useful output upon completion, one way or another
 workflow.onComplete {
     def end_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
