@@ -39,7 +39,7 @@ params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}"
 
 // Import processes from model modules
-include { downloadModel; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
+include { downloadModel; preprocessImage; splitStacks; runModel; finetuneModel; combineStacks } from './modules/models'
 
 def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
@@ -73,7 +73,7 @@ def getMaskName(img_file) {
 }
 
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
-workflow {
+workflow inference{
     // TODO: Move the model-based stuff into a workflow under the models module?
     def models = ["cellpose", "cellposesam", "sam", "sam2", "seai_unet", "empanada"]
     assert models.contains( params.model ), "Model ${params.model} not yet implemented!"
@@ -176,6 +176,10 @@ workflow {
     | set { mask_ch }
 
     combineStacks( mask_ch, params.postprocess )
+}
+
+workflow finetune{
+    finetuneModel()
 }
 
 // Useful output upon completion, one way or another

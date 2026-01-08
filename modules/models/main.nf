@@ -104,6 +104,20 @@ process runModel {
     """
 }
 
+process finetuneModel {
+    conda "/Users/ahmedn/miniconda3/envs/empanada"
+    
+    script:
+    """
+    echo "model_type: ${params.model_type}"
+    echo "epochs: ${params.epochs}"
+    echo "finetune_layers: ${params.finetune_layers}"
+    echo "Training data directory: ${params.train_dir}"
+    echo "model save name: ${params.model_save_name}"
+    python ${moduleDir}/resources/usr/bin/finetune_empanada.py
+    """
+}
+
 process combineStacks {
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
     // Add a minimum amount of memory, otherwise scale as a multiple of the input mask size
