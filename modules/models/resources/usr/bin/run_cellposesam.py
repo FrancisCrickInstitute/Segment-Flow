@@ -57,6 +57,9 @@ if __name__ == "__main__":
         num_slices=cli_args.num_slices,
         dim_order="CZYX",
     )
+    # Squeeze the image to avoid specifying a z or channel axis for single slice/channel images
+    # As Cellpose does some checking underneath which leads to errors
+    img = img.squeeze()
     # Ensure config has the correct channel and z axis
     shape = img.shape
     if shape[0] == cli_args.channels:
