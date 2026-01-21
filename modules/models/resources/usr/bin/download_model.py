@@ -33,7 +33,10 @@ def get_model_checkpoint(
 
 def download_from_url(url: str, chkpt_fname: Union[Path, str]):
     # Open the URL and get the content length
-    req = requests.get(url, stream=True)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    req = requests.get(url, stream=True, headers=headers)
     req.raise_for_status()
     content_length = int(req.headers.get("Content-Length"))
 
