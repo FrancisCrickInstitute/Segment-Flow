@@ -179,7 +179,32 @@ workflow inference{
 }
 
 workflow finetune{
-    finetuneModel()
+    def models = ["empanada"]
+    assert models.contains( params.model ), "Model ${params.model} not yet implemented!"
+    // Download model checkpoint if it doesn't exist
+    chkpt_file = file( params.model_chkpt_path )
+
+    if ( !chkpt_file.exists() ) {
+        downloadModel (
+            params.model_chkpt_path,
+            params.model_chkpt_loc,
+            params.model_chkpt_type,
+            params.model_chkpt_fname
+        )
+        chkpt_ch = downloadModel.out.model_chkpt
+    }
+    else {
+        chkpt_ch = chkpt_file
+    }
+    finetuneModel(
+        params.model_type,
+        params.epochs,
+        params.finetune_layers,
+        params.train_dir,
+        chkpt_ch,
+        params.model_save_name,
+        params.model_save_dir
+        )
 }
 
 // Useful output upon completion, one way or another

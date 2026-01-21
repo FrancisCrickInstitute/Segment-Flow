@@ -107,15 +107,33 @@ process runModel {
 process finetuneModel {
     conda "/Users/ahmedn/miniconda3/envs/empanada"
     
+    input:
+    val model_type
+    val epochs
+    val finetune_layers
+    path train_dir
+    path chkpt_ch
+    val model_save_name
+    path model_save_dir
+    // TODO: use inputs instead of taking directly from params
+    // TODO: Get the model dir from the model registry?
     script:
     """
-    echo "model_type: ${params.model_type}"
-    echo "epochs: ${params.epochs}"
-    echo "finetune_layers: ${params.finetune_layers}"
-    echo "Training data directory: ${params.train_dir}"
-    echo "model save name: ${params.model_save_name}"
-    python ${moduleDir}/resources/usr/bin/finetune_empanada.py
+    echo "model_type: ${model_type}"
+    echo "epochs: ${epochs}"
+    echo "finetune_layers: ${finetune_layers}"
+    echo "Training data directory: ${train_dir}"
+    echo "Base model checkpoint: ${chkpt_ch}"
+    echo "model save name: ${model_save_name}"
+    python ${moduleDir}/resources/usr/bin/run_finetuning_${params.model}.py \
+    --train_dir ${train_dir} \
+    --model_chkpt ${chkpt_ch} \
+    --model_save_name ${model_save_name} \
+    --model_save_dir ${model_save_dir} \
+    --layers ${finetune_layers} \
+    --epochs ${epochs}
     """
+
 }
 
 process combineStacks {

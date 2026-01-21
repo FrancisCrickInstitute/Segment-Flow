@@ -1,6 +1,7 @@
 import torch
 import time
-import cv2
+import argparse
+import yaml
 from utils_finetuning import patchify, FinetuningDataset, Patch2D, PanopticLoss
 from torch.utils.data import DataLoader
 import torch.optim as optim
@@ -8,6 +9,7 @@ import numpy as np
 
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
+from pathlib import Path
 
 from empanada.inference import engines
 from empanada import metrics
@@ -144,6 +146,7 @@ def finetune(config):
                 criterion=criterion,
                 config=config,
             )
+    Path(save_dir).mkdir(parents=True, exist_ok=True)
     torch.jit.save(model, save_dir + "/" + save_name + ".pth")
 
 
@@ -340,3 +343,87 @@ class ProgressAverageMeter(metrics.AverageMeter):
     def __str__(self):
         fmtstr = "{name} {avg" + self.fmt + "}"
         return fmtstr.format(**self.__dict__)
+
+
+def run_finetuning(train_dir, model_dir, save_dir, save_name, layers, epochs):
+    print("run_finetuning in finetune_widget")
+    # collect user input of the finetuning widget and convert into a config
+
+    config_location = (
+        "/Users/ahmedn/Work/sandbox/finetuning/scripts/finetuning_config.yml"
+    )
+
+    try:
+        with open(config_location, mode="r") as handle:
+            finetuning_config = yaml.load(handle, Loader=yaml.FullLoader)
+    except:
+        print(
+            "Couldn't open finetuning config file ensure you have finetune_config.yml"
+        )
+
+    finetuning_config["TRAIN"]["train_dir"] = train_dir
+    finetuning_config["TRAIN"]["model_dir"] = model_dir
+    finetuning_config["TRAIN"]["save_dir"] = save_dir
+    finetuning_config["TRAIN"]["save_name"] = save_name
+    finetuning_config["TRAIN"]["layers"] = layers
+    finetuning_config["TRAIN"]["epochs"] = epochs
+    finetuning_config["TRAIN"]["device"] = "cpu"
+    finetuning_config["EVAL"]["epochs_per_eval"] = 1
+    finetuning_config["EVAL"]["class_names"] = {1: "mito"}
+
+    finetuning_config["EVAL"]["engine"] = "PanopticDeepLabEngine"
+
+    finetuning_config["EVAL"]["engine_params"] = {
+        "confidence_thr": 0.5,
+        "label_divisor": 1000,
+        "nms_kernel": 7,
+        "nms_threshold": 0.1,
+        "stuff_area": 64,
+        "thing_list": [1],
+        "void_label": 0,
+    }
+    finetuning_config["EVAL"]["print_freq"] = 0
+
+    finetune(finetuning_config)
+
+
+save_dir = "/Users/ahmedn/.nextflow/aiod/aiod_cache/finetuned_models/"
+
+
+def create_argparser_finetune():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--train_dir", required=True, help="Path to ground truth for finetuning"
+    )
+    parser.add_argument("--model_chkpt", required=True, help="Base model Checkpoint")
+    parser.add_argument(
+        "--model_save_name", required=True, help="Name of the final finetuned model"
+    )
+    parser.add_argument(
+        "--model_save_dir", required=True, help="Where to save the finetuned models"
+    )
+    parser.add_argument(
+        "--layers", required=True, help="Layers to be unfrozen when fine-tuning"
+    )
+    parser.add_argument(
+        "--epochs", required=True, help="Number of epochs to finetune for"
+    )
+
+    return parser
+
+
+if __name__ == "__main__":
+    print("Running Finetuning!")
+    parser = create_argparser_finetune()
+    cli_args = parser.parse_args()
+    print(cli_args)
+    run_finetuning(
+        cli_args.train_dir,
+        cli_args.model_chkpt,
+        cli_args.model_save_dir,
+        cli_args.model_save_name,
+        cli_args.layers,
+        int(cli_args.epochs),
+    )
+    print("Finetuning complete, please save model to local model registry to use.")

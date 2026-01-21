@@ -66,6 +66,26 @@ def create_argparser_inference():
     return parser
 
 
+def create_argparser_finetune():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--train_dir", required=True, help="Path to ground truth for finetuning"
+    )
+    parser.add_argument("--model_chkpt", required=True, help="Base model Checkpoint")
+    parser.add_argument(
+        "--model_save_name", required=True, help="Name of the final finetuned model"
+    )
+    parser.add_argument(
+        "--layers", required=True, help="Layers to be unfrozen when fine-tuning"
+    )
+    parser.add_argument(
+        "--epochs", required=True, help="Number of epochs to finetune for"
+    )
+
+    return parser
+
+
 def guess_rgb(img_shape, dim: int = 0):
     # Unified load func aims for [CD]HW format, so check for RGB(A) in first dim
     ndim = len(img_shape)
