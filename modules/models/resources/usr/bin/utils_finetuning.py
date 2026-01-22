@@ -9,7 +9,6 @@ from torch.utils.data import Dataset
 from copy import deepcopy
 from glob import glob
 from skimage import measure
-import matplotlib.pyplot as plt
 from typing import Union, Optional
 
 # recreate data set class
@@ -166,16 +165,6 @@ def heatmap_and_offsets(sl2d, heatmap_sigma=6):
         offsets = torch.from_numpy(offsets)
 
     return heatmap, offsets
-
-
-# patcher = Patch2D(patch_size=(32, 32))
-
-# data_dir = "/Users/ahmedn/Work/finetuning/c_elegans_mitos/"
-# data = patchify(data_dir=data_dir, patcher=patcher)
-# print(data.keys())
-# print(len(data["image"]))
-# print(len(data["mask"]))
-# print(data)
 
 
 class FinetuningDataset:
