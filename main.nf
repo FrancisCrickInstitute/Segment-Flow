@@ -45,27 +45,46 @@ def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
 // Could consider https://stackoverflow.com/a/71529563 for auto-printing
 
-log.info """\
+// log.info """\ TODO: remove this if the display_pipeline_info() is adequate
+//          ====================================================
+//                         AI ONDEMAND PIPELINE
+//                         ${log_timestamp}
+//          ====================================================
+//          Model name      : ${params.model}
+//          Model variant   : ${params.model_type}
+//          Model checkpoint: ${params.model_chkpt_path}
+//          Task            : ${params.task}
+//          Model config    : ${params.model_config}
+//          Config Hash     : ${params.param_hash}
+//          Image filepaths : ${params.img_dir}
+//          ---
+//          Cache directory : ${params.model_dir}
+//          Work directory  : ${workDir}
+//          Profile         : ${workflow.profile}
+//          ---
+//          Full Command    : ${workflow.commandLine}
+//          ====================================================
+//          """.stripIndent()
+
+
+display_pipeline_info()
+
+def display_pipeline_info() {
+    log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
+    log.info """\
          ====================================================
                         AI ONDEMAND PIPELINE
                         ${log_timestamp}
          ====================================================
-         Model name      : ${params.model}
-         Model variant   : ${params.model_type}
-         Model checkpoint: ${params.model_chkpt_path}
-         Task            : ${params.task}
-         Model config    : ${params.model_config}
-         Config Hash     : ${params.param_hash}
-         Image filepaths : ${params.img_dir}
-         ---
-         Cache directory : ${params.model_dir}
-         Work directory  : ${workDir}
-         Profile         : ${workflow.profile}
-         ---
-         Full Command    : ${workflow.commandLine}
+    """.stripIndent()
+    params.each{ k, v -> log.info "${k.padRight(20)} : ${v}" }
+    log.info """
+         Work directory       : ${workDir}
+         Profile              : ${workflow.profile}
+         Full Command         : ${workflow.commandLine}
          ====================================================
-         """.stripIndent()
-
+    """.stripIndent()
+}
 
 // Function to get the name of the mask file given the image and model-version-task
 def getMaskName(img_file) {
