@@ -35,7 +35,7 @@ augmentations_dict = [
 ]
 
 # set the training image augmentations
-norms = {"mean": 0.57571, "std": 0.12765}
+norms = {"mean": 0.57571, "std": 0.12765}  # base model norms
 aug_string = []
 dataset_augs = []
 for aug_params in augmentations_dict:
@@ -55,10 +55,8 @@ tfs = A.Compose([*dataset_augs, A.Normalize(**norms), ToTensorV2()])
 
 
 def finetune(config):
-    print("finetuning")
-    # device = config.get("device", "cpu")
-    # if there is a device key and it is truthy
-    device = config.get("device") or "cpu"
+    print("starting finetuning")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     train_dir = config["TRAIN"]["train_dir"]
     model_dir = config["TRAIN"]["model_dir"]
@@ -120,7 +118,7 @@ def finetune(config):
     optimizer = configure_optimizer(model, "AdamW", weight_decay=0.1, lr=0.00001)
 
     criterion = PanopticLoss()
-    for epoch in range(epochs):
+    for epoch in range(1, epochs + 1):
         train(
             train_loader=train_loader,
             model=model,
