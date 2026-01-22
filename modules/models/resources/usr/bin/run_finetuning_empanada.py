@@ -1,22 +1,13 @@
 import torch
-import time
 import argparse
 import yaml
 from utils_finetuning import patchify, FinetuningDataset, Patch2D, PanopticLoss
 from torch.utils.data import DataLoader
 import torch.optim as optim
-import numpy as np
 
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from pathlib import Path
-
-from empanada.inference import engines
-from empanada import metrics
-
-
-# from sklearn import measure
-# from skimage import io
 
 augmentations = sorted(
     name
@@ -65,7 +56,6 @@ tfs = A.Compose([*dataset_augs, A.Normalize(**norms), ToTensorV2()])
 
 def finetune(config):
     print("finetuning")
-    # why not
     # device = config.get("device", "cpu")
     # if there is a device key and it is truthy
     device = config.get("device") or "cpu"
@@ -138,14 +128,6 @@ def finetune(config):
             optimizer=optimizer,
             epoch=epoch,
         )
-        is_val_epoch = True  # (epoch + 1) % config["EVAL"]["epochs_per_eval"]
-        if is_val_epoch:
-            validate(
-                eval_loader=eval_loader,  # only supports batch size of 1?
-                model=model,
-                criterion=criterion,
-                config=config,
-            )
     Path(save_dir).mkdir(parents=True, exist_ok=True)
     torch.jit.save(model, save_dir + "/" + save_name + ".pth")
 
@@ -185,85 +167,6 @@ def train(
         print(f"epoch = {epoch}")
         print(aux_loss)
         print(loss.item())
-
-
-def validate(eval_loader, model, criterion, config):
-    print("running validation :)")
-    # validation metrics to track
-    class_names = config["EVAL"]["class_names"]
-    metric_dict = {}
-    for metric_params in config["EVAL"]["metrics"]:
-        reg_name = metric_params["name"]
-        metric_name = metric_params["metric"]
-        metric_params = {
-            k: v for k, v in metric_params.items() if k not in ["name", "metric"]
-        }
-        metric_dict[reg_name] = metrics.__dict__[metric_name](
-            metrics.AverageMeter, **metric_params
-        )
-
-    meters = metrics.ComposeMetrics(metric_dict, class_names)
-
-    # validation tracking
-    batch_time = ProgressAverageMeter("Time", ":6.3f")
-    loss_meters = None
-
-    progress = ProgressMeter(len(eval_loader), [batch_time], prefix="Validation: ")
-
-    # create the Inference Engine
-    engine_name = config["EVAL"]["engine"]
-    engine = engines.__dict__[engine_name](model, **config["EVAL"]["engine_params"])
-
-    for i, batch in enumerate(eval_loader):
-        end = time.time()
-        images = batch["image"]
-        target = {k: v for k, v in batch.items() if k not in ["image", "fname"]}
-
-        images = images.to(config["TRAIN"]["device"], non_blocking=True)
-        target = {
-            k: tensor.to(config["TRAIN"]["device"], non_blocking=True)
-            for k, tensor in target.items()
-        }
-
-        # compute panoptic segmentations
-        # from prediction and ground truth
-        output = engine.infer(images)
-        semantic = engine._harden_seg(output["sem"])
-        output["pan_seg"] = engine.postprocess(
-            semantic, output["ctr_hmp"], output["offsets"]
-        )
-        target["pan_seg"] = engine.postprocess(
-            target["sem"].unsqueeze(1), target["ctr_hmp"], target["offsets"]
-        )
-
-        loss, aux_loss = criterion(output, target)
-
-        # record losses
-        if loss_meters is None:
-            loss_meters = {}
-            for k, v in aux_loss.items():
-                loss_meters[k] = ProgressAverageMeter(k, ":.4e")
-                loss_meters[k].update(v)
-                # add to progress
-                progress.meters.append(loss_meters[k])
-        else:
-            for k, v in aux_loss.items():
-                loss_meters[k].update(v)
-
-        # compute metrics
-        with torch.no_grad():
-            meters.evaluate(output, target)
-
-        batch_time.update(time.time() - end)
-
-        # if i % config["EVAL"]["print_freq"] == 0:
-        progress.display(i)
-
-    # end of epoch print evaluation metrics
-    print("\n")
-    print(f"Validation results:")
-    meters.display()
-    print("\n")
 
 
 def configure_optimizer(model, opt_name, **opt_params):
@@ -315,36 +218,6 @@ def configure_optimizer(model, opt_name, **opt_params):
     return optim.__dict__[opt_name](param_groups, **opt_params)
 
 
-class ProgressMeter:
-    def __init__(self, num_batches, meters, prefix=""):
-        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
-        self.meters = meters
-        self.prefix = prefix
-
-    def display(self, batch):
-        entries = [self.prefix + self.batch_fmtstr.format(batch)]
-        entries += [str(meter) for meter in self.meters]
-        print("\t".join(entries))
-
-    def _get_batch_fmtstr(self, num_batches):
-        num_digits = len(str(num_batches // 1))
-        fmt = "{:" + str(num_digits) + "d}"
-        return "[" + fmt + "/" + fmt.format(num_batches) + "]"
-
-
-class ProgressAverageMeter(metrics.AverageMeter):
-    """Computes and stores the average and current value"""
-
-    def __init__(self, name, fmt=":f"):
-        self.name = name
-        self.fmt = fmt
-        super().__init__()
-
-    def __str__(self):
-        fmtstr = "{name} {avg" + self.fmt + "}"
-        return fmtstr.format(**self.__dict__)
-
-
 def run_finetuning(train_dir, model_dir, save_dir, save_name, layers, epochs):
     print("run_finetuning in finetune_widget")
     # collect user input of the finetuning widget and convert into a config
@@ -385,9 +258,6 @@ def run_finetuning(train_dir, model_dir, save_dir, save_name, layers, epochs):
     finetuning_config["EVAL"]["print_freq"] = 0
 
     finetune(finetuning_config)
-
-
-save_dir = "/Users/ahmedn/.nextflow/aiod/aiod_cache/finetuned_models/"
 
 
 def create_argparser_finetune():
