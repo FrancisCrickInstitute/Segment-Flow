@@ -1,0 +1,54 @@
+name: plantseg2_conda
+channels:
+  - conda-forge
+  # `defaults` is optional, unless e.g. `conda-forge` has no cudnn 9.* when `defaults` has.
+  # `defaults` of Anaconda is not accessible for many non-profit institutes such as EMBL.
+  # - defaults
+dependencies:
+  - python>=3.11
+  - pip
+  # Neural Network and GPU
+  - pytorch
+  - tensorboard
+  # Bioimage and CV
+  - tifffile
+  - h5py
+  - zarr
+  - vigra
+  - python-elf
+  - python-graphviz
+  - scikit-image
+  - bioimageio.core>=0.9.0
+  - bioimageio.spec>=0.5.4.3
+  # GUI
+  - pyside6
+  - qtpy
+  - napari
+  # Other
+  - qt-material
+  - requests
+  - pyyaml
+  - pydantic>2
+  # Test
+  - pytest
+  - pytest-cov
+  - pytest-qt
+  - pytest-mock
+  - requests-mock
+  # CI/CD
+  - pre-commit
+  - bump-my-version
+  # Docs
+  - mkdocs-material
+  - mkdocs-autorefs
+  - mkdocs-git-revision-date-localized-plugin
+  - mkdocs-git-committers-plugin-2
+  - mkdocstrings-python
+  - mike
+  - git
+  - pip:
+      - markdown-exec
+      # AI OnDemand
+      - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
+      # PlantSeg
+      - git+https://github.com/kreshuklab/plant-seg.git@qy/fix-crick-https
