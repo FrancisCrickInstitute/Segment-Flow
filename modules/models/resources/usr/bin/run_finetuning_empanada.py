@@ -16,43 +16,26 @@ augmentations = sorted(
     if callable(A.__dict__[name]) and not name.startswith("__") and name[0].isupper()
 )
 
-augmentations_dict = [
-    {"aug": "RandomScale", "scale_limit": [-0.9, 1]},
-    {
-        "aug": "PadIfNeeded",
-        "min_height": 128,
-        "min_width": 128,
-        "border_mode": 0,
-    },
-    {"aug": "RandomCrop", "height": 128, "width": 128},
-    {"aug": "Rotate", "limit": 180, "border_mode": 0},
-    {
-        "aug": "RandomBrightnessContrast",
-        "brightness_limit": 0.3,
-        "contrast_limit": 0.3,
-    },
-    {"aug": "HorizontalFlip"},
-    {"aug": "VerticalFlip"},
-]
 
-# set the training image augmentations
-norms = {"mean": 0.57571, "std": 0.12765}  # base model norms
-aug_string = []
-dataset_augs = []
-for aug_params in augmentations_dict:
-    aug_name = aug_params["aug"]
+def setup_augmentations(augs, norms):
+    # set the training image augmentations
+    aug_string = []
+    dataset_augs = []
+    for aug_params in augs:
+        aug_name = aug_params["aug"]
 
-    assert (
-        aug_name in augmentations or aug_name == "CopyPaste"
-    ), f"{aug_name} is not a valid albumentations augmentation!"
+        assert (
+            aug_name in augmentations or aug_name == "CopyPaste"
+        ), f"{aug_name} is not a valid albumentations augmentation!"
 
-    aug_string.append(aug_params["aug"])
-    del aug_params["aug"]
-    dataset_augs.append(A.__dict__[aug_name](**aug_params))
+        aug_string.append(aug_params["aug"])
+        del aug_params["aug"]
+        dataset_augs.append(A.__dict__[aug_name](**aug_params))
 
-aug_string = ",".join(aug_string)
+    aug_string = ",".join(aug_string)
 
-tfs = A.Compose([*dataset_augs, A.Normalize(**norms), ToTensorV2()])
+    tfs = A.Compose([*dataset_augs, A.Normalize(**norms), ToTensorV2()])
+    return tfs
 
 
 def update_training_metrics_file(epoch, average_loss, fpath):
@@ -78,17 +61,16 @@ def finetune(config):
     finetune_layer = config["TRAIN"]["layers"]
     batch_size = config["TRAIN"].get("batch_size") or 16
     patch_size = config["TRAIN"].get("patch_size") or (64, 64)
+    transforms = config["TRAIN"]["transforms"]
 
     # patch the images
     patcher = Patch2D(patch_size)
     data = patchify(train_dir, patcher)
 
     data_cls = FinetuningDataset
-    train_dataset = data_cls(data, transforms=tfs, weight_gamma=0.7)
+    train_dataset = data_cls(data, transforms=transforms, weight_gamma=0.7)
 
     train_loader = DataLoader(train_dataset, batch_size, shuffle=False, drop_last=True)
-
-    eval_loader = DataLoader(train_dataset, 1, shuffle=False, drop_last=True)
 
     model = torch.jit.load(model_dir, map_location=device)
 
@@ -228,9 +210,10 @@ def configure_optimizer(model, opt_name, **opt_params):
     return optim.__dict__[opt_name](param_groups, **opt_params)
 
 
-def run_finetuning(train_dir, model_dir, save_dir, save_name, layers, epochs):
+def run_finetuning(
+    train_dir, model_dir, model_type, save_dir, save_name, layers, epochs
+):
     print("run_finetuning in finetune_widget")
-    # collect user input of the finetuning widget and convert into a config
 
     config_location = (
         "/Users/ahmedn/Work/sandbox/finetuning/scripts/finetuning_config.yml"
@@ -244,27 +227,18 @@ def run_finetuning(train_dir, model_dir, save_dir, save_name, layers, epochs):
             "Couldn't open finetuning config file ensure you have finetune_config.yml"
         )
 
+    # print(finetuning_config)
+    augs = finetuning_config["TRAIN"]["augmentations"]
+    norms = finetuning_config["TRAIN"]["norms"][model_type]
+    transforms = setup_augmentations(augs, norms)
+
     finetuning_config["TRAIN"]["train_dir"] = train_dir
     finetuning_config["TRAIN"]["model_dir"] = model_dir
     finetuning_config["TRAIN"]["save_dir"] = save_dir
     finetuning_config["TRAIN"]["save_name"] = save_name
     finetuning_config["TRAIN"]["layers"] = layers
     finetuning_config["TRAIN"]["epochs"] = epochs
-    finetuning_config["EVAL"]["epochs_per_eval"] = 1
-    finetuning_config["EVAL"]["class_names"] = {1: "mito"}
-
-    finetuning_config["EVAL"]["engine"] = "PanopticDeepLabEngine"
-
-    finetuning_config["EVAL"]["engine_params"] = {
-        "confidence_thr": 0.5,
-        "label_divisor": 1000,
-        "nms_kernel": 7,
-        "nms_threshold": 0.1,
-        "stuff_area": 64,
-        "thing_list": [1],
-        "void_label": 0,
-    }
-    finetuning_config["EVAL"]["print_freq"] = 0
+    finetuning_config["TRAIN"]["transforms"] = transforms
 
     finetune(finetuning_config)
 
@@ -277,6 +251,7 @@ if __name__ == "__main__":
     run_finetuning(
         cli_args.train_dir,
         cli_args.model_chkpt,
+        cli_args.model_type,
         cli_args.model_save_dir,
         cli_args.model_save_name,
         cli_args.layers,
