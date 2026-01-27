@@ -72,6 +72,7 @@ def create_argparser_finetune():
         "--train_dir", required=True, help="Path to ground truth for finetuning"
     )
     parser.add_argument("--model_chkpt", required=True, help="Base model Checkpoint")
+    parser.add_argument("--model_type", required=True, help="Model type/variant")
     parser.add_argument(
         "--model_save_name", required=True, help="Name of the final finetuned model"
     )

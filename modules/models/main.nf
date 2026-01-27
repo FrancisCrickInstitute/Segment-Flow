@@ -126,6 +126,7 @@ process finetuneModel {
     python ${moduleDir}/resources/usr/bin/run_finetuning_${params.model}.py \
     --train_dir ${train_dir} \
     --model_chkpt ${chkpt_ch} \
+    --model_type ${model_type} \
     --model_save_name ${model_save_name} \
     --model_save_dir ${model_save_dir} \
     --layers ${finetune_layers} \
