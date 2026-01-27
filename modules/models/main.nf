@@ -105,8 +105,8 @@ process runModel {
 }
 
 process finetuneModel {
-    conda "/Users/ahmedn/miniconda3/envs/empanada"
-    
+    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_finetune_${params.model}.yml"
+
     input:
     val model_type
     val epochs
@@ -115,8 +115,6 @@ process finetuneModel {
     path chkpt_ch
     val model_save_name
     path model_save_dir
-    // TODO: use inputs instead of taking directly from params
-    // TODO: Get the model dir from the model registry?
     script:
     """
     echo "model_type: ${model_type}"

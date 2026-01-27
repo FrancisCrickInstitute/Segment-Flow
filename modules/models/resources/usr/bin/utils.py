@@ -3,11 +3,10 @@ import inspect
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
-from skimage.segmentation import relabel_sequential
-
 import aiod_utils.io as aiod_io
 import aiod_utils.rle as aiod_rle
+import numpy as np
+from skimage.segmentation import relabel_sequential
 
 
 def save_masks(
@@ -77,12 +76,14 @@ def create_argparser_finetune():
         "--model_save_name", required=True, help="Name of the final finetuned model"
     )
     parser.add_argument(
+        "--model_save_dir", required=True, help="Where to save the finetuned models"
+    )
+    parser.add_argument(
         "--layers", required=True, help="Layers to be unfrozen when fine-tuning"
     )
     parser.add_argument(
         "--epochs", required=True, help="Number of epochs to finetune for"
     )
-
     return parser
 
 
