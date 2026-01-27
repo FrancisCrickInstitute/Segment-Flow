@@ -1,13 +1,14 @@
-import torch
 import argparse
-import yaml
-from utils_finetuning import patchify, FinetuningDataset, Patch2D, PanopticLoss
-from torch.utils.data import DataLoader
-import torch.optim as optim
+import os
+from pathlib import Path
 
 import albumentations as A
+import torch
+import torch.optim as optim
+import yaml
 from albumentations.pytorch import ToTensorV2
-from pathlib import Path
+from torch.utils.data import DataLoader
+from utils_finetuning import FinetuningDataset, PanopticLoss, Patch2D, patchify
 
 augmentations = sorted(
     name
@@ -54,6 +55,17 @@ aug_string = ",".join(aug_string)
 tfs = A.Compose([*dataset_augs, A.Normalize(**norms), ToTensorV2()])
 
 
+def update_training_metrics_file(epoch, average_loss, fpath):
+    mode = "w" if epoch == 1 else "a"  # overwrite the file if first epoch
+    with open(fpath, mode) as f:
+        f.write(f"{epoch},{average_loss:.6f}\n")
+
+
+def clear_training_metrics_file(fpath):
+    f = open(fpath, "w+")
+    f.close
+
+
 def finetune(config):
     print("starting finetuning")
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -71,22 +83,11 @@ def finetune(config):
     patcher = Patch2D(patch_size)
     data = patchify(train_dir, patcher)
 
-    print(data["image"][0].shape)
-    print(len(data["image"]))
-    print(data["image"][0].dtype)
-
     data_cls = FinetuningDataset
     train_dataset = data_cls(data, transforms=tfs, weight_gamma=0.7)
 
-    print("--- train dataset ---")
-    print(train_dataset.__getitem__(0)["image"].shape)
-    print(train_dataset.__getitem__(0)["image"].dtype)
-
     train_loader = DataLoader(train_dataset, batch_size, shuffle=False, drop_last=True)
 
-    print("--- dataloader ---")
-    print("train_dataloader: ", train_loader)
-    print(next(iter(train_loader))["image"].shape)
     eval_loader = DataLoader(train_dataset, 1, shuffle=False, drop_last=True)
 
     model = torch.jit.load(model_dir, map_location=device)
@@ -115,19 +116,29 @@ def finetune(config):
     )
     print(f"Training {num_trainable} parameters.")
 
+    # Create save directory if not present
+    p = Path(save_dir)
+    base_dir = Path(os.path.realpath(p))
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    metrics_fpath = p / "training_metrics.csv"
+
     optimizer = configure_optimizer(model, "AdamW", weight_decay=0.1, lr=0.00001)
 
     criterion = PanopticLoss()
     for epoch in range(1, epochs + 1):
-        train(
+        average_loss = train(
             train_loader=train_loader,
             model=model,
             criterion=criterion,
             optimizer=optimizer,
             epoch=epoch,
+            config=config,
+            device=device,
         )
-    Path(save_dir).mkdir(parents=True, exist_ok=True)
+        update_training_metrics_file(epoch, average_loss, metrics_fpath)
     torch.jit.save(model, save_dir + "/" + save_name + ".pth")
+    clear_training_metrics_file(metrics_fpath)
 
 
 def train(
@@ -135,36 +146,37 @@ def train(
     model,
     criterion,
     optimizer,
+    config,
     epoch=None,
-    config=None,
     device="cpu",
 ):
+    total_loss = 0.0
+    batch_count = 0
+
     model.train()
     for i, batch in enumerate(train_loader):
         images = batch["image"]
         target = {k: v for k, v in batch.items() if k not in ["image", "fname"]}
 
-        # images = images.permute(0, 3, 1, 2).float()
         images = images.float()
         images = images.to(device, non_blocking=True)
         target = {
             k: tensor.to(device, non_blocking=True) for k, tensor in target.items()
         }
 
-        print(f"shape: {images.shape}")
-
         optimizer.zero_grad()
 
         output = model(images)
 
-        for k, v in output.items():
-            print(f"{k=}, shape: {v.shape}")
         loss, aux_loss = criterion(output, target)
         loss.backward()
         optimizer.step()
-        print(f"epoch = {epoch}")
-        print(aux_loss)
-        print(loss.item())
+
+        total_loss += float(loss.item())
+        batch_count += 1
+
+    average_loss = total_loss / batch_count
+    return average_loss
 
 
 def configure_optimizer(model, opt_name, **opt_params):
@@ -238,7 +250,6 @@ def run_finetuning(train_dir, model_dir, save_dir, save_name, layers, epochs):
     finetuning_config["TRAIN"]["save_name"] = save_name
     finetuning_config["TRAIN"]["layers"] = layers
     finetuning_config["TRAIN"]["epochs"] = epochs
-    finetuning_config["TRAIN"]["device"] = "cpu"
     finetuning_config["EVAL"]["epochs_per_eval"] = 1
     finetuning_config["EVAL"]["class_names"] = {1: "mito"}
 
