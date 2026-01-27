@@ -1,4 +1,3 @@
-import argparse
 import os
 from pathlib import Path
 
@@ -8,6 +7,7 @@ import torch.optim as optim
 import yaml
 from albumentations.pytorch import ToTensorV2
 from torch.utils.data import DataLoader
+from utils import create_argparser_finetune
 from utils_finetuning import FinetuningDataset, PanopticLoss, Patch2D, patchify
 
 augmentations = sorted(
@@ -267,29 +267,6 @@ def run_finetuning(train_dir, model_dir, save_dir, save_name, layers, epochs):
     finetuning_config["EVAL"]["print_freq"] = 0
 
     finetune(finetuning_config)
-
-
-def create_argparser_finetune():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--train_dir", required=True, help="Path to ground truth for finetuning"
-    )
-    parser.add_argument("--model_chkpt", required=True, help="Base model Checkpoint")
-    parser.add_argument(
-        "--model_save_name", required=True, help="Name of the final finetuned model"
-    )
-    parser.add_argument(
-        "--model_save_dir", required=True, help="Where to save the finetuned models"
-    )
-    parser.add_argument(
-        "--layers", required=True, help="Layers to be unfrozen when fine-tuning"
-    )
-    parser.add_argument(
-        "--epochs", required=True, help="Number of epochs to finetune for"
-    )
-
-    return parser
 
 
 if __name__ == "__main__":

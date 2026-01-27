@@ -1,0 +1,10 @@
+name: empanada_finetune
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - empanada-dl
+      - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
