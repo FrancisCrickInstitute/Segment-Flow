@@ -44,11 +44,6 @@ def update_training_metrics_file(epoch, average_loss, fpath):
         f.write(f"{epoch},{average_loss:.6f}\n")
 
 
-def clear_training_metrics_file(fpath):
-    f = open(fpath, "w+")
-    f.close
-
-
 def finetune(config):
     print("starting finetuning")
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -120,7 +115,6 @@ def finetune(config):
         )
         update_training_metrics_file(epoch, average_loss, metrics_fpath)
     torch.jit.save(model, save_dir + "/" + save_name + ".pth")
-    clear_training_metrics_file(metrics_fpath)
 
 
 def train(
