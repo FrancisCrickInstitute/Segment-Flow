@@ -246,7 +246,8 @@ def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
 
 
 def get_mask_type_from_model(model_type: str) -> str:
-    instance_models = ["sam", "cellpose", "cellposesam"]
+    # FIXME: This once caused confusing problems for addition of PlantSeg.
+    instance_models = ["sam", "cellpose", "cellposesam", "plantseg2"]
     for model in instance_models:
         if model in model_type:
             return "instance"
