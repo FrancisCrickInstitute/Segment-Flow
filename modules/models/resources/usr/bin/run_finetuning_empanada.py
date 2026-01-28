@@ -210,20 +210,16 @@ def run_finetuning(
     print("run_finetuning in finetune_widget")
 
     config_location = (
-        "/Users/ahmedn/Work/sandbox/finetuning/scripts/finetuning_config.yml"
+        Path(__file__).parent.resolve() / "finetune_configs" / "finetuning_config.yml"
     )
+    print(config_location)
 
-    try:
-        with open(config_location, mode="r") as handle:
-            finetuning_config = yaml.load(handle, Loader=yaml.FullLoader)
-    except:
-        print(
-            "Couldn't open finetuning config file ensure you have finetune_config.yml"
-        )
+    with open(config_location, mode="r") as handle:
+        finetuning_config = yaml.load(handle, Loader=yaml.FullLoader)
 
     # print(finetuning_config)
     augs = finetuning_config["TRAIN"]["augmentations"]
-    norms = finetuning_config["TRAIN"]["norms"][model_type]
+    norms = finetuning_config["TRAIN"]["norms"]
     transforms = setup_augmentations(augs, norms)
 
     finetuning_config["TRAIN"]["train_dir"] = train_dir
