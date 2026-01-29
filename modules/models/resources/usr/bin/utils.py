@@ -80,6 +80,11 @@ def create_argparser_finetune():
         "--model_save_dir", required=True, help="Where to save the finetuned models"
     )
     parser.add_argument(
+        "--patch_size",
+        required=True,
+        help="Size of patches when patchifying input images",
+    )
+    parser.add_argument(
         "--layers", required=True, help="Layers to be unfrozen when fine-tuning"
     )
     parser.add_argument(
