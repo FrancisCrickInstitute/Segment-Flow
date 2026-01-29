@@ -239,6 +239,7 @@ workflow finetune{
         params.model_type,
         params.epochs,
         params.finetune_layers,
+        params.patch_size,
         params.train_dir,
         chkpt_ch,
         params.model_save_name,

@@ -144,6 +144,7 @@ process finetuneModel {
     val model_type
     val epochs
     val finetune_layers
+    val patch_size
     path train_dir
     path chkpt_ch
     val model_save_name
@@ -153,6 +154,7 @@ process finetuneModel {
     echo "model_type: ${model_type}"
     echo "epochs: ${epochs}"
     echo "finetune_layers: ${finetune_layers}"
+    echo "patch_size: ${patch_size}"
     echo "Training data directory: ${train_dir}"
     echo "Base model checkpoint: ${chkpt_ch}"
     echo "model save name: ${model_save_name}"
@@ -162,6 +164,7 @@ process finetuneModel {
     --model_type ${model_type} \
     --model_save_name ${model_save_name} \
     --model_save_dir ${model_save_dir} \
+    --patch_size ${patch_size} \
     --layers ${finetune_layers} \
     --epochs ${epochs}
     """
