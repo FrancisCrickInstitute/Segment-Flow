@@ -56,8 +56,8 @@ def combine_masks(
     if sum(overlap) == 0.0:
         for mask_path in masks:
             idxs = extract_idxs_from_fname(mask_path)
-            encoded_mask = aiod_rle.load_encoding(mask_path)
-            mask, _ = aiod_rle.decode(encoded_mask, mask_type=get_mask_type_from_model(model))
+            mask = aiod_rle.load_encoding(mask_path)
+            mask, _ = aiod_rle.decode(mask, mask_type=get_mask_type_from_model(model))
             # Cast boolean to allow addition
             if mask.dtype == bool:
                 mask = mask.astype(np.uint8)
@@ -76,8 +76,8 @@ def combine_masks(
             start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
                 mask_path
             )
-            encoded_mask = aiod_rle.load_encoding(mask_path)
-            mask, _ = aiod_rle.decode(encoded_mask, mask_type=get_mask_type_from_model(model))
+            mask = aiod_rle.load_encoding(mask_path)
+            mask, _ = aiod_rle.decode(mask, mask_type=get_mask_type_from_model(model))
             # Cast boolean to allow addition
             if mask.dtype == bool:
                 mask = mask.astype(np.uint8)
@@ -380,10 +380,4 @@ if __name__ == "__main__":
     aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
     # Remove the (symlinked) individual masks now that they are combined
     for mask_path in cli_args.masks:
-        mask_file = Path(mask_path)
-        if mask_file.exists():
-            mask_file.unlink()
-        # Also try in the output directory
-        output_mask = Path(cli_args.output_dir) / mask_path
-        if output_mask.exists():
-            output_mask.unlink()
+        (Path(cli_args.output_dir) / mask_path).unlink()

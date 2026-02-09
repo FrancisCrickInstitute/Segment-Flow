@@ -4,7 +4,6 @@ channels:
 dependencies:
   - python=3.11
   - git
-  - pydantic
   - numpy=1.26.4
   - pandas
   - scikit-image

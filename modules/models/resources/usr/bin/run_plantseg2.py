@@ -99,29 +99,6 @@ def run_plantseg2(
     # Save the final segmentation
     save_masks(Path(save_dir), save_name, segmentation, idxs=idxs, mask_type="instance")
 
-    # Also save as TIFF using PlantSeg's create_tiff
-    from plantseg.io.tiff import create_tiff
-    from plantseg.io.voxelsize import VoxelSize
-
-    start_x, end_x, start_y, end_y, start_z, end_z = idxs
-    tiff_path = Path(save_dir) / f"{save_name}_x{start_x}-{end_x}_y{start_y}-{end_y}_z{start_z}-{end_z}.tif"
-
-    # Get voxel size from config if available, otherwise use default
-    voxel_size_tuple = config.get("voxel_size", None)
-    voxel_size_unit = config.get("voxel_size_unit", "um")
-    voxel_size = VoxelSize(voxels_size=voxel_size_tuple, unit=voxel_size_unit)
-
-    # Determine layout based on segmentation dimensions
-    if segmentation.ndim == 3:
-        layout = "ZYX"
-    elif segmentation.ndim == 2:
-        layout = "YX"
-    else:
-        layout = "ZYX"  # fallback
-
-    create_tiff(tiff_path, segmentation.astype(np.uint16), voxel_size, layout=layout)
-    print(f"Segmentation saved to {tiff_path}")
-
 
 if __name__ == "__main__":
     parser = create_argparser_inference()
