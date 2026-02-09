@@ -31,8 +31,8 @@ def run_plantseg2(
     print("Running prediction...")
 
     # Prepare prediction parameters
-    model_name = config.get("model_name", None)
-    model_id = config.get("model_id", None)
+    # Use the selected version from AIOD's Model Selection as the model name
+    model_name = cli_args.model_type
     patch = config.get("patch", None)
     if patch is not None:
         patch = tuple(patch)
@@ -40,7 +40,6 @@ def run_plantseg2(
     if patch_halo is not None:
         patch_halo = tuple(patch_halo)
 
-    device = config.get("device", "cuda")
     input_layout = config.get("input_layout", "ZYX")
 
     # Run prediction
@@ -48,11 +47,11 @@ def run_plantseg2(
         raw=img,
         input_layout=input_layout,
         model_name=model_name,
-        model_id=model_id,
+        model_id=None,
         patch=patch,
         patch_halo=patch_halo,
         single_batch_mode=config.get("single_batch_mode", True),
-        device=device,
+        device=get_device(model_type=get_model_name_type(cli_args.model_type)),
         model_update=config.get("model_update", False),
         disable_tqdm=config.get("disable_tqdm", False),
     )
@@ -139,10 +138,6 @@ if __name__ == "__main__":
             input_layout = "CYX"
 
     config["input_layout"] = input_layout
-
-    # Set device based on model type if not specified in config
-    if "device" not in config:
-        config["device"] = get_device(model_type=get_model_name_type(cli_args.model_type))
 
     run_plantseg2(
         save_dir=cli_args.output_dir,
