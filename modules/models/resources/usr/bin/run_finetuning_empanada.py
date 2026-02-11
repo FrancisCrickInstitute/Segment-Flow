@@ -91,7 +91,7 @@ def finetune(config):
             param.requires_grad = False
 
     # freeze specific layers
-    if finetune_layer == "none":
+    if finetune_layer == "decoder":
         pass
     elif finetune_layer == "all":
         for pname, param in model.named_parameters():
