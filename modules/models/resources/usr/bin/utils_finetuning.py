@@ -90,7 +90,14 @@ def patchify(data_dir, patcher):
         patches = patcher(mask, mask=True)
         for patch in patches:
             data["mask"].append(patch)
+    masks = torch.stack(data["mask"])
+    images = torch.stack(data["image"])
+    hole_bool = masks.sum(dim=(-2, -1)) > 0
+    masks = masks[hole_bool]
+    images = images[hole_bool]
+    data = {"image": images, "mask": masks}
 
+    print(f"Filtered patches: {len(hole_bool) - hole_bool.sum()} patches removed")
     print(f"made {len( data['image'] )} images and made {len( data['mask'] )} masks")
     return data
 
