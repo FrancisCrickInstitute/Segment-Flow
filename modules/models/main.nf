@@ -105,7 +105,7 @@ process runModel {
 }
 
 process finetuneModel {
-    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_finetune_${params.model}.yml"
+    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_${params.model}.yml"
 
     input:
     val model_type
