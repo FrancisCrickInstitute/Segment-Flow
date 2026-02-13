@@ -1,11 +1,23 @@
 name: unet_conda
 channels:
   - conda-forge
+  - defaults
 dependencies:
   - python=3.11
+  - pytorch
+  - torchvision
+  - numpy
+  - numba
+  - scipy
+  - matplotlib
+  - scikit-image
+  - beautifulsoup4
   - pyyaml
+  - tqdm
+  - imagecodecs
+  - git
+  - openssh
   - pip
   - pip:
-    - git+https://github.com/FrancisCrickInstitute/em-segment-pytorch.git@er-update-reqs
-    - imagecodecs
+    - git+https://github.com/FrancisCrickInstitute/em-segment-pytorch.git
     - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
