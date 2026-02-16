@@ -31,6 +31,7 @@ process splitStacks {
 
     input:
     path csv_path
+    path model_chkpt
 
     output:
     path "${csv_path}", emit: csv_file
