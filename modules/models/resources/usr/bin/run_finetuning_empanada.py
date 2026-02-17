@@ -58,6 +58,7 @@ def finetune(config):
     transforms = config["TRAIN"]["transforms"]
     # not user selected atm more of a computational concern
     batch_size = config["TRAIN"].get("batch_size") or 16
+    num_workers = config["TRAIN"].get("num_workers")
 
     # patch the images
     patcher = Patch2D(patch_size)
@@ -70,9 +71,11 @@ def finetune(config):
     data_cls = FinetuningDataset
     train_dataset = data_cls(data, transforms=transforms, weight_gamma=0.7)
 
-    cpu_count = os.cpu_count() or 1
-    num_workers = max(1, min(4, cpu_count // 2))
-    # TODO: set workers based on profile
+    # Use provided num_workers or fall back to auto-detection
+    if num_workers is None:
+        cpu_count = os.cpu_count()
+        num_workers = min(4, cpu_count // 2)
+    print(f"Using {num_workers} workers for data loading")
 
     train_loader = DataLoader(
         train_dataset,
@@ -223,7 +226,15 @@ def configure_optimizer(model, opt_name, **opt_params):
 
 
 def setup_finetuning(
-    train_dir, model_dir, model_type, save_dir, save_name, patch_size, layers, epochs
+    train_dir,
+    model_dir,
+    model_type,
+    save_dir,
+    save_name,
+    patch_size,
+    layers,
+    epochs,
+    num_workers=None,
 ):
     print("run_finetuning in finetune_widget")
 
@@ -247,6 +258,7 @@ def setup_finetuning(
     finetuning_config["TRAIN"]["epochs"] = epochs
     finetuning_config["TRAIN"]["patch_size"] = [int(i) for i in patch_size.split(",")]
     finetuning_config["TRAIN"]["transforms"] = transforms
+    finetuning_config["TRAIN"]["num_workers"] = num_workers
 
     return finetuning_config
 
@@ -265,6 +277,7 @@ if __name__ == "__main__":
         cli_args.patch_size,
         cli_args.layers,
         int(cli_args.epochs),
+        cli_args.num_workers,
     )
     finetune(config)
     print("Finetuning complete, please save model to local model registry to use.")

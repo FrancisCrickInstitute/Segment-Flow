@@ -90,6 +90,12 @@ def create_argparser_finetune():
     parser.add_argument(
         "--epochs", required=True, help="Number of epochs to finetune for"
     )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=None,
+        help="Number of workers for data loading (defaults to auto-detect)",
+    )
     return parser
 
 
