@@ -138,6 +138,7 @@ process runModel {
 }
 
 process finetuneModel {
+    cpus { task.attempt }
     conda "${moduleDir}/envs/${task.ext.condaDir}/conda_${params.model}.yml"
 
     input:
@@ -166,7 +167,8 @@ process finetuneModel {
     --model_save_dir ${model_save_dir} \
     --patch_size ${patch_size} \
     --layers ${finetune_layers} \
-    --epochs ${epochs}
+    --epochs ${epochs} \
+    --num_workers ${task.cpus}
     """
 
 }
