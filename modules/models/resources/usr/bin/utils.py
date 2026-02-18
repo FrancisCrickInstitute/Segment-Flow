@@ -245,16 +245,6 @@ def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
     return all_masks
 
 
-def get_mask_type_from_model(model_type: str) -> str:
-    # FIXME: This once caused confusing problems for addition of PlantSeg.
-    instance_models = ["sam", "cellpose", "cellposesam", "plantseg2"]
-    for model in instance_models:
-        if model in model_type:
-            return "instance"
-    else:
-        return "binary"
-
-
 def get_model_name_type(model_type: str) -> str:
     """
     Get the model name from the script that called his function and model type.
