@@ -15,8 +15,6 @@ import skimage.measure
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
 
-from utils import get_mask_type_from_model
-
 
 def combine_masks(
     masks: list[str],
@@ -30,6 +28,9 @@ def combine_masks(
     If overlap is 0, then the masks are simply inserted into their relevant indices.
 
     If overlap is >0, then the masks need to be combined.
+
+    Returns:
+        tuple[np.ndarray, str | None]: Combined mask array and mask type ("binary", "instance", or None).
     """
     # Get the chunk size from the first file
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(masks[0])
@@ -53,11 +54,16 @@ def combine_masks(
     # Add the masks together if overlap is >0
     # NOTE: Adding together only really makes sense for binary masks
     overlap = [float(val) for val in overlap]
+    mask_types_seen = set()
+
     if sum(overlap) == 0.0:
         for mask_path in masks:
             idxs = extract_idxs_from_fname(mask_path)
-            mask = aiod_rle.load_encoding(mask_path)
-            mask, _ = aiod_rle.decode(mask, mask_type=get_mask_type_from_model(model))
+            encoding = aiod_rle.load_encoding(mask_path)
+            mask, metadata = aiod_rle.decode(encoding)
+            current_mask_type = metadata.get("metadata", {}).get("mask_type")
+            if current_mask_type is not None:
+                mask_types_seen.add(current_mask_type)
             # Cast boolean to allow addition
             if mask.dtype == bool:
                 mask = mask.astype(np.uint8)
@@ -76,8 +82,11 @@ def combine_masks(
             start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
                 mask_path
             )
-            mask = aiod_rle.load_encoding(mask_path)
-            mask, _ = aiod_rle.decode(mask, mask_type=get_mask_type_from_model(model))
+            encoding = aiod_rle.load_encoding(mask_path)
+            mask, metadata = aiod_rle.decode(encoding)
+            current_mask_type = metadata.get("metadata", {}).get("mask_type")
+            if current_mask_type is not None:
+                mask_types_seen.add(current_mask_type)
             # Cast boolean to allow addition
             if mask.dtype == bool:
                 mask = mask.astype(np.uint8)
@@ -86,7 +95,16 @@ def combine_masks(
                 all_masks[start_x:end_x, start_y:end_y] += mask
             else:
                 all_masks[start_z:end_z, start_x:end_x, start_y:end_y] += mask
-    return reduce_dtype(all_masks)
+
+    # Validate mask type consistency across all mask files
+    if len(mask_types_seen) > 1:
+        raise ValueError(
+            f"Inconsistent mask types found across mask files: {mask_types_seen}. "
+            "All mask files must have the same mask type."
+        )
+    mask_type = mask_types_seen.pop() if mask_types_seen else None
+
+    return reduce_dtype(all_masks), mask_type
 
 
 def insert_mask(
@@ -323,7 +341,7 @@ if __name__ == "__main__":
     print(f"Memory used before loading stack: {mem_used:.2f} GB")
     # Combine the masks
     if len(cli_args.masks) > 1:
-        combined_masks = combine_masks(
+        combined_masks, mask_type_from_file = combine_masks(
             cli_args.masks,
             overlap=cli_args.overlap,
             image_size=cli_args.image_size,
@@ -334,10 +352,9 @@ if __name__ == "__main__":
     else:
         combined_masks = aiod_rle.load_encoding(cli_args.masks[0])
         # NOTE: Extract metadata later from preprocess params
-        combined_masks, _ = aiod_rle.decode(
-            combined_masks,
-            mask_type=get_mask_type_from_model(cli_args.model),
-        )
+        combined_masks, decoded_metadata = aiod_rle.decode(combined_masks)
+        # Extract mask_type from metadata to avoid expensive check_mask_type() later
+        mask_type_from_file = decoded_metadata.get("metadata", {}).get("mask_type")
     print(f"Combined masks shape: {combined_masks.shape}")
     if cli_args.postprocess:
         print("Postprocessing masks...")
@@ -369,10 +386,11 @@ if __name__ == "__main__":
         metadata = {"downsample_factor": downsample_factor}
     else:
         metadata = {}
+    # Reuse mask_type from decoded patches to avoid expensive check_mask_type()
     encoded_masks = aiod_rle.encode(
         combined_masks,
+        mask_type=mask_type_from_file,
         metadata=metadata,
-        mask_type=get_mask_type_from_model(cli_args.model),
     )
     # Free up memory (though too late at this point)
     del combined_masks

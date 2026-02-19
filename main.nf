@@ -74,9 +74,13 @@ def getMaskName(img_file) {
 
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
 workflow {
-    // TODO: Move the model-based stuff into a workflow under the models module?
-    def models = ["cellpose", "cellposesam", "sam", "sam2", "seai_unet", "empanada", "plantseg2"]
-    assert models.contains( params.model ), "Model ${params.model} not yet implemented!"
+    // Dynamically discover available models by scanning for run_<model>.py files
+    def modelScriptsDir = file("${workflow.projectDir}/modules/models/resources/usr/bin")
+    def availableModels = modelScriptsDir.listFiles()
+        .findAll { it.name.startsWith('run_') && it.name.endsWith('.py') }
+        .collect { it.name.replaceAll(/^run_/, '').replaceAll(/\.py$/, '') }
+
+    assert availableModels.contains( params.model ), "Model ${params.model} not yet implemented! Available models: ${availableModels.join(', ')}"
     // Download model checkpoint if it doesn't exist
     chkpt_file = file( params.model_chkpt_path )
 
