@@ -1,5 +1,6 @@
 import argparse
 import inspect
+import warnings
 from pathlib import Path
 from typing import Optional
 
@@ -15,7 +16,7 @@ def save_masks(
 ):
     save_dir.mkdir(parents=True, exist_ok=True)
     # Extract the start and end indices in each dim
-    start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
+    start_x, end_x, start_y, end_y, start_z, end_z = idxs
     # Define path with all the indices
     save_path = f"{save_name}_x{start_x}-{end_x}_y{start_y}-{end_y}_z{start_z}-{end_z}"
     # Relabel the inputs to minimise int size and thus output file size
@@ -32,12 +33,6 @@ def save_masks(
     aiod_rle.save_encoding(rle=encoded_masks, fpath=str(save_path) + ".rle")
     # TODO: For what use is returning the save path?
     return save_path
-
-
-def extract_idxs(idxs: list[int, ...]):
-    # Standardise expected idxs format and extraction
-    start_x, end_x, start_y, end_y, start_z, end_z = idxs
-    return start_x, end_x, start_y, end_y, start_z, end_z
 
 
 def create_argparser_inference():
@@ -80,122 +75,69 @@ def load_img(
     num_slices: Optional[int] = None,
     **kwargs,
 ):
-    # By default we return array in [CD]HW format, depending on input
-    if "dim_order" in kwargs:
-        dim_order = kwargs.pop("dim_order")
-    else:
-        dim_order = "CZYX"
+    # Caller should specify desired dimension ordering (model dependent)
+    dim_order = kwargs.pop("dim_order", "CZYX")
     # TODO: Better to return Dask and index as needed?
-    img = aiod_io.load_image(fpath, return_array=True, dim_order=dim_order, **kwargs)
+    # FIXME: here rbg converted to channels; napari treats rbg separately
+    img = aiod_io.load_image_data(fpath, dim_order=dim_order, rgb_as_channels=True, **kwargs)
     # Extract the start and end indices in each dim
-    start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
-
-    img = transpose_dims(img, dim_order, channels, num_slices)
-
-    slices = [
-        np.s_[:],
-        np.s_[start_z:end_z],
-        np.s_[start_x:end_x],
-        np.s_[start_y:end_y],
-    ]
-    #
-    trans_dim_order = dim_order
-    # Remove slice objects as and if necessary
-    # Keep HW only
-    if img.ndim == 2:
-        slices = slices[2:]
-        trans_dim_order = trans_dim_order.replace("Z", "").replace("C", "")
-    elif img.ndim == 3:
-        # Keep CHW only if no slices (or 1 slice and channels)
-        if (num_slices is None) or (num_slices == 1 and channels is not None):
-            slices = [slices[0]] + slices[2:]
-            trans_dim_order = trans_dim_order.replace("Z", "")
-        # Keep DHW only if no channels
-        elif channels is None:
-            slices = slices[1:]
-            trans_dim_order = trans_dim_order.replace("C", "")
-
-    # Reorder slices based on dim_order
-    slices = translate_from_order(slices, trans_dim_order)
+    start_x, end_x, start_y, end_y, start_z, end_z = idxs
+    # Validate array shape against expected channels and slices
+    img = validate_dims(img, dim_order, channels, num_slices)
+    assert img.ndim == len(dim_order), (
+        "Something has gone wrong with the image dimensions!"
+    )
+    slices = {
+        "C": np.s_[:],
+        "Z": np.s_[start_z:end_z],
+        "X": np.s_[start_x:end_x],
+        "Y": np.s_[start_y:end_y],
+    }
     # Slice the image based on the given indices
-    img = img[tuple(slices)]
-
-    # Preprocessing currently expects a squeezed image
-    # As most of them don't use channel info
-    if channels is not None and channels == 1:
-        # Get channel axis
-        channel_axis = dim_order.index("C")
-        img = np.squeeze(img, axis=channel_axis)
-        squeezed = True
-    else:
-        squeezed = False
-
-    if squeezed:
-        img = np.expand_dims(img, axis=channel_axis)
-    return img
+    return img[tuple(slices[dim] for dim in dim_order)]
 
 
-def transpose_dims(
+def validate_dims(
     img,
     dim_order: str,
-    channels: Optional[int] = None,
-    num_slices: Optional[int] = None,
+    channels: Optional[int] = 1,
+    num_slices: Optional[int] = 1,
 ):
-    # TODO: dim_order has already been used in the load img
-    # This function is about verifying that has happened, so remove
-    # the default expectations below and check using the provided dim_order
-    # Nothing to do if no channels or slices provided
-    if channels is None and num_slices is None:
-        return img
-    # If channels and slices are both 1, nothing to do
-    if channels == 1 and num_slices == 1:
-        return img
-    # For 2D, we can just return the image
-    if img.ndim == 2:
-        return img
-    # FIXME: Check if ndim == 3 and which is missing, then remove from dim_order
-    if img.ndim == 3:
-        # Remove channels if None, or if 1 and has slices
-        # NOTE: Could cause issues because not squeezing?
-        if channels is None or (
-            channels == 1 and num_slices is not None and num_slices > 1
-        ):
-            dim_order = dim_order.replace("C", "")
-        # If slices is 1, then we remove the z axis
-        if num_slices is None or (num_slices <= 1 and channels is not None):
-            dim_order = dim_order.replace("Z", "")
-    # Get shape and containers
-    shape = list(img.shape)
-    source = []
-    dest = []
-    if channels is not None:
-        channel_axis = dim_order.index("C")
-        channel_curr_idx = shape.index(channels)
-        if channel_curr_idx != channel_axis:
-            source.append(channel_curr_idx)
-            dest.append(channel_axis)
-    # Expectation is that slices are second dim
-    if num_slices is not None and num_slices > 1:
-        z_axis = dim_order.index("Z")
-        z_curr_idx = shape.index(num_slices)
-        if z_curr_idx != z_axis:
-            source.append(z_curr_idx)
-            dest.append(z_axis)
-    # We ignore HW for now, as assumed these are not ever changed
-    # Move the axes to the correct positions if necessary
-    if source:
-        img = np.moveaxis(img, source, dest)
-    return img
+    """
+    Validate and potentially fix dimension order of image array.
 
+    Raises ValueError if dimensions don't match and can't be obviously swapped.
+    """
 
-def translate_from_order(l: list, dim_order: str, default_order: str = "CZYX"):
-    # Get the translation from given order to default order
-    mapper = {k: v for v, k in enumerate(default_order) if k in dim_order}
-    # Ensure consecutive indices
-    mapper = {k: i for i, k in enumerate(mapper)}
-    # Get the translation from given order to default order
-    trans = [mapper[dim] for dim in dim_order]
-    return [l[i] for i in trans]
+    errmsg = f"Image shape { ({d: img.shape[i] for i, d in enumerate(dim_order)}) } does not match expected channels and slices {channels, num_slices}."
+
+    has_c, has_z = "C" in dim_order, "Z" in dim_order
+
+    # 2D
+    if not has_c and not has_z:
+        return img
+    # 3D validate
+    if has_c ^ has_z:
+        dimsize = img.shape[dim_order.index("C" if has_c else "Z")]
+        expected = channels if has_c else num_slices
+        if dimsize != expected:
+            raise ValueError(errmsg)
+        return img
+
+    # 4D case - both C and Z
+    c_idx, z_idx = dim_order.index("C"), dim_order.index("Z")
+    size_c, size_z = img.shape[c_idx], img.shape[z_idx]
+
+    if size_c == channels and size_z == num_slices:
+        return img
+
+    if size_c == num_slices and size_z == channels and channels != num_slices:
+        warnings.warn(
+            f"Swapping C and Z: detected C={size_c}, Z={size_z} but expected C={channels}, Z={num_slices}"
+        )
+        return np.swapaxes(img, c_idx, z_idx)
+    raise ValueError(errmsg)
+
 
 
 def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
