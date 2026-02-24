@@ -1,0 +1,11 @@
+name: stardist_conda
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pyyaml
+  - tensorflow
+  - stardist
+  - pip
+  - pip:
+    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
