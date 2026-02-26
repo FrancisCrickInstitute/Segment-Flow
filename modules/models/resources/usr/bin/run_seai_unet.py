@@ -2,7 +2,6 @@ from pathlib import Path
 
 import numpy as np
 import skimage.measure
-import skimage.io
 
 from em_segment.modules.loading import load_from_yaml
 from em_segment.predictions import do_predictions
