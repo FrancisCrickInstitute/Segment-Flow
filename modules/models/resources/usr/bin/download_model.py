@@ -19,6 +19,7 @@ def get_model_checkpoint(
     # Check whether we are using a local path or a URL
     if chkpt_type == "url":
         print(f"Downloading {chkpt_loc}")
+        print(f"{chkpt_fname=}")
         download_from_url(chkpt_loc, Path(chkpt_fname))
     elif chkpt_type == "file":
         # Handle case where directory containing checkpoint is given

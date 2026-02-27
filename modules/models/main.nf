@@ -50,6 +50,30 @@ process splitStacks {
     """
 }
 
+process setupModel {
+    conda "${moduleDir}/envs/conda_setup_model.yml"
+    publishDir "$params.model_chkpt_dir", mode: 'copy'
+
+    input:
+    val model_name
+    val model_version
+    val model_task
+    val model_dir
+
+    output:
+    path "${model_version}.pth", emit: model_chkpt // this hardcoded .pth may cause issues if a model doesn't use .pth?
+    // path "finetuning_cache/*", emit: model_params
+
+    script:
+    """
+    python ${moduleDir}/resources/usr/bin/setup_model.py \
+    --model_name "${model_name}" \
+    --model_version "${model_version}" \
+    --task "${model_task}" \
+    --model_dir "${model_dir}"
+    """
+}
+
 process downloadModel {
     conda "${moduleDir}/envs/conda_download_model.yml"
     publishDir "$params.model_chkpt_dir", mode: 'copy'
