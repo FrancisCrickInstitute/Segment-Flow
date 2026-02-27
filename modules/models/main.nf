@@ -50,19 +50,47 @@ process splitStacks {
     """
 }
 
-process setupModel {
+process downloadModelData {
     conda "${moduleDir}/envs/conda_setup_model.yml"
     publishDir "$params.model_chkpt_dir", mode: 'copy'
+
+    input:
+    tuple val(model_name), val(model_location), val(model_param_name), val(model_param_location), val(finetuning_name), val(finetuning_location)
+
+
+    output:
+    path "${model_name}"
+    path "param_file.yml", optional: true
+    path "finetuning_metadata.yml", optional: true
+
+    script:
+    // """
+    // echo ${model_name}
+    // echo ${model_location}
+    // echo ${model_param_name}
+    // echo ${model_param_location}
+    // echo ${finetuning_name}
+    // echo ${finetuning_location}
+    // """
+    """
+    python ${moduleDir}/resources/usr/bin/download_files.py \
+    --model_name "${model_name}" \
+    --model_location "${model_location}" \
+    --model_param_name "${model_param_name}" \
+    --model_param_location "${model_param_location}" \
+    """
+}
+
+process setupModel {
+    conda "${moduleDir}/envs/conda_setup_model.yml"
 
     input:
     val model_name
     val model_version
     val model_task
-    val model_dir
 
     output:
-    path "${model_version}.pth", emit: model_chkpt // this hardcoded .pth may cause issues if a model doesn't use .pth?
-    // path "finetuning_cache/*", emit: model_params
+    path "model_info.csv", emit: model_info
 
     script:
     """
@@ -70,9 +98,9 @@ process setupModel {
     --model_name "${model_name}" \
     --model_version "${model_version}" \
     --task "${model_task}" \
-    --model_dir "${model_dir}"
     """
 }
+
 
 process downloadModel {
     conda "${moduleDir}/envs/conda_download_model.yml"

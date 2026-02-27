@@ -22,8 +22,8 @@ def get_location_type(
         raise TypeError(f"Cannot determine type (file/url) of location: {location}!")
 
 
-def get_model_file(
-    output_dir: Union[Path, str],
+def get_file(
+    fname: str,
     file_loc: str,
 ):
     # Check whether we are using a local path or a URL
@@ -33,18 +33,18 @@ def get_model_file(
     if file_type == "url":
         print(f"Downloading {file_loc}")
         download_from_url(
-            file_loc, Path(output_dir)
+            file_loc, Path(fname)
         )  # file name should contain the file type .pth
-        # using the same name as output_dir
+        # using the same name as fname
     elif file_type == "file":
         # Handle case where directory containing checkpoint is given
         if not Path(file_loc).is_file():
             if Path(file_loc).is_dir():
-                file_loc = Path(file_loc) / output_dir
+                file_loc = Path(file_loc) / fname
             else:
                 raise FileNotFoundError(f"Model checkpoint not found: {file_loc}")
         print(f"Copying {file_loc}")
-        copy_from_path(file_loc, Path(output_dir))
+        copy_from_path(file_loc, Path(fname))
 
 
 def download_from_url(url: str, chkpt_fname: Union[Path, str]):
@@ -87,52 +87,10 @@ def get_model_info(model_name: str, model_version: str, model_task: str):
     # model_version arrives sanitised from Nextflow (e.g. "MitoNet-v1"); resolve to manifest key
     resolved_version = model_version.replace("-", " ")
     model_info = versions[resolved_version].tasks[model_task]
-    model_location = model_info.location
-
+    location = model_info.location
     config_path = model_info.config_path
     param_location = None
     metadata = model_info.metadata
-
-    # print(f"{location=}") print(f"{config_path=}")
-    # print(f"{param_location=}")
-    # print(f"{metadata=}")
-    model_location = (
-        "/Users/ahmedn/.nextflow/aiod/aiod_cache/empanada/checkpoints/MitoNet_v1.pth"
-    )
-
-    # if model_task.location_type == "url":
-    #     # This parses the URL to get the root filename which we'll use
-    #     res = urlparse(model_location)
-    #     model_name = Path(res.path).name
-    # elif model_task.location_type == "file":
-    res = Path(model_location)
-    model_name = str(res.parent)
-
-    print(f"{ model_name=}")
-    print(f"{ model_location=}")
-
-    header = [
-        "model_name",
-        "model_location",
-        "model_param_name",
-        "model_param_location",
-        "finetuning_name",
-        "finetuning_location",
-    ]
-    rows = [
-        [
-            model_name,
-            model_location,
-            "param_file.yml",
-            "https://zenodo.org/record/6861565/files/MitoNet_v1.pth?download=1",
-            # "",  # finetuning_name
-            # "",  # finetuning_location
-        ],
-    ]
-    with open("model_info.csv", "w") as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-        writer.writerows(rows)
 
 
 if __name__ == "__main__":
@@ -144,17 +102,25 @@ if __name__ == "__main__":
         help="The name of the model",
     )
     parser.add_argument(
-        "--model_version",
-        required=False,
+        "--model_location",
+        required=False,  # TODO: change back to required
         type=str,
-        help="The version of the model",
+        help="The name of the model",
     )
     parser.add_argument(
-        "--task",
-        required=False,
+        "--model_param_name",
+        required=False,  # TODO: change back to required
         type=str,
-        help="The task the model will be used for",
+        help="The name of the model",
+    )
+    parser.add_argument(
+        "--model_param_location",
+        required=False,  # TODO: change back to required
+        type=str,
+        help="The name of the model",
     )
     args = parser.parse_args()
 
-    get_model_info(args.model_name, args.model_version, args.task)
+    get_file(args.model_name, args.model_location)
+    if args.model_param_name and args.model_param_location:
+        get_file(args.model_param_name, args.model_param_location)

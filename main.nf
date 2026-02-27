@@ -36,10 +36,11 @@ params.cache_dir = "${params.root_dir}/aiod_cache"
 // Construct other directories from root
 params.model_dir = "${params.cache_dir}/${params.model}"
 params.model_chkpt_dir = "${params.model_dir}/checkpoints"
-params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}"
+// can't create if fname is no longer an input
+params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}" 
 
 // Import processes from model modules
-include { setupModel; downloadModel; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
+include { setupModel; downloadModel; preprocessImage; splitStacks; runModel; combineStacks; downloadModelData } from './modules/models'
 
 def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
@@ -71,14 +72,27 @@ log.info """\
 def getMaskName(img_file) {
     return "${img_file.baseName}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}-${params.param_hash}"
 }
-
 workflow {
     setupModel(
         params.model,
         params.model_type,
         params.task,
-        params.model_dir,
     )
+
+    // if the csv doesn't exist skip this - i.e. if everything is already downloaded:
+    setupModel.out.model_info
+        .splitCsv(header: true)
+        .map { row -> [
+            row.model_name,
+            row.model_location,
+            row.model_param_name,
+            row.model_param_location,
+            row.finetuning_name,
+            row.finetuning_location,
+        ]}
+        .set{ model_info_ch }
+        
+    downloadModelData(model_info_ch)
 }
 
 // // NOTE: Name this workflow when finetuning is implemented for multiple workflows
