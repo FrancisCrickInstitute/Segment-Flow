@@ -7,5 +7,6 @@ dependencies:
   - tensorflow
   - stardist
   - pip
+  - git
   - pip:
     - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

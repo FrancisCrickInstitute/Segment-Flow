@@ -64,9 +64,10 @@ def run_stardist(
     print(f"Input image shape: {img.shape}")
 
     # Normalize the image
-    normalize_percentiles = config.get("normalize", [1, 99.8])
+    normalize_pmin = config.get("normalize_pmin", 1)
+    normalize_pmax = config.get("normalize_pmax", 99.8)
     if config.get("normalize_img", True):
-        img_normalized = normalize(img, *normalize_percentiles)
+        img_normalized = normalize(img, normalize_pmin, normalize_pmax)
     else:
         img_normalized = img
 
