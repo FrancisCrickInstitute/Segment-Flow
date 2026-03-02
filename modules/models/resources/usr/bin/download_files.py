@@ -97,30 +97,35 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_name",
-        required=False,  # TODO: change back to required
+        required=False,
         type=str,
         help="The name of the model",
     )
     parser.add_argument(
         "--model_location",
-        required=False,  # TODO: change back to required
+        required=False,
         type=str,
         help="The name of the model",
     )
     parser.add_argument(
         "--model_param_name",
-        required=False,  # TODO: change back to required
+        required=False,
         type=str,
         help="The name of the model",
     )
     parser.add_argument(
         "--model_param_location",
-        required=False,  # TODO: change back to required
+        required=False,
         type=str,
         help="The name of the model",
     )
     args = parser.parse_args()
 
-    get_file(args.model_name, args.model_location)
+    if args.model_name and args.model_location:
+        get_file(args.model_name, args.model_location)
+    else:
+        print("Model already downloaded?")
     if args.model_param_name and args.model_param_location:
         get_file(args.model_param_name, args.model_param_location)
+    else:
+        print("Model params already downloaded?")

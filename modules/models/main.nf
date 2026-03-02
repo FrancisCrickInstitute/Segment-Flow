@@ -59,7 +59,7 @@ process downloadModelData {
 
 
     output:
-    path "${model_name}"
+    path "${model_name}", optional: true
     path "param_file.yml", optional: true
     path "finetuning_metadata.yml", optional: true
 

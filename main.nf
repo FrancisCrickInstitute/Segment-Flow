@@ -93,6 +93,92 @@ workflow {
         .set{ model_info_ch }
         
     downloadModelData(model_info_ch)
+    chkpt_ch = "${params.model_chkpt_dir}/${params.model_type}" // this should always exist at this point
+
+    if ( params.preprocess ) {
+        // Split the CSV into individual images, so we preprocessImage distributes over each source image
+        channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
+            | map{ row ->
+                meta = row.subMap("height", "width", "num_slices", "channels")
+                [
+                    meta,
+                    file(row.img_path),
+                    getMaskName( file(row.img_path) ),
+                ]
+            }
+            | set { img_ch1 }
+        // Preprocess the images, outputting one per preprocess set
+        preprocessImage( img_ch1, file(params.img_dir) )
+        preprocessImage.out.prep_imgs
+            | flatten()
+            | map{ img -> [img.name, img] }
+            | set { img_names }
+        // Collect all CSVs together into original file
+        preprocessImage.out.img_csv
+            | collectFile(name: "all_img_info.csv", keepHeader: true)
+            | set { all_img_info }
+        // Split the image stacks into substacks (after model download completes)
+        splitStacks( all_img_info, chkpt_ch )
+    }
+    // If not preprocessing, just split the stacks using the original CSV
+    else {
+        channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
+            | map{ row -> [row.img_path, file(row.img_path)]}
+            | set { img_names }
+        splitStacks( file(params.img_dir), chkpt_ch )
+    }
+
+    // Now prepare each substack for each (poss preprocessed) image
+    // To then distribute to the model
+    img_ch = splitStacks.out.csv_file.splitCsv( header: true, quote: '\"' )
+        | map{ row -> 
+            meta = row.subMap("height", "width", "num_slices", "channels")
+            [
+                row.img_path,
+                meta,
+                getMaskName( file( row.img_path ) ),
+                [
+                    row.start_h.toInteger(),
+                    row.end_h.toInteger(),
+                    row.start_w.toInteger(),
+                    row.end_w.toInteger(),
+                    row.start_d.toInteger(),
+                    row.end_d.toInteger()
+                ]
+            ]
+        }
+        | combine(img_names, by: 0)
+
+    // Create the name for the mask output directory
+    mask_output_dir = "${params.model_dir}/${params.model_type}_masks"
+
+    // TODO: Should be delegated to a workflow in the models module?
+    // Select appropriate model
+    mask_out = runModel (
+        img_ch,
+        mask_output_dir,
+        params.model_config,
+        chkpt_ch,
+        params.model_type
+    ).mask
+
+    // Group all the outputs per image together to combine
+    mask_out
+    | groupTuple
+    | map{ img_name, meta, mask_fnames, output_dirs, mask_paths ->
+        [
+            img_name,
+            meta.first(),
+            params.model,
+            mask_fnames.first(),
+            output_dirs.first(),
+            mask_paths,
+        ]
+    }
+    | set { mask_ch }
+
+    combineStacks( mask_ch, params.postprocess )
+
 }
 
 // // NOTE: Name this workflow when finetuning is implemented for multiple workflows
@@ -205,24 +291,24 @@ workflow {
 //     combineStacks( mask_ch, params.postprocess )
 // }
 
-// // Useful output upon completion, one way or another
-// workflow.onComplete {
-//     def end_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
-//     if ( workflow.success ) {
-//         log.info """\
-//                  ======================================================================
-//                  AIoD finished SUCCESSFULLY at ${end_timestamp} after $workflow.duration
-//                  ======================================================================
-//                  """.stripIndent()
-//     } else {
-//         log.info """\
-//             ======================================================================
-//             AIoD finished WITH ERRORS at ${end_timestamp} after $workflow.duration
-//             ======================================================================
-//             """.stripIndent()
-//     }
-// }
+// Useful output upon completion, one way or another
+workflow.onComplete {
+    def end_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
+    if ( workflow.success ) {
+        log.info """\
+                 ======================================================================
+                 AIoD finished SUCCESSFULLY at ${end_timestamp} after $workflow.duration
+                 ======================================================================
+                 """.stripIndent()
+    } else {
+        log.info """\
+            ======================================================================
+            AIoD finished WITH ERRORS at ${end_timestamp} after $workflow.duration
+            ======================================================================
+            """.stripIndent()
+    }
+}
 
-// workflow.onError {
-//     log.info "ERROR: AIoD stopped with the following message: ${workflow.errorMessage}"
-// }
+workflow.onError {
+    log.info "ERROR: AIoD stopped with the following message: ${workflow.errorMessage}"
+}

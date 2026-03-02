@@ -7,4 +7,5 @@ dependencies:
   - pip:
     - tqdm
     - requests
-    - git+https://github.com/FrancisCrickInstitute/AIoD-Model-Registry.git
+    # - git+https://github.com/FrancisCrickInstitute/AIoD-Model-Registry.git
+    - -e /Users/ahmedn/Work/AIoD-Model-Registry

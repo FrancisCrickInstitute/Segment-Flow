@@ -82,31 +82,36 @@ def copy_from_path(fpath: Union[Path, str], chkpt_fname: Union[Path, str]):
 
 
 def get_model_info(model_name: str, model_version: str, model_task: str):
-    manifests = load_manifests()
+    manifests = load_manifests(filter_access=False)
     versions = manifests[model_name].versions
     # model_version arrives sanitised from Nextflow (e.g. "MitoNet-v1"); resolve to manifest key
     resolved_version = model_version.replace("-", " ")
     model_info = versions[resolved_version].tasks[model_task]
     model_location = model_info.location
+    print(f"{model_location=}")
+    # print(dir(model_info))
+    model_params_location = model_info.config_path
+    print(model_params_location)
 
-    config_path = model_info.config_path
-    param_location = None
-    metadata = model_info.metadata
+    model_location_type = get_location_type(model_location)
+    if model_location_type == "url":
+        # This parses the URL to get the root filename which we'll use
+        res = urlparse(model_location)
+        model_name = Path(res.path).name
+    else:
+        res = Path(model_location)
+        model_name = res.name
 
-    # print(f"{location=}") print(f"{config_path=}")
-    # print(f"{param_location=}")
-    # print(f"{metadata=}")
-    model_location = (
-        "/Users/ahmedn/.nextflow/aiod/aiod_cache/empanada/checkpoints/MitoNet_v1.pth"
-    )
-
-    # if model_task.location_type == "url":
-    #     # This parses the URL to get the root filename which we'll use
-    #     res = urlparse(model_location)
-    #     model_name = Path(res.path).name
-    # elif model_task.location_type == "file":
-    res = Path(model_location)
-    model_name = str(res.parent)
+    model_params_name = None
+    if model_params_location:
+        params_location_type = get_location_type(model_params_location)
+        if params_location_type == "url":
+            # This parses the URL to get the root filename which we'll use
+            res = urlparse(model_params_location)
+            model_params_name = Path(res.path).name
+        else:
+            res = Path(model_params_location)
+            model_params_name = res.name
 
     print(f"{ model_name=}")
     print(f"{ model_location=}")
@@ -119,16 +124,30 @@ def get_model_info(model_name: str, model_version: str, model_task: str):
         "finetuning_name",
         "finetuning_location",
     ]
-    rows = [
-        [
-            model_name,
-            model_location,
-            "param_file.yml",
-            "https://zenodo.org/record/6861565/files/MitoNet_v1.pth?download=1",
-            # "",  # finetuning_name
-            # "",  # finetuning_location
-        ],
+
+    checkpoint_dir = Path(
+        "/Users/ahmedn/.nextflow/aiod/aiod_cache/empanada/checkpoints/"
+    )
+
+    # Build rows from manifest, only including files that don't exist locally
+    rows = []
+    row_data = [
+        model_name,
+        model_location,
+        model_params_name,
+        model_params_location,
+        getattr(model_info, "finetuning_name", ""),
+        getattr(model_info, "finetuning_location", ""),
     ]
+
+    for filename in [row_data[0], row_data[2], row_data[4]]:
+        if filename and not (checkpoint_dir / filename).exists():
+            rows.append(row_data)
+            print(f"✗ {filename} not found, will be added to CSV")
+            break
+        elif filename:
+            print(f"✓ {filename} found, skipping")
+
     with open("model_info.csv", "w") as f:
         writer = csv.writer(f)
         writer.writerow(header)
@@ -139,19 +158,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_name",
-        required=False,  # TODO: change back to required
+        required=True,
         type=str,
         help="The name of the model",
     )
     parser.add_argument(
         "--model_version",
-        required=False,
+        required=True,
         type=str,
         help="The version of the model",
     )
     parser.add_argument(
         "--task",
-        required=False,
+        required=True,
         type=str,
         help="The task the model will be used for",
     )
