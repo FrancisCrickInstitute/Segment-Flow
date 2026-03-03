@@ -78,22 +78,8 @@ workflow {
         params.model_type,
         params.task,
     )
-
-    // if the csv doesn't exist skip this - i.e. if everything is already downloaded:
-    setupModel.out.model_info
-        .splitCsv(header: true)
-        .map { row -> [
-            row.model_name,
-            row.model_location,
-            row.model_param_name,
-            row.model_param_location,
-            row.finetuning_name,
-            row.finetuning_location,
-        ]}
-        .set{ model_info_ch }
-        
-    downloadModelData(model_info_ch)
-    chkpt_ch = "${params.model_chkpt_dir}/${params.model_type}" // this should always exist at this point
+    
+    chkpt_ch = setupModel.out.model_chkpt
 
     if ( params.preprocess ) {
         // Split the CSV into individual images, so we preprocessImage distributes over each source image
@@ -180,6 +166,7 @@ workflow {
     combineStacks( mask_ch, params.postprocess )
 
 }
+
 
 // // NOTE: Name this workflow when finetuning is implemented for multiple workflows
 // workflow {

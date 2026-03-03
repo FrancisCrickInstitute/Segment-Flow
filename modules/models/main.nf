@@ -52,37 +52,31 @@ process splitStacks {
 
 process downloadModelData {
     conda "${moduleDir}/envs/conda_setup_model.yml"
-    publishDir "$params.model_chkpt_dir", mode: 'copy'
+    // publishDir "$params.model_chkpt_dir", mode: 'copy'
 
     input:
-    tuple val(model_name), val(model_location), val(model_param_name), val(model_param_location), val(finetuning_name), val(finetuning_location)
+    tuple val(model_name), val(model_loc), val(model_file_type)
+    tuple val(config_name), val(config_loc), val(config_file_type)
+    tuple val(finetuning_name), val(finetuning_loc), val(finetuning_file_type)
 
 
     output:
-    path "${model_name}", optional: true
-    path "param_file.yml", optional: true
-    path "finetuning_metadata.yml", optional: true
+    path "${model_name}"
+    path "${config_name}"
+    path "${finetuning_name}"
 
     script:
-    // """
-    // echo ${model_name}
-    // echo ${model_location}
-    // echo ${model_param_name}
-    // echo ${model_param_location}
-    // echo ${finetuning_name}
-    // echo ${finetuning_location}
-    // """
     """
     python ${moduleDir}/resources/usr/bin/download_files.py \
     --model_name "${model_name}" \
-    --model_location "${model_location}" \
-    --model_param_name "${model_param_name}" \
-    --model_param_location "${model_param_location}" \
+    --model_location "${model_loc}" \
+    --model_param_name "${model_file_type}" \
     """
 }
 
 process setupModel {
     conda "${moduleDir}/envs/conda_setup_model.yml"
+    publishDir "$params.model_chkpt_dir", mode: 'copy'
 
     input:
     val model_name
@@ -90,14 +84,18 @@ process setupModel {
     val model_task
 
     output:
-    path "model_info.csv", emit: model_info
+    // path "model_info.csv", emit: model_info
+    // path "${model_version}.*", emit: model_info
+    path "${model_version.replace('-', '_')}.*", emit: model_chkpt
+    path "config.yml", emit: model_config
 
     script:
     """
-    python ${moduleDir}/resources/usr/bin/setup_model.py \
+    python ${moduleDir}/resources/usr/bin/test.py \
     --model_name "${model_name}" \
     --model_version "${model_version}" \
     --task "${model_task}" \
+    --cache_loc "$params.model_chkpt_dir"
     """
 }
 
