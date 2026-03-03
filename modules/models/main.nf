@@ -84,10 +84,8 @@ process setupModel {
     val model_task
 
     output:
-    // path "model_info.csv", emit: model_info
-    // path "${model_version}.*", emit: model_info
-    path "${model_version.replace('-', '_')}.*", emit: model_chkpt
-    path "config.yml", emit: model_config
+    path "${model_version}.*", emit: model_chkpt
+    path "${model_version}_config.yml", emit: model_config, optional: true
 
     script:
     """

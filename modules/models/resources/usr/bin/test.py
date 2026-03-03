@@ -95,12 +95,12 @@ def main(model_name: str, model_version: str, model_task: str, cache_dir: str):
     if model_location_type == "url":
         # This parses the URL to get the root filename which we'll use
         res = urlparse(model_location)
-        model_name = Path(res.path).name
+        full_model_name = Path(res.path).name
     else:
         res = Path(model_location)
-        model_name = res.name
-
-    cache_model_loc = Path(cache_dir) / model_name
+        full_model_name = res.name
+    full_model_name = full_model_name.replace("_", "-")
+    cache_model_loc = Path(cache_dir) / full_model_name
 
     if cache_model_loc.exists():
         loc_path = cache_model_loc
@@ -111,12 +111,12 @@ def main(model_name: str, model_version: str, model_task: str, cache_dir: str):
         else:
             print(f"Symlink already exists: {symlink_path}")
     else:
-        get_file(model_name, model_location, model_location_type)
+        get_file(full_model_name, model_location, model_location_type)
 
     if model_config_location:
         config_location_type = get_location_type(model_config_location)
 
-        model_config_name = "config.yml"
+        model_config_name = model_version + "_config.yml"
         print("this is the model config name:", model_config_name)
 
         cache_config_loc = Path(cache_dir) / model_config_name
