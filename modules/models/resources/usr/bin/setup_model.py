@@ -1,7 +1,10 @@
 import argparse
-import csv
+import os
+import requests
+import shutil
 from pathlib import Path
-from typing import Union, Optional
+from tqdm.auto import tqdm
+from typing import Union
 from aiod_registry import load_manifests
 from urllib.parse import urlparse
 
@@ -19,59 +22,100 @@ def get_location_type(
         raise TypeError(f"Cannot determine type (file/url) of location: {location}!")
 
 
-def get_model_info(model_name: str, model_version: str, model_task: str):
+def get_file(
+    fname: str,
+    file_loc: str,
+    file_type: str,
+):
+    if file_type == "url":
+        print(f"Downloading {file_loc}")
+        download_from_url(file_loc, Path(fname))
+    elif file_type == "file":
+        if not Path(file_loc).is_file():
+            if Path(file_loc).is_dir():
+                file_loc = Path(file_loc) / fname
+            else:
+                raise FileNotFoundError(f"Model checkpoint not found: {file_loc}")
+        print(f"Copying {file_loc}")
+        copy_from_path(file_loc, Path(fname))
+
+
+def download_from_url(url: str, chkpt_fname: Union[Path, str]):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    req = requests.get(url, stream=True, headers=headers)
+    req.raise_for_status()
+    content_length = int(req.headers.get("Content-Length"))
+
+    # Download the file and update the progress bar
+    with open(chkpt_fname, "wb") as f:
+        with tqdm(
+            desc=f"Downloading {chkpt_fname.name}...",
+            total=content_length,
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as pbar:
+            for chunk in req.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    pbar.update(len(chunk))
+    # Close request
+    req.close()
+    print(f"Done! file saved to {chkpt_fname}")
+
+
+def copy_from_path(fpath: Union[Path, str], chkpt_fname: Union[Path, str]):
+    if not Path(fpath).is_file():
+        raise FileNotFoundError(f"Model checkpoint not found: {fpath}")
+    # Copy the file from accessible path
+    shutil.copy(fpath, chkpt_fname)
+    print(f"Done! file saved to {chkpt_fname}")
+
+
+def main(model_name: str, model_version: str, model_task: str, cache_dir: str):
     manifests = load_manifests(filter_access=False)
     versions = manifests[model_name].versions
     # model_version arrives sanitised from Nextflow (e.g. "MitoNet-v1"); resolve to manifest key
     resolved_version = model_version.replace("-", " ")
+
+    # Extract required data from the manifest
     model_info = versions[resolved_version].tasks[model_task]
     model_location = model_info.location
-    print(f"{model_location=}")
-    # print(dir(model_info))
-    model_params_location = model_info.config_path
-    print(model_params_location)
-
+    model_config_location = model_info.config_path
     model_location_type = get_location_type(model_location)
+
+    # get the root name of the model from the location
     if model_location_type == "url":
-        # This parses the URL to get the root filename which we'll use
         res = urlparse(model_location)
-        model_name = Path(res.path).name
+        file_extension = Path(res.path).suffix
     else:
         res = Path(model_location)
-        model_name = res.name
+        file_extension = res.suffix
 
-    model_params_name = None
-    if model_params_location:
-        params_location_type = get_location_type(model_params_location)
-        if params_location_type == "url":
-            # This parses the URL to get the root filename which we'll use
-            res = urlparse(model_params_location)
-            model_params_name = Path(res.path).name
+    full_model_name = model_version + file_extension
+    cache_model_loc = Path(cache_dir) / full_model_name
+
+    if cache_model_loc.exists():
+        symlink_path = Path.cwd() / cache_model_loc.name
+        os.symlink(cache_model_loc, symlink_path)
+        print(f"Created symlink: {symlink_path} -> {cache_model_loc}")
+    else:
+        get_file(full_model_name, model_location, model_location_type)
+
+    if model_config_location:
+        config_location_type = get_location_type(model_config_location)
+
+        model_config_name = model_version + "_config.yml"
+        cache_config_loc = Path(cache_dir) / model_config_name
+
+        if cache_config_loc.exists():
+            symlink_path = Path.cwd() / cache_config_loc.name
+            os.symlink(cache_config_loc, symlink_path)
+            print(f"Created symlink: {symlink_path} -> {cache_config_loc}")
         else:
-            res = Path(model_params_location)
-            model_params_name = res.name
-
-    print(f"{ model_name=}")
-    print(f"{ model_location=}")
-
-    header = [
-        "name",
-        "location",
-        "loc_type",
-        "file_type",
-    ]
-
-    rows = []
-    rows.append([model_name, model_location, model_location_type, "model"])
-    if model_params_name:
-        rows.append(
-            [model_params_name, model_params_location, params_location_type, "params"]
-        )
-
-    with open("model_info.csv", "w") as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-        writer.writerows(rows)
+            get_file(model_config_name, model_config_location, config_location_type)
 
 
 if __name__ == "__main__":
@@ -94,6 +138,12 @@ if __name__ == "__main__":
         type=str,
         help="The task the model will be used for",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--cache_loc",
+        required=True,
+        type=str,
+        help="AIOD Cache location",
+    )
 
-    get_model_info(args.model_name, args.model_version, args.task)
+    args = parser.parse_args()
+    main(args.model_name, args.model_version, args.task, args.cache_loc)

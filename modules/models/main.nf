@@ -85,11 +85,12 @@ process setupModel {
 
     output:
     path "${model_version}.*", emit: model_chkpt
-    path "${model_version}_config.yml", emit: model_config, optional: true
+    path "${model_version}_config.*", emit: model_config, optional: true
+    path "${model_version}_finetuning_meta.*", emit: finetuning_meta, optional: true
 
     script:
     """
-    python ${moduleDir}/resources/usr/bin/test.py \
+    python ${moduleDir}/resources/usr/bin/setup_model.py \
     --model_name "${model_name}" \
     --model_version "${model_version}" \
     --task "${model_task}" \

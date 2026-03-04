@@ -72,13 +72,23 @@ log.info """\
 def getMaskName(img_file) {
     return "${img_file.baseName}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}-${params.param_hash}"
 }
+
+// NOTE: Name this workflow when finetuning is implemented for multiple workflows
 workflow {
+    // Dynamically discover available models by scanning for run_<model>.py files
+    def modelScriptsDir = file("${workflow.projectDir}/modules/models/resources/usr/bin")
+    def availableModels = modelScriptsDir.listFiles()
+        .findAll { it.name.startsWith('run_') && it.name.endsWith('.py') }
+        .collect { it.name.replaceAll(/^run_/, '').replaceAll(/\.py$/, '') }
+
+    assert availableModels.contains( params.model ), "Model ${params.model} not yet implemented! Available models: ${availableModels.join(', ')}"
+    // Download model checkpoint if it doesn't exist
     setupModel(
         params.model,
         params.model_type,
         params.task,
     )
-    
+
     chkpt_ch = setupModel.out.model_chkpt
 
     if ( params.preprocess ) {
@@ -117,7 +127,7 @@ workflow {
     // Now prepare each substack for each (poss preprocessed) image
     // To then distribute to the model
     img_ch = splitStacks.out.csv_file.splitCsv( header: true, quote: '\"' )
-        | map{ row -> 
+        | map{ row ->
             meta = row.subMap("height", "width", "num_slices", "channels")
             [
                 row.img_path,
@@ -164,119 +174,7 @@ workflow {
     | set { mask_ch }
 
     combineStacks( mask_ch, params.postprocess )
-
 }
-
-
-// // NOTE: Name this workflow when finetuning is implemented for multiple workflows
-// workflow {
-//     // Dynamically discover available models by scanning for run_<model>.py files
-//     def modelScriptsDir = file("${workflow.projectDir}/modules/models/resources/usr/bin")
-//     def availableModels = modelScriptsDir.listFiles()
-//         .findAll { it.name.startsWith('run_') && it.name.endsWith('.py') }
-//         .collect { it.name.replaceAll(/^run_/, '').replaceAll(/\.py$/, '') }
-
-//     assert availableModels.contains( params.model ), "Model ${params.model} not yet implemented! Available models: ${availableModels.join(', ')}"
-//     // Download model checkpoint if it doesn't exist
-//     chkpt_file = file( params.model_chkpt_path )
-
-//     if ( !chkpt_file.exists() ) {
-//         downloadModel (
-//             params.model_chkpt_path,
-//             params.model_chkpt_loc,
-//             params.model_chkpt_type,
-//             params.model_chkpt_fname
-//         )
-//         chkpt_ch = downloadModel.out.model_chkpt
-//     }
-//     else {
-//         chkpt_ch = chkpt_file
-//     }
-
-//     if ( params.preprocess ) {
-//         // Split the CSV into individual images, so we preprocessImage distributes over each source image
-//         channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
-//             | map{ row ->
-//                 meta = row.subMap("height", "width", "num_slices", "channels")
-//                 [
-//                     meta,
-//                     file(row.img_path),
-//                     getMaskName( file(row.img_path) ),
-//                 ]
-//             }
-//             | set { img_ch1 }
-//         // Preprocess the images, outputting one per preprocess set
-//         preprocessImage( img_ch1, file(params.img_dir) )
-//         preprocessImage.out.prep_imgs
-//             | flatten()
-//             | map{ img -> [img.name, img] }
-//             | set { img_names }
-//         // Collect all CSVs together into original file
-//         preprocessImage.out.img_csv
-//             | collectFile(name: "all_img_info.csv", keepHeader: true)
-//             | set { all_img_info }
-//         // Split the image stacks into substacks (after model download completes)
-//         splitStacks( all_img_info, chkpt_ch )
-//     }
-//     // If not preprocessing, just split the stacks using the original CSV
-//     else {
-//         channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
-//             | map{ row -> [row.img_path, file(row.img_path)]}
-//             | set { img_names }
-//         splitStacks( file(params.img_dir), chkpt_ch )
-//     }
-
-//     // Now prepare each substack for each (poss preprocessed) image
-//     // To then distribute to the model
-//     img_ch = splitStacks.out.csv_file.splitCsv( header: true, quote: '\"' )
-//         | map{ row ->
-//             meta = row.subMap("height", "width", "num_slices", "channels")
-//             [
-//                 row.img_path,
-//                 meta,
-//                 getMaskName( file( row.img_path ) ),
-//                 [
-//                     row.start_h.toInteger(),
-//                     row.end_h.toInteger(),
-//                     row.start_w.toInteger(),
-//                     row.end_w.toInteger(),
-//                     row.start_d.toInteger(),
-//                     row.end_d.toInteger()
-//                 ]
-//             ]
-//         }
-//         | combine(img_names, by: 0)
-
-//     // Create the name for the mask output directory
-//     mask_output_dir = "${params.model_dir}/${params.model_type}_masks"
-
-//     // TODO: Should be delegated to a workflow in the models module?
-//     // Select appropriate model
-//     mask_out = runModel (
-//         img_ch,
-//         mask_output_dir,
-//         params.model_config,
-//         chkpt_ch,
-//         params.model_type
-//     ).mask
-
-//     // Group all the outputs per image together to combine
-//     mask_out
-//     | groupTuple
-//     | map{ img_name, meta, mask_fnames, output_dirs, mask_paths ->
-//         [
-//             img_name,
-//             meta.first(),
-//             params.model,
-//             mask_fnames.first(),
-//             output_dirs.first(),
-//             mask_paths,
-//         ]
-//     }
-//     | set { mask_ch }
-
-//     combineStacks( mask_ch, params.postprocess )
-// }
 
 // Useful output upon completion, one way or another
 workflow.onComplete {
