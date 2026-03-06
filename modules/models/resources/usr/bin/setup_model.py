@@ -94,26 +94,22 @@ def main(model_name: str, model_version: str, model_task: str, cache_dir: str):
         res = Path(model_location)
         file_extension = res.suffix
 
-    full_model_name = model_version + file_extension
+    full_model_name = model_version + "_" + model_task + file_extension
     cache_model_loc = Path(cache_dir) / full_model_name
 
     if cache_model_loc.exists():
-        symlink_path = Path.cwd() / cache_model_loc.name
-        os.symlink(cache_model_loc, symlink_path)
-        print(f"Created symlink: {symlink_path} -> {cache_model_loc}")
+        print(cache_model_loc, "already exists")
     else:
         get_file(full_model_name, model_location, model_location_type)
 
     if model_config_location:
         config_location_type = get_location_type(model_config_location)
 
-        model_config_name = model_version + "_config.yml"
+        model_config_name = model_version + "_" + model_task + "_config.yml"
         cache_config_loc = Path(cache_dir) / model_config_name
 
         if cache_config_loc.exists():
-            symlink_path = Path.cwd() / cache_config_loc.name
-            os.symlink(cache_config_loc, symlink_path)
-            print(f"Created symlink: {symlink_path} -> {cache_config_loc}")
+            print(cache_config_loc, "already exists")
         else:
             get_file(model_config_name, model_config_location, config_location_type)
 
@@ -121,16 +117,16 @@ def main(model_name: str, model_version: str, model_task: str, cache_dir: str):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--model_name",
+        "--model-name",
         required=True,
         type=str,
-        help="The name of the model",
+        help="The name of the model family e.g. Cellpose",
     )
     parser.add_argument(
-        "--model_version",
+        "--model-version",
         required=True,
         type=str,
-        help="The version of the model",
+        help="The name of the specific model e.g. MitoNet-v1",
     )
     parser.add_argument(
         "--task",
@@ -139,10 +135,10 @@ if __name__ == "__main__":
         help="The task the model will be used for",
     )
     parser.add_argument(
-        "--cache_loc",
+        "--cache-loc",
         required=True,
         type=str,
-        help="AIOD Cache location",
+        help="AIoD Cache location",
     )
 
     args = parser.parse_args()

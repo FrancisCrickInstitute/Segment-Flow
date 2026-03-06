@@ -40,7 +40,7 @@ params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 params.model_chkpt_path = "${params.model_chkpt_dir}/${params.model_chkpt_fname}" 
 
 // Import processes from model modules
-include { setupModel; downloadModel; preprocessImage; splitStacks; runModel; combineStacks; downloadModelData } from './modules/models'
+include { setupModel; preprocessImage; splitStacks; runModel; combineStacks; } from './modules/models'
 
 def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
@@ -82,6 +82,7 @@ workflow {
         .collect { it.name.replaceAll(/^run_/, '').replaceAll(/\.py$/, '') }
 
     assert availableModels.contains( params.model ), "Model ${params.model} not yet implemented! Available models: ${availableModels.join(', ')}"
+
     // Download model checkpoint if it doesn't exist
     setupModel(
         params.model,

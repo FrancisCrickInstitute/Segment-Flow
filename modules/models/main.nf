@@ -50,33 +50,9 @@ process splitStacks {
     """
 }
 
-process downloadModelData {
-    conda "${moduleDir}/envs/conda_setup_model.yml"
-    // publishDir "$params.model_chkpt_dir", mode: 'copy'
-
-    input:
-    tuple val(model_name), val(model_loc), val(model_file_type)
-    tuple val(config_name), val(config_loc), val(config_file_type)
-    tuple val(finetuning_name), val(finetuning_loc), val(finetuning_file_type)
-
-
-    output:
-    path "${model_name}"
-    path "${config_name}"
-    path "${finetuning_name}"
-
-    script:
-    """
-    python ${moduleDir}/resources/usr/bin/download_files.py \
-    --model_name "${model_name}" \
-    --model_location "${model_loc}" \
-    --model_param_name "${model_file_type}" \
-    """
-}
-
 process setupModel {
     conda "${moduleDir}/envs/conda_setup_model.yml"
-    publishDir "$params.model_chkpt_dir", mode: 'copy'
+    storeDir "$params.model_chkpt_dir"
 
     input:
     val model_name
@@ -84,42 +60,17 @@ process setupModel {
     val model_task
 
     output:
-    path "${model_version}.*", emit: model_chkpt
-    path "${model_version}_config.*", emit: model_config, optional: true
-    path "${model_version}_finetuning_meta.*", emit: finetuning_meta, optional: true
+    path "${model_version}_${model_task}.*", emit: model_chkpt
+    path "${model_version}_${model_task}_config.*", emit: model_config
+    // path "${model_version}_finetuning_meta.*", emit: finetuning_mrue
 
     script:
     """
     python ${moduleDir}/resources/usr/bin/setup_model.py \
-    --model_name "${model_name}" \
-    --model_version "${model_version}" \
+    --model-name "${model_name}" \
+    --model-version "${model_version}" \
     --task "${model_task}" \
-    --cache_loc "$params.model_chkpt_dir"
-    """
-}
-
-
-process downloadModel {
-    conda "${moduleDir}/envs/conda_download_model.yml"
-    publishDir "$params.model_chkpt_dir", mode: 'copy'
-
-    input:
-    val model_chkpt_path
-    val model_chkpt_loc
-    val model_chkpt_type
-    val model_chkpt_fname
-
-    output:
-    // This is where publishDir needs to come in, symlinking to chkpt repo
-    path "${model_chkpt_fname}", emit: model_chkpt
-
-    script:
-    """
-    python ${moduleDir}/resources/usr/bin/download_model.py \
-    --chkpt-output-dir "$params.model_chkpt_dir" \
-    --chkpt-loc ${model_chkpt_loc} \
-    --chkpt-type ${model_chkpt_type} \
-    --chkpt-fname "${model_chkpt_fname}"
+    --cache-loc "$params.model_chkpt_dir"
     """
 }
 
