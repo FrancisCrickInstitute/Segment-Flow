@@ -1,18 +1,12 @@
 import argparse
-import os
-import requests
-import shutil
+import json
 from pathlib import Path
-from tqdm.auto import tqdm
-from typing import Union
 from aiod_registry import load_manifests
 from urllib.parse import urlparse
 
 
-def get_location_type(
-    location: str,
-):
-    # Determine the type of location
+def get_location_type(location: str) -> str:
+    """Determine whether a location is a URL or a local file path."""
     res = urlparse(location)
     if res.scheme in ("http", "https"):
         return "url"
@@ -22,59 +16,21 @@ def get_location_type(
         raise TypeError(f"Cannot determine type (file/url) of location: {location}!")
 
 
-def get_file(
-    fname: str,
-    file_loc: str,
-    file_type: str,
-):
-    if file_type == "url":
-        print(f"Downloading {file_loc}")
-        download_from_url(file_loc, Path(fname))
-    elif file_type == "file":
-        if not Path(file_loc).is_file():
-            if Path(file_loc).is_dir():
-                file_loc = Path(file_loc) / fname
-            else:
-                raise FileNotFoundError(f"Model checkpoint not found: {file_loc}")
-        print(f"Copying {file_loc}")
-        copy_from_path(file_loc, Path(fname))
+def artifact_extension(location: str, location_type: str) -> str:
+    """Return the file extension for an artifact given its location."""
+    if location_type == "url":
+        return Path(urlparse(location).path).suffix
+    return Path(location).suffix
 
 
-def download_from_url(url: str, chkpt_fname: Union[Path, str]):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    }
-    req = requests.get(url, stream=True, headers=headers)
-    req.raise_for_status()
-    content_length = int(req.headers.get("Content-Length"))
-
-    # Download the file and update the progress bar
-    with open(chkpt_fname, "wb") as f:
-        with tqdm(
-            desc=f"Downloading {chkpt_fname.name}...",
-            total=content_length,
-            unit="B",
-            unit_scale=True,
-            unit_divisor=1024,
-        ) as pbar:
-            for chunk in req.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-                    pbar.update(len(chunk))
-    # Close request
-    req.close()
-    print(f"Done! file saved to {chkpt_fname}")
+def write_meta(fname: str, name: str, location: str, loc_type: str) -> None:
+    """Write an artifact metadata JSON file for consumption by Nextflow."""
+    with open(fname, "w") as f:
+        json.dump({"name": name, "location": location, "type": loc_type}, f)
+    print(f"Written metadata for '{name}' -> {fname}")
 
 
-def copy_from_path(fpath: Union[Path, str], chkpt_fname: Union[Path, str]):
-    if not Path(fpath).is_file():
-        raise FileNotFoundError(f"Model checkpoint not found: {fpath}")
-    # Copy the file from accessible path
-    shutil.copy(fpath, chkpt_fname)
-    print(f"Done! file saved to {chkpt_fname}")
-
-
-def main(model_name: str, model_version: str, model_task: str, cache_dir: str):
+def main(model_name: str, model_version: str, model_task: str):
     manifests = load_manifests(filter_access=False)
     versions = manifests[model_name].versions
     # model_version arrives sanitised from Nextflow (e.g. "MitoNet-v1"); resolve to manifest key
@@ -83,63 +39,63 @@ def main(model_name: str, model_version: str, model_task: str, cache_dir: str):
     # Extract required data from the manifest
     model_info = versions[resolved_version].tasks[model_task]
     model_location = model_info.location
-    model_config_location = model_info.config_path
+    model_config_location = getattr(model_info, "config_path", None)
+    model_finetuning_location = getattr(model_info, "finetuning_path", None)
     model_location_type = get_location_type(model_location)
 
-    # get the root name of the model from the location
-    if model_location_type == "url":
-        res = urlparse(model_location)
-        file_extension = Path(res.path).suffix
-    else:
-        res = Path(model_location)
-        file_extension = res.suffix
+    # Derive the canonical checkpoint filename (version + extension from source)
+    ext = artifact_extension(model_location, model_location_type)
+    full_model_name = model_version + "_" + model_task + ext
 
-    full_model_name = model_version + "_" + model_task + file_extension
-    cache_model_loc = Path(cache_dir) / full_model_name
-
-    if cache_model_loc.exists():
-        print(cache_model_loc, "already exists")
-    else:
-        get_file(full_model_name, model_location, model_location_type)
+    # Write one metadata JSON per artifact; Nextflow reads these to decide whether
+    # to stage from the external cache (storeDir) or run downloadModelData.
+    write_meta(
+        "model_chkpt_meta.json", full_model_name, model_location, model_location_type
+    )
 
     if model_config_location:
         config_location_type = get_location_type(model_config_location)
-
         model_config_name = model_version + "_" + model_task + "_config.yml"
-        cache_config_loc = Path(cache_dir) / model_config_name
+        write_meta(
+            "model_config_meta.json",
+            model_config_name,
+            model_config_location,
+            config_location_type,
+        )
 
-        if cache_config_loc.exists():
-            print(cache_config_loc, "already exists")
-        else:
-            get_file(model_config_name, model_config_location, config_location_type)
+    if model_finetuning_location:
+        finetuning_location_type = get_location_type(model_finetuning_location)
+        finetuning_ext = artifact_extension(
+            model_finetuning_location, finetuning_location_type
+        )
+        finetuning_name = (
+            model_version + "_" + model_task + "_finetuning_meta" + finetuning_ext
+        )
+        write_meta(
+            "model_finetuning_meta.json",
+            finetuning_name,
+            model_finetuning_location,
+            finetuning_location_type,
+        )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--model-name",
-        required=True,
-        type=str,
-        help="The name of the model family e.g. Cellpose",
+    parser = argparse.ArgumentParser(
+        description=(
+            "Query the AIoD model registry and write JSON metadata files for each "
+            "model artifact (checkpoint, config, finetuning). Downloading is handled "
+            "separately so that Nextflow can cache results via storeDir."
+        )
     )
     parser.add_argument(
-        "--model-version",
-        required=True,
-        type=str,
-        help="The name of the specific model e.g. MitoNet-v1",
+        "--model_name", required=True, type=str, help="The name of the model"
     )
     parser.add_argument(
-        "--task",
-        required=True,
-        type=str,
-        help="The task the model will be used for",
+        "--model_version", required=True, type=str, help="The version of the model"
     )
     parser.add_argument(
-        "--cache-loc",
-        required=True,
-        type=str,
-        help="AIoD Cache location",
+        "--task", required=True, type=str, help="The task the model will be used for"
     )
 
     args = parser.parse_args()
-    main(args.model_name, args.model_version, args.task, args.cache_loc)
+    main(args.model_name, args.model_version, args.task)

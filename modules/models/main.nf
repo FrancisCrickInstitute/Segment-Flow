@@ -50,9 +50,43 @@ process splitStacks {
     """
 }
 
-process setupModel {
+process downloadArtifact {
+    // storeDir is the external model cache. Nextflow checks whether the output
+    // file already exists there before deciding to run this process:
+    //   - Cache hit:  execution is skipped; the existing file is symlinked into
+    //                 the task work directory (reversing the usual publishDir flow).
+    //   - Cache miss: the script runs and the result is persisted to the store.
+    //
+    // One process call per artifact means each has a single mandatory output, so
+    // storeDir's cache check is always unambiguous — no optional outputs needed.
+    maxForks 3
     conda "${moduleDir}/envs/conda_setup_model.yml"
-    storeDir "$params.model_chkpt_dir"
+    storeDir params.model_chkpt_dir
+
+    input:
+    tuple val(artifact_label), val(artifact_name), val(artifact_loc), val(artifact_type)
+
+    output:
+    tuple val(artifact_label), path("${artifact_name}"), emit: artifact
+
+    script:
+    """
+    python ${moduleDir}/resources/usr/bin/download_model.py \
+    --chkpt-loc  "${artifact_loc}" \
+    --chkpt-type "${artifact_type}" \
+    --chkpt-fname "${artifact_name}"
+    """
+}
+
+process setupModel {
+    // Queries the AIoD registry and writes one JSON metadata file per artifact
+    // (checkpoint always present; config and finetuning only when the model has
+    // them). No downloading occurs here — that is handled by downloadArtifact.
+    // The optional outputs here are correct and safe: storeDir is not used on
+    // this process, so Nextflow never skips execution based on output existence.
+    // An absent config/finetuning simply means the script didn't write that file,
+    // and the optional channel emits nothing — which is the intended behaviour.
+    conda "${moduleDir}/envs/conda_setup_model.yml"
 
     input:
     val model_name
@@ -60,17 +94,16 @@ process setupModel {
     val model_task
 
     output:
-    path "${model_version}_${model_task}.*", emit: model_chkpt
-    path "${model_version}_${model_task}_config.*", emit: model_config
-    // path "${model_version}_finetuning_meta.*", emit: finetuning_mrue
+    path "model_chkpt_meta.json",      emit: model_chkpt_meta
+    path "model_config_meta.json",     emit: model_config_meta,     optional: true
+    path "model_finetuning_meta.json", emit: model_finetuning_meta, optional: true
 
     script:
     """
     python ${moduleDir}/resources/usr/bin/setup_model.py \
-    --model-name "${model_name}" \
-    --model-version "${model_version}" \
-    --task "${model_task}" \
-    --cache-loc "$params.model_chkpt_dir"
+    --model_name "${model_name}" \
+    --model_version "${model_version}" \
+    --task "${model_task}"
     """
 }
 
