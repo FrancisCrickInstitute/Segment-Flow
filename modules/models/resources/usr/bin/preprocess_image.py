@@ -1,5 +1,5 @@
 """
-For this first version, where we will implement this new pipeline for preprocessing sets, we will just use the existing functions and run them over the whole image naively without Dask/chunk thoughts 
+For this first version, where we will implement this new pipeline for preprocessing sets, we will just use the existing functions and run them over the whole image naively without Dask/chunk thoughts
 """
 
 from pathlib import Path
