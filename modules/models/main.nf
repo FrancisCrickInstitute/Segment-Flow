@@ -59,7 +59,6 @@ process downloadArtifact {
     //
     // One process call per artifact means each has a single mandatory output, so
     // storeDir's cache check is always unambiguous — no optional outputs needed.
-    maxForks 3
     conda "${moduleDir}/envs/conda_setup_model.yml"
     storeDir params.model_chkpt_dir
 
