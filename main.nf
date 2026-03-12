@@ -140,10 +140,10 @@ workflow {
                 meta,
                 getMaskName( file( row.img_path ) ),
                 [
-                    row.start_h.toInteger(),
-                    row.end_h.toInteger(),
                     row.start_w.toInteger(),
                     row.end_w.toInteger(),
+                    row.start_h.toInteger(),
+                    row.end_h.toInteger(),
                     row.start_d.toInteger(),
                     row.end_d.toInteger()
                 ]
