@@ -42,10 +42,8 @@ def run_stardist(
             model = StarDist3D(None, name=model_type, basedir=str(model_path.parent))
         else:
             # Try to load pretrained model
-            try:
-                model = StarDist3D.from_pretrained(model_type)
-            except Exception as e:
-                print(f"Failed to load pretrained model: {e}")
+            model = StarDist3D.from_pretrained(model_type)
+            if model is None:
                 raise ValueError(f"Could not load StarDist3D model '{model_type}'")
     else:
         # For 2D, load from checkpoint directory or pretrained
@@ -54,10 +52,8 @@ def run_stardist(
             model = StarDist2D(None, name=model_type, basedir=str(model_path.parent))
         else:
             # Try to load pretrained model
-            try:
-                model = StarDist2D.from_pretrained(model_type)
-            except Exception as e:
-                print(f"Failed to load pretrained model: {e}")
+            model = StarDist2D.from_pretrained(model_type)
+            if model is None:
                 raise ValueError(f"Could not load StarDist2D model '{model_type}'")
 
     print(f"Model loaded: {model_type}")
