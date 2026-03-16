@@ -86,7 +86,7 @@ def load_img(
     else:
         dim_order = "CZYX"
     # TODO: Better to return Dask and index as needed?
-    img = aiod_io.load_image(fpath, return_array=True, dim_order=dim_order, **kwargs)
+    img = aiod_io.load_image_data(fpath, dim_order=dim_order, **kwargs)
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs(idxs)
 
