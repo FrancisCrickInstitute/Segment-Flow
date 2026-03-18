@@ -11,4 +11,5 @@ dependencies:
     - scikit-image
     - torch
     - empanada-dl
+    - tqdm
     - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
