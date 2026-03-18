@@ -1,6 +1,9 @@
 import argparse
+import os
 from pathlib import Path
 import shutil
+import subprocess
+import time
 
 import requests
 from tqdm.auto import tqdm
@@ -31,13 +34,53 @@ def get_model_checkpoint(
         copy_from_path(chkpt_loc, Path(chkpt_fname))
 
 
-def download_from_url(url: str, chkpt_fname: Path | str):
-    # Open the URL and get the content length
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+def _build_headers(url: str) -> dict:
+    return {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     }
-    req = requests.get(url, stream=True, headers=headers)
-    req.raise_for_status()
+
+
+def _curl_available() -> bool:
+    return shutil.which("curl") is not None
+
+
+def _download_with_curl(url: str, chkpt_fname: Path) -> bool:
+    """Attempt download via curl. Returns True on success, False on failure.
+
+    curl has a different TLS fingerprint to Python's requests/OpenSSL stack,
+    which allows it to bypass WAF blocks (e.g. Zenodo) that reject automated
+    Python clients.
+    """
+    cmd = ["curl", "-L", "--fail", "--progress-bar", "-o", str(chkpt_fname), url]
+    token = os.environ.get("ZENODO_TOKEN")
+    if token and "zenodo.org" in url:
+        cmd += ["-H", f"Authorization: Bearer {token}"]
+    result = subprocess.run(cmd)
+    return result.returncode == 0
+
+
+def download_from_url(url: str, chkpt_fname: Path, max_retries: int = 3, retry_wait: int = 60):
+    headers = _build_headers(url)
+
+    for attempt in range(1, max_retries + 1):
+        req = requests.get(url, stream=True, headers=headers)
+
+        if req.status_code == 403:
+            req.close()
+            # Try curl once to avoid 403, can sometimes works (e.g. Zenodo)
+            if _curl_available():
+                print(f"Received 403 error, retrying with curl...")
+                if _download_with_curl(url, chkpt_fname):
+                    print(f"Done! Checkpoint saved to {chkpt_fname}")
+                    return
+            if attempt < max_retries:
+                print(f"Failed (attempt {attempt}/{max_retries}), retrying in {retry_wait}s...")
+                time.sleep(retry_wait)
+                continue
+            req.raise_for_status()
+
+        req.raise_for_status()
+        break
     content_length = int(req.headers.get("Content-Length"))
 
     # Download the file and update the progress bar
@@ -53,7 +96,6 @@ def download_from_url(url: str, chkpt_fname: Path | str):
                 if chunk:
                     f.write(chunk)
                     pbar.update(len(chunk))
-    # Close request
     req.close()
     print(f"Done! Checkpoint saved to {chkpt_fname}")
 
