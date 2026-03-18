@@ -8,7 +8,7 @@ import pandas as pd
 import skimage.io
 
 from aiod_utils.preprocess import get_params_str, run_preprocess, load_methods
-from aiod_utils.io import load_image
+from aiod_utils.io import load_image_data
 
 
 def construct_fname(img_path, preprocess_params):
@@ -46,7 +46,8 @@ if __name__ == "__main__":
     df_img = df_img.loc[df_img.img_path == args.img_path]
     # Preprocess the image
     # TODO: Switch to return_dask, map over blocks, and check output as described at top
-    image = load_image(fpath=args.img_path, return_array=True).squeeze()
+    # TODO: Specify dim order and ensure it's preserved on save
+    image = load_image_data(args.img_path).squeeze()
     # Extract all preprocessing sets
     preprocess_methods = load_methods(args.preprocess_params)
     # Create a new dataframe to store the new images, repeating rows per preprocessing set
