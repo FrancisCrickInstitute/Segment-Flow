@@ -47,14 +47,10 @@ def _curl_available() -> bool:
 def _download_with_curl(url: str, chkpt_fname: Path) -> bool:
     """Attempt download via curl. Returns True on success, False on failure.
 
-    curl has a different TLS fingerprint to Python's requests/OpenSSL stack,
-    which allows it to bypass WAF blocks (e.g. Zenodo) that reject automated
-    Python clients.
+    curl has a different TLS fingerprint to Python's requests/OpenSSL stack (apparently),
+    so a good fallback!
     """
     cmd = ["curl", "-L", "--fail", "--progress-bar", "-o", str(chkpt_fname), url]
-    token = os.environ.get("ZENODO_TOKEN")
-    if token and "zenodo.org" in url:
-        cmd += ["-H", f"Authorization: Bearer {token}"]
     result = subprocess.run(cmd)
     return result.returncode == 0
 
