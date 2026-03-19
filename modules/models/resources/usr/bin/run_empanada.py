@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from empanada.data.utils import resize_by_factor
 from empanada.inference.engines import (
     PanopticDeepLabRenderEngine,
     PanopticDeepLabRenderEngine3d,
@@ -14,21 +15,30 @@ from model_utils import get_device
 
 
 def normalize(img, mean, std):
-    # Isn't the image a tensor?
     max_pixel_value = np.iinfo(img.dtype).max
 
-    mean = np.array(mean, dtype=np.float32)
-    mean *= max_pixel_value
-
-    std = np.array(std, dtype=np.float32)
-    std *= max_pixel_value
-
+    mean = np.array(mean, dtype=np.float32) * max_pixel_value
+    std = np.array(std, dtype=np.float32) * max_pixel_value
     denominator = np.reciprocal(std, dtype=np.float32)
 
     img = img.astype(np.float32)
     img -= mean
     img *= denominator
     return img
+
+
+class Preprocessor:
+    # Follows empanada-napari's Preprocessor class
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+
+    def __call__(self, image=None):
+        assert image is not None
+        if np.issubdtype(image.dtype, np.floating):
+            raise ValueError("Input image cannot be float type!")
+        # Normalize image, move channel dim, and convert to tensor
+        return {"image": torch.from_numpy(normalize(image, self.mean, self.std)[None])}
 
 
 def force_connected(pan_seg, thing_list, label_divisor=1000):
@@ -40,29 +50,25 @@ def force_connected(pan_seg, thing_list, label_divisor=1000):
         outside_mask = np.logical_or(pan_seg < min_id, pan_seg >= max_id)
         instance_seg[outside_mask] = 0
 
+        # NOTE: Underneath, empanada uses skimage.measure.label or cc3d's connected_components if avail
+        # Just use skimage here to keep deps down
         instance_seg = skimage.measure.label(instance_seg).astype(np.uint16)
         instance_seg[instance_seg > 0] += min_id
         pan_seg[instance_seg > 0] = instance_seg[instance_seg > 0]
     return pan_seg
 
 
-def preprocess(img, norms, device):
-    # TODO: It should be just an image right?
-    assert img.ndim == 2
-    return (
-        torch.from_numpy(normalize(img, norms["mean"], norms["std"])[None])
-        .unsqueeze(0)
-        .to(device)
-    )
-
-
-def infer_2d(engine, img, norms, device):
-    # Resize if doing - SKIP
+def infer_2d(engine, img, norms, inference_kwargs):
+    # Get the starting/original size
     orig_size = img.shape
+    # Downsampling has been requested, so resize accordingly
+    inference_scale = inference_kwargs.get("inference_scale", 1)
+    if inference_scale != 1:
+        img = resize_by_factor(img, scale_factor=inference_scale)
     # Preprocess
-    img = preprocess(img, norms, device)
+    img = Preprocessor(norms["mean"], norms["std"])(image=img)["image"].unsqueeze(0)
     # Run inference
-    pan_seg = engine(img, orig_size, upsampling=1)
+    pan_seg = engine(img, orig_size, upsampling=inference_scale)
     # Postprocess
     pan_seg = force_connected(
         pan_seg.squeeze().detach().cpu().numpy().astype(np.uint16),
@@ -72,7 +78,7 @@ def infer_2d(engine, img, norms, device):
     return pan_seg
 
 
-def run_2d(engine, img, norms, device, inference_kwargs):
+def run_2d(engine, img, norms, inference_kwargs):
     # First handle special case of [B, C, H, W]
     if img.ndim == 4:
         if img.shape[0] != 1:
@@ -81,11 +87,11 @@ def run_2d(engine, img, norms, device, inference_kwargs):
             )
         else:
             img = img.squeeze()
-    full_mask = np.zeros(img.shape, dtype=int)
+    full_mask = np.zeros(img.shape, dtype=np.int32)
     # Stack of slices
     if img.ndim == 3:
         for plane, img_slice in enumerate(img):
-            seg = infer_2d(engine, img_slice, norms, device)
+            seg = infer_2d(engine, img_slice, norms, inference_kwargs)
             full_mask[plane, ...] = seg
         # # Pad segmentations  # NOTE: Why did they do this?
         # max_h = max(seg.shape[0] for seg in segs)
@@ -102,7 +108,7 @@ def run_2d(engine, img, norms, device, inference_kwargs):
         return full_mask
     # Single slice
     elif img.ndim == 2:
-        return infer_2d(engine, img, norms, device)
+        return infer_2d(engine, img, norms, inference_kwargs)
     else:
         raise ValueError("Can only handle an image, or stack of images!")
 
@@ -163,7 +169,7 @@ if __name__ == "__main__":
             label_divisor=config["max_objects"],
         )
         # Run inference
-        pan_seg = run_2d(engine, img, norms, device, inference_kwargs)
+        pan_seg = run_2d(engine, img, norms, inference_kwargs)
     else:
         raise NotImplementedError
         inference_plane = config["inference_plane"]
