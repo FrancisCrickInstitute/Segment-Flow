@@ -7,9 +7,10 @@ dependencies:
   - pyyaml
   - pip
   - pip:
-    - numpy==1.26.4
-    - torch
     - scikit-image
-    - empanada-dl
+    - torch
+    - numba==0.59.0
+    - numpy==1.26.4
+    - empanada-dl==0.1.6
     - tqdm
     - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
