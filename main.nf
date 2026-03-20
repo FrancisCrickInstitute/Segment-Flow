@@ -110,6 +110,7 @@ workflow {
     chkpt_ch = downloadArtifact.out.artifact
         | filter { label, _file -> label == 'checkpoint' }
         | map    { _label, file -> file }
+        | first()
 
     if ( params.preprocess ) {
         // Split the CSV into individual images, so we preprocessImage distributes over each source image
