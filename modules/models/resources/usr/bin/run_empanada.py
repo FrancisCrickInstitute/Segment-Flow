@@ -323,10 +323,23 @@ if __name__ == "__main__":
     # Set model to eval mode (just in case)
     model.eval()
     # Try to extract model specifics from config, with some reasonable defaults
+    # NOTE: These norms are the same across all Empanada models, so OK to hard-code here for now, but ideally would be in the schema
     norms = config.get("norms", {"mean": 0.57571, "std": 0.12765})
-    padding_factor = config.get(
-        "padding_factor", 128 if "mini" in cli_args.model_type.lower() else 16
-    )
+    if "padding_factor" not in config:
+        # Dropnet
+        if "dropnet" in cli_args.model_type.lower():
+            padding_factor = 512
+        # NucleoNet
+        elif "nucleonet" in cli_args.model_type.lower():
+            padding_factor = 512
+        # MitoNet Mini
+        elif "mini" in cli_args.model_type.lower():
+            padding_factor = 128
+        # MitoNet
+        else:
+            padding_factor = 16
+    else:
+        padding_factor = config["padding_factor"]
     thing_list = [] if config["semantic_only"] else config.get("thing_list", [1])
     labels = config.get("labels", thing_list if thing_list else [1])
     class_names = config.get(
