@@ -1,4 +1,5 @@
 import argparse
+import os
 import json
 from pathlib import Path
 from aiod_registry import load_manifests
@@ -30,19 +31,31 @@ def write_meta(fname: str, name: str, location: str, loc_type: str) -> None:
     print(f"Written metadata for '{name}' -> {fname}")
 
 
+def check_access(location: str, loc_type: str) -> bool:
+    if loc_type == "file":
+        return os.access(location, os.F_OK | os.R_OK)
+    return True
+
+
 def main(model_name: str, model_version: str, model_task: str):
+    # Create flag to ensure everything is accessible, otherwise error out
+    all_accessible = True
     manifests = load_manifests(filter_access=False)
     versions = manifests[model_name].versions
-    # model_version arrives sanitised from Nextflow (e.g. "MitoNet-v1"); resolve to manifest key
-    resolved_version = model_version.replace("-", " ")
-
+    try:
+        model_info = versions[model_version].tasks[model_task]
+    except KeyError:
+        try:
+            model_info = versions[model_version.replace("-", " ")].tasks[model_task]
+        except KeyError:
+            raise KeyError(
+                f"Model version '{model_version}' with task '{model_task}' not found in the registry! Model version must be one of {versions.keys()}"
+            )
     # Extract required data from the manifest
-    model_info = versions[resolved_version].tasks[model_task]
     model_location = model_info.location
-    model_config_location = getattr(model_info, "config_path", None)
-    model_finetuning_location = getattr(model_info, "finetuning_path", None)
     model_location_type = get_location_type(model_location)
-
+    # Check access to model checkpoint
+    all_accessible = all_accessible and check_access(model_location, model_location_type)
     # Derive the canonical checkpoint filename (version + extension from source)
     ext = artifact_extension(model_location, model_location_type)
     full_model_name = model_version + "_" + model_task + ext
@@ -53,8 +66,12 @@ def main(model_name: str, model_version: str, model_task: str):
         "model_chkpt_meta.json", full_model_name, model_location, model_location_type
     )
 
+    model_config_location = getattr(model_info, "config_path", None)
     if model_config_location:
         config_location_type = get_location_type(model_config_location)
+        all_accessible = all_accessible and check_access(
+            model_config_location, config_location_type
+        )
         model_config_name = model_version + "_" + model_task + "_config.yml"
         write_meta(
             "model_config_meta.json",
@@ -63,8 +80,12 @@ def main(model_name: str, model_version: str, model_task: str):
             config_location_type,
         )
 
+    model_finetuning_location = getattr(model_info, "finetuning_path", None)
     if model_finetuning_location:
         finetuning_location_type = get_location_type(model_finetuning_location)
+        all_accessible = all_accessible and check_access(
+            model_finetuning_location, finetuning_location_type
+        )
         finetuning_ext = artifact_extension(
             model_finetuning_location, finetuning_location_type
         )
@@ -77,6 +98,17 @@ def main(model_name: str, model_version: str, model_task: str):
             model_finetuning_location,
             finetuning_location_type,
         )
+    
+    if not all_accessible:
+        error_msg = (
+            "One or more model artifacts are not accessible! Please check the paths and permissions for the following locations:\n"
+            f"Checkpoint: {model_location} (type: {model_location_type})\n"
+        )
+        if model_config_location:
+            error_msg += f"Config: {model_config_location} (type: {config_location_type})\n"
+        if model_finetuning_location:
+            error_msg += f"Finetuning: {model_finetuning_location} (type: {finetuning_location_type})\n"
+        raise PermissionError(error_msg)
 
 
 if __name__ == "__main__":
