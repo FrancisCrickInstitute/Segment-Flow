@@ -27,12 +27,34 @@ if ( params.help ) {
     exit 0
 }
 
-// Default root directory, that gets overridden by input from Napari
-params.root_dir = "${workflow.homeDir}/.nextflow/aiod"
-params.cache_dir = "${params.root_dir}/aiod_cache"
+def validateParams(params) {
+    def errors = []
+
+    if ( !params.img_dir   ) errors << "Missing required parameter: --img_dir"
+    if ( !params.model     ) errors << "Missing required parameter: --model"
+    if ( !params.model_type) errors << "Missing required parameter: --model_type"
+    if ( !params.task      ) errors << "Missing required parameter: --task"
+    if ( !params.model_config ) errors << "Missing required parameter: --model_config"
+
+    // Type/existence checks
+    if ( params.img_dir && !file(params.img_dir).exists() ) 
+        errors << "img_dir does not exist: ${params.img_dir}"
+
+    if ( errors ) {
+        log.error "Parameter validation failed:\n" + errors.join("\n")
+        exit 1
+    }
+}
+
+validateParams(params)
+
+// Default root/cache directory for masks, models etc. to be stored
+def root_dir            = params.root_dir
 // Construct other directories from root
-params.model_dir = "${params.cache_dir}/${params.model}"
-params.model_chkpt_dir = "${params.model_dir}/checkpoints"
+def cache_dir           = "${root_dir}/aiod_cache"
+def model_dir           = "${cache_dir}/${params.model}"
+def model_chkpt_dir     = "${model_dir}/checkpoints"
+params.model_chkpt_dir  = model_chkpt_dir  // needed by storeDir in modules
 
 // Import processes from model modules
 include { setupModel; downloadArtifact; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
@@ -53,7 +75,7 @@ log.info """\
          Config Hash     : ${params.param_hash}
          Image filepaths : ${params.img_dir}
          ---
-         Cache directory : ${params.model_dir}
+         Cache directory : ${model_dir}
          Work directory  : ${workDir}
          Profile         : ${workflow.profile}
          ---
@@ -74,8 +96,8 @@ workflow {
     def availableModels = modelScriptsDir.listFiles()
         .findAll { it.name.startsWith('run_') && it.name.endsWith('.py') }
         .collect { it.name.replaceAll(/^run_/, '').replaceAll(/\.py$/, '') }
-
     assert availableModels.contains( params.model ), "Model ${params.model} not yet implemented! Available models: ${availableModels.join(', ')}"
+
     // Download model checkpoint if it doesn't exist
     setupModel(
         params.model,
@@ -167,7 +189,7 @@ workflow {
         | combine(img_names, by: 0)
 
     // Create the name for the mask output directory
-    mask_output_dir = "${params.model_dir}/${params.model_type}_masks"
+    mask_output_dir = "${model_dir}/${params.model_type}_masks"
 
     // TODO: Should be delegated to a workflow in the models module?
     // Select appropriate model
