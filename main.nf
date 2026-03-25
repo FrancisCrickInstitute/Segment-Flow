@@ -48,6 +48,18 @@ def validateParams(params) {
 
 validateParams(params)
 
+def resolvedParamHash = params.param_hash ?: {
+    // Exclude params that don't affect output content
+    def excluded = ['help', 'param_hash', 'root_dir'] as Set
+    def src = params
+        .findAll { k, _v -> !(k in excluded) }
+        .sort()
+        .collect { k, v -> "${k}=${v}" }
+        .join('|')
+    java.security.MessageDigest.getInstance('MD5')
+        .digest(src.bytes).encodeHex().toString()[0..7]
+}()
+
 // Default root/cache directory for masks, models etc. to be stored
 def root_dir            = params.root_dir
 // Construct other directories from root
@@ -72,7 +84,7 @@ log.info """\
          Model variant   : ${params.model_type}
          Task            : ${params.task}
          Model config    : ${params.model_config}
-         Config Hash     : ${params.param_hash}
+         Config Hash     : ${resolvedParamHash}
          Image filepaths : ${params.img_dir}
          ---
          Cache directory : ${model_dir}
@@ -86,7 +98,7 @@ log.info """\
 
 // Function to get the name of the mask file given the image and model-version-task
 def getMaskName(img_file) {
-    return "${img_file.baseName}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}-${params.param_hash}"
+    return "${img_file.baseName}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}-${resolvedParamHash}"
 }
 
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
