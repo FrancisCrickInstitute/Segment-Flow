@@ -91,6 +91,7 @@ process setupModel {
     val model_name
     val model_version
     val model_task
+    val user_config
 
     output:
     path "model_chkpt_meta.json",      emit: model_chkpt_meta
@@ -98,11 +99,13 @@ process setupModel {
     path "model_finetuning_meta.json", emit: model_finetuning_meta, optional: true
 
     script:
+    def userConfigArg = user_config ? "--user-config \"${user_config}\"" : ""
     """
     python ${moduleDir}/resources/usr/bin/setup_model.py \
     --model_name "${model_name}" \
     --model_version "${model_version}" \
-    --task "${model_task}"
+    --task "${model_task}" \
+    ${userConfigArg}
     """
 }
 

@@ -34,7 +34,6 @@ def validateParams(params) {
     if ( !params.model     ) errors << "Missing required parameter: --model"
     if ( !params.model_type) errors << "Missing required parameter: --model_type"
     if ( !params.task      ) errors << "Missing required parameter: --task"
-    if ( !params.model_config ) errors << "Missing required parameter: --model_config"
 
     // Type/existence checks
     if ( params.img_dir && !file(params.img_dir).exists() ) 
@@ -115,6 +114,7 @@ workflow {
         params.model,
         params.model_type,
         params.task,
+        params.model_config ?: '',
     )
 
     // Parse each registry metadata JSON into a (name, location, type) tuple and
@@ -143,6 +143,11 @@ workflow {
 
     chkpt_ch = downloadArtifact.out.artifact
         | filter { label, _file -> label == 'checkpoint' }
+        | map    { _label, file -> file }
+        | first()
+
+    config_ch = downloadArtifact.out.artifact
+        | filter { label, _file -> label == 'config' }
         | map    { _label, file -> file }
         | first()
 
@@ -208,7 +213,7 @@ workflow {
     mask_out = runModel (
         img_ch,
         mask_output_dir,
-        params.model_config,
+        config_ch,
         chkpt_ch,
         params.model_type
     ).mask
