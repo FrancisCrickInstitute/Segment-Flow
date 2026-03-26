@@ -34,7 +34,7 @@ process splitStacks {
     path model_chkpt
 
     output:
-    path "${csv_path}", emit: csv_file
+    path "split_${csv_path}", emit: csv_file
 
     script:
     // Nextflow must have a string of comma separated values as input params, so split them here
@@ -44,7 +44,7 @@ process splitStacks {
     """
     python ${moduleDir}/resources/usr/bin/create_splits.py \
     --img-csv ${csv_path} \
-    --output-csv ${csv_path} \
+    --output-csv split_${csv_path} \
     --num-substacks $num_substacks \
     --overlap $overlap
     """
