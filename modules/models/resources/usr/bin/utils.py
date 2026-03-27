@@ -57,6 +57,12 @@ def create_argparser_inference():
     parser.add_argument(
         "--num-slices", type=int, help="Number of Z slices in the input image"
     )
+    parser.add_argument(
+        "--output-mask-type",
+        default="instance",
+        choices=["binary", "instance"],
+        help="Mask type to store in output ('binary' or 'instance')",
+    )
 
     return parser
 
