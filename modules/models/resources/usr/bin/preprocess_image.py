@@ -1,5 +1,5 @@
 """
-For this first version, where we will implement this new pipeline for preprocessing sets, we will just use the existing functions and run them over the whole image naively without Dask/chunk thoughts 
+For this first version, where we will implement this new pipeline for preprocessing sets, we will just use the existing functions and run them over the whole image naively without Dask/chunk thoughts
 """
 
 from pathlib import Path
@@ -46,7 +46,8 @@ if __name__ == "__main__":
     df_img = df_img.loc[df_img.img_path == args.img_path]
     # Preprocess the image
     # TODO: Switch to return_dask, map over blocks, and check output as described at top
-    image = load_image_data(fpath=args.img_path).squeeze()
+    # TODO: Specify dim order and ensure it's preserved on save
+    image = load_image_data(args.img_path).squeeze()
     # Extract all preprocessing sets
     preprocess_methods = load_methods(args.preprocess_params)
     # Create a new dataframe to store the new images, repeating rows per preprocessing set

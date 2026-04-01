@@ -1,22 +1,25 @@
 import argparse
+import os
 from pathlib import Path
 import shutil
-from typing import Union
+import subprocess
+import time
 
 import requests
 from tqdm.auto import tqdm
 
 
 def get_model_checkpoint(
-    chkpt_output_dir: Union[Path, str],
     chkpt_fname: str,
     chkpt_loc: str,
     chkpt_type: str,
 ):
-    # NOTE: Using chkpt_output_dir here as that's where Nextflow will copy the result to
-    if (Path(chkpt_output_dir) / chkpt_fname).exists():
-        return
-    # Check whether we are using a local path or a URL
+    """Download or copy a model artifact into the current working directory.
+
+    Existence checking is intentionally absent: Nextflow's storeDir directive
+    handles it externally — this script is only ever called when the file is
+    genuinely missing from the cache.
+    """
     if chkpt_type == "url":
         print(f"Downloading {chkpt_loc}")
         download_from_url(chkpt_loc, Path(chkpt_fname))
@@ -26,18 +29,54 @@ def get_model_checkpoint(
             if Path(chkpt_loc).is_dir():
                 chkpt_loc = Path(chkpt_loc) / chkpt_fname
             else:
-                raise FileNotFoundError(f"Model checkpoint not found: {chkpt_loc}")
+                raise FileNotFoundError(f"Model artifact not found: {chkpt_loc}")
         print(f"Copying {chkpt_loc}")
         copy_from_path(chkpt_loc, Path(chkpt_fname))
 
 
-def download_from_url(url: str, chkpt_fname: Union[Path, str]):
-    # Open the URL and get the content length
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+def _build_headers(url: str) -> dict:
+    return {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     }
-    req = requests.get(url, stream=True, headers=headers)
-    req.raise_for_status()
+
+
+def _curl_available() -> bool:
+    return shutil.which("curl") is not None
+
+
+def _download_with_curl(url: str, chkpt_fname: Path) -> bool:
+    """Attempt download via curl. Returns True on success, False on failure.
+
+    curl has a different TLS fingerprint to Python's requests/OpenSSL stack (apparently),
+    so a good fallback!
+    """
+    cmd = ["curl", "-L", "--fail", "--progress-bar", "-o", str(chkpt_fname), url]
+    result = subprocess.run(cmd)
+    return result.returncode == 0
+
+
+def download_from_url(url: str, chkpt_fname: Path, max_retries: int = 3, retry_wait: int = 60):
+    headers = _build_headers(url)
+
+    for attempt in range(1, max_retries + 1):
+        req = requests.get(url, stream=True, headers=headers)
+
+        if req.status_code == 403:
+            req.close()
+            # Try curl once to avoid 403, can sometimes works (e.g. Zenodo)
+            if _curl_available():
+                print(f"Received 403 error, retrying with curl...")
+                if _download_with_curl(url, chkpt_fname):
+                    print(f"Done! Checkpoint saved to {chkpt_fname}")
+                    return
+            if attempt < max_retries:
+                print(f"Failed (attempt {attempt}/{max_retries}), retrying in {retry_wait}s...")
+                time.sleep(retry_wait)
+                continue
+            req.raise_for_status()
+
+        req.raise_for_status()
+        break
     content_length = int(req.headers.get("Content-Length"))
 
     # Download the file and update the progress bar
@@ -53,12 +92,11 @@ def download_from_url(url: str, chkpt_fname: Union[Path, str]):
                 if chunk:
                     f.write(chunk)
                     pbar.update(len(chunk))
-    # Close request
     req.close()
     print(f"Done! Checkpoint saved to {chkpt_fname}")
 
 
-def copy_from_path(fpath: Union[Path, str], chkpt_fname: Union[Path, str]):
+def copy_from_path(fpath: Path | str, chkpt_fname: Path | str):
     if not Path(fpath).is_file():
         raise FileNotFoundError(f"Model checkpoint not found: {fpath}")
     # Copy the file from accessible path
@@ -66,37 +104,35 @@ def copy_from_path(fpath: Union[Path, str], chkpt_fname: Union[Path, str]):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--chkpt-output-dir",
-        required=True,
-        type=str,
-        help="Output directory to store model checkpoint",
+    parser = argparse.ArgumentParser(
+        description=(
+            "Download or copy a model artifact into the current working directory. "
+            "Cache-hit detection is handled externally by Nextflow's storeDir directive."
+        )
     )
     parser.add_argument(
         "--chkpt-loc",
         required=True,
         type=str,
-        help="Location of model checkpoint (source)",
+        help="Source location of the artifact (URL or file path)",
     )
     parser.add_argument(
         "--chkpt-type",
         required=True,
         type=str,
         choices=["url", "file"],
-        help="Type of model checkpoint location",
+        help="Type of source location",
     )
     parser.add_argument(
         "--chkpt-fname",
         required=True,
         type=str,
-        help="Filename of the checkpoint",
+        help="Destination filename (written to the current working directory)",
     )
 
     args = parser.parse_args()
 
     get_model_checkpoint(
-        chkpt_output_dir=args.chkpt_output_dir,
         chkpt_fname=args.chkpt_fname,
         chkpt_loc=args.chkpt_loc,
         chkpt_type=args.chkpt_type,
