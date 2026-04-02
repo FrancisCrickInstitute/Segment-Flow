@@ -41,12 +41,16 @@ process splitStacks {
     // https://github.com/nextflow-io/nextflow/issues/3595 should track this
     num_substacks = params.num_substacks.replace(",", " ")
     overlap = params.overlap.replace(",", " ")
+    def mem_arg = (params.containsKey('memory_per_job') && params.memory_per_job) \
+        ? "--memory-per-job ${(params.memory_per_job as nextflow.util.MemoryUnit).toBytes()}" \
+        : ""
     """
     python ${moduleDir}/resources/usr/bin/create_splits.py \
     --img-csv ${csv_path} \
     --output-csv ${csv_path} \
     --num-substacks $num_substacks \
-    --overlap $overlap
+    --overlap $overlap \
+    $mem_arg
     """
 }
 
@@ -107,7 +111,7 @@ process setupModel {
 }
 
 process runModel {
-    label 'small_gpu'
+    label 'gpu_process'
     conda "${moduleDir}/envs/${task.ext.condaDir}/conda_${params.model}.yml"
     // Symlink to where AIoD Napari plugin file watcher is looking
     publishDir "$mask_output_dir"
