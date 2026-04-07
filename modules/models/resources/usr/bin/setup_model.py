@@ -55,7 +55,9 @@ def main(model_name: str, model_version: str, model_task: str):
     model_location = model_info.location
     model_location_type = get_location_type(model_location)
     # Check access to model checkpoint
-    all_accessible = all_accessible and check_access(model_location, model_location_type)
+    all_accessible = all_accessible and check_access(
+        model_location, model_location_type
+    )
     # Derive the canonical checkpoint filename (version + extension from source)
     ext = artifact_extension(model_location, model_location_type)
     full_model_name = model_version + "_" + model_task + ext
@@ -98,14 +100,15 @@ def main(model_name: str, model_version: str, model_task: str):
             model_finetuning_location,
             finetuning_location_type,
         )
-    
     if not all_accessible:
         error_msg = (
             "One or more model artifacts are not accessible! Please check the paths and permissions for the following locations:\n"
             f"Checkpoint: {model_location} (type: {model_location_type})\n"
         )
         if model_config_location:
-            error_msg += f"Config: {model_config_location} (type: {config_location_type})\n"
+            error_msg += (
+                f"Config: {model_config_location} (type: {config_location_type})\n"
+            )
         if model_finetuning_location:
             error_msg += f"Finetuning: {model_finetuning_location} (type: {finetuning_location_type})\n"
         raise PermissionError(error_msg)

@@ -35,33 +35,9 @@ params.model_dir = "${params.cache_dir}/${params.model}"
 params.model_chkpt_dir = "${params.model_dir}/checkpoints"
 
 // Import processes from model modules
-include { setupModel; downloadArtifact; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
+include { setupModel; downloadArtifact; preprocessImage; splitStacks; runModel; combineStacks; finetuneModel } from './modules/models'
 
 def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
-
-// Could consider https://stackoverflow.com/a/71529563 for auto-printing
-
-// log.info """\ TODO: remove this if the display_pipeline_info() is adequate
-//          ====================================================
-//                         AI ONDEMAND PIPELINE
-//                         ${log_timestamp}
-//          ====================================================
-//          Model name      : ${params.model}
-//          Model variant   : ${params.model_type}
-//          Model checkpoint: ${params.model_chkpt_path}
-//          Task            : ${params.task}
-//          Model config    : ${params.model_config}
-//          Config Hash     : ${params.param_hash}
-//          Image filepaths : ${params.img_dir}
-//          ---
-//          Cache directory : ${params.model_dir}
-//          Work directory  : ${workDir}
-//          Profile         : ${workflow.profile}
-//          ---
-//          Full Command    : ${workflow.commandLine}
-//          ====================================================
-//          """.stripIndent()
-
 
 display_pipeline_info()
 
@@ -88,7 +64,7 @@ def getMaskName(img_file) {
 }
 
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
-workflow {
+workflow inference {
     // Dynamically discover available models by scanning for run_<model>.py files
     def modelScriptsDir = file("${workflow.projectDir}/modules/models/resources/usr/bin")
     def availableModels = modelScriptsDir.listFiles()
@@ -217,24 +193,50 @@ workflow {
     combineStacks( mask_ch, params.postprocess )
 }
 
-workflow finetune{
-    def models = ["empanada"]
-    assert models.contains( params.model ), "Model ${params.model} not yet implemented!"
-    // Download model checkpoint if it doesn't exist
-    chkpt_file = file( params.model_chkpt_path )
+workflow finetune {
+    // Dynamically discover available models by scanning for run_<model>.py files
+    def modelScriptsDir = file("${workflow.projectDir}/modules/models/resources/usr/bin")
+    def availableModels = modelScriptsDir.listFiles()
+        .findAll { it.name.startsWith('run_finetuning_') && it.name.endsWith('.py') }
+        .collect { it.name.replaceAll(/^run_finetuning_/, '').replaceAll(/\.py$/, '') }
 
-    if ( !chkpt_file.exists() ) {
-        downloadModel (
-            params.model_chkpt_path,
-            params.model_chkpt_loc,
-            params.model_chkpt_type,
-            params.model_chkpt_fname
-        )
-        chkpt_ch = downloadModel.out.model_chkpt
+    assert availableModels.contains( params.model ), "Model ${params.model} not yet implemented! Available models: ${availableModels.join(', ')}"
+    // Download model checkpoint if it doesn't exist
+    setupModel(
+        params.model,
+        params.model_type,
+        params.task,
+    )
+
+    // Parse each registry metadata JSON into a (name, location, type) tuple and
+    // call downloadArtifact once per artifact. Each call has a single mandatory
+    // output, so storeDir's cache check is always unambiguous. The optional
+    // channels from setupModel act as natural gates: if a model has no config,
+    // setupModel.out.model_config_meta emits nothing and downloadArtifact is
+    // never scheduled for it.
+    def parseMeta = { label, meta_file ->
+        def m = new groovy.json.JsonSlurper().parse(meta_file)
+        tuple(label, m.name, m.location, m.type)
     }
-    else {
-        chkpt_ch = chkpt_file
-    }
+
+    // Merge all artifact metadata into one channel so downloadArtifact is only
+    // called once — DSL2 does not allow reusing a process in the same workflow.
+    // The label ('checkpoint', 'config', 'finetuning') is carried through as a
+    // val so we can filter the mixed output channel downstream.
+    downloadArtifact(
+        setupModel.out.model_chkpt_meta
+            | map { parseMeta('checkpoint', it) }
+            | mix(
+                setupModel.out.model_config_meta.map     { parseMeta('config',     it) },
+                setupModel.out.model_finetuning_meta.map { parseMeta('finetuning', it) },
+            )
+    )
+
+    chkpt_ch = downloadArtifact.out.artifact
+        | filter { label, _file -> label == 'checkpoint' }
+        | map    { _label, file -> file }
+        | first()
+
     finetuneModel(
         params.model_type,
         params.epochs,
