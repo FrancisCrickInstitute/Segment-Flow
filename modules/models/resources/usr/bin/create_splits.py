@@ -2,16 +2,14 @@ from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
-
+from aiod_utils.io import load_image
 from aiod_utils.stacks import (
-    Stack,
     MAX_SUBSTACK_SIZE,
+    Stack,
     calc_num_stacks,
     compute_max_substack_size,
     generate_stack_indices,
 )
-from aiod_utils.io import load_image
-
 
 if __name__ == "__main__":
     # Get the command line arguments
@@ -95,9 +93,11 @@ if __name__ == "__main__":
             try:
                 img_dtype = str(load_image(img_path).dtype)
             except Exception:
-                img_dtype = 'float32'  # conservative fallback
+                img_dtype = "float32"  # conservative fallback
         else:
-            img_dtype = str(row["dtype"]) if pd.notna(row["dtype"]) else 'float32'  # conservative fallback 
+            img_dtype = (
+                str(row["dtype"]) if pd.notna(row["dtype"]) else "float32"
+            )  # conservative fallback
         # Compute the maximum substack size: dynamic if memory_per_job provided, else use constant
         if args.memory_per_job is not None:
             max_substack_size = compute_max_substack_size(
