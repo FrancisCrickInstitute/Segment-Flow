@@ -14,9 +14,9 @@ dependencies:
   - beautifulsoup4
   - pyyaml
   - tqdm
-  - git
   - openssh
   - imagecodecs
+  - git
   - pip
   - pip:
     - git+https://github.com/FrancisCrickInstitute/em-segment-pytorch.git

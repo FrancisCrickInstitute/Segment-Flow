@@ -8,6 +8,7 @@ dependencies:
   - pyyaml
   - pytorch::pytorch>=2.3.1
   - pytorch::torchvision>=0.18.1
+  - git
   - pip
   - pip:
     - numpy==1.26.4

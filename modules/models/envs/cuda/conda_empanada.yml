@@ -5,6 +5,7 @@ channels:
 dependencies:
   - python=3.11
   - pyyaml
+  - git
   - pip
   - pip:
     - scikit-image
