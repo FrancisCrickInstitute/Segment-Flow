@@ -72,11 +72,12 @@ if __name__ == "__main__":
         config["nucleus_channel"],
     ]
 
-    # Create the Cellpose model with available device
+    # Create the Cellpose model from checkpoint with available device
     cp_model = models.Cellpose(
         model_type=cli_args.model_type,
         device=get_device(model_type=get_model_name_type(cli_args.model_type)),
     )
+    cp_model.cp.net.load_model(cli_args.model_chkpt)
 
     run_cellpose(
         save_dir=cli_args.output_dir,
