@@ -15,7 +15,7 @@ def run_cellpose(
     config: dict,
 ):
     # Extract model config arguments
-    masks, _, _, _ = cp_model.eval(
+    masks, _, _ = cp_model.eval(
         img,
         diameter=config["diameter"],
         channels=config["channels"],
@@ -72,10 +72,12 @@ if __name__ == "__main__":
         config["nucleus_channel"],
     ]
 
-    # Create the Cellpose model with available device
-    cp_model = models.Cellpose(
-        model_type=cli_args.model_type,
-        device=get_device(model_type=get_model_name_type(cli_args.model_type)),
+    # Create the Cellpose model from checkpoint with available device
+    device = get_device(model_type=get_model_name_type(cli_args.model_type))
+    pretrained_model = cli_args.model_chkpt
+    cp_model = models.CellposeModel(
+        gpu=device.type == "cuda",
+        pretrained_model=pretrained_model,
     )
 
     run_cellpose(
