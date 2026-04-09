@@ -74,11 +74,17 @@ if __name__ == "__main__":
 
     # Create the Cellpose model from checkpoint with available device
     device = get_device(model_type=get_model_name_type(cli_args.model_type))
-    pretrained_model = cli_args.model_chkpt
     cp_model = models.CellposeModel(
-        gpu=device.type == "cuda",
-        pretrained_model=pretrained_model,
+        gpu=device.type == "cuda", pretrained_model=cli_args.model_chkpt
     )
+
+    # TODO: see if you can have automatic diameter with the sizemodel without having to provide the model_type
+    # # Create the Cellpose model from checkpoint with available device
+    # cp_model = models.Cellpose(
+    #     model_type=get_model_name_type(cli_args.model_type),
+    #     device=get_device(model_type=get_model_name_type(cli_args.model_type)),
+    # )
+    # cp_model.cp.net.load_model(cli_args.model_chkpt)
 
     run_cellpose(
         save_dir=cli_args.output_dir,

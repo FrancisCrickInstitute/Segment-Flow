@@ -1,5 +1,32 @@
+import logging
 from pathlib import Path
 import shutil
+
+class CSVLoggingHandler(logging.Handler):
+    """Custom handler that writes loss metrics to CSV."""
+    def __init__(self, csv_path):
+        super().__init__()
+        self.csv_path = csv_path
+        # Initialize CSV file
+        with open(csv_path, "w", encoding="utf-8") as f:
+            f.write("epoch,train_loss,test_loss\n")
+    
+    def emit(self, record):
+        """Extract and log loss values from training messages."""
+        msg = record.getMessage()
+        # Cellpose logs: "epoch, train_loss=X.XXXX, test_loss=Y.YYYY, ..."
+        if "train_loss=" in msg and "test_loss=" in msg:
+            try:
+                parts = msg.split(", ")
+                epoch = parts[0]
+                train_loss = parts[1].split("=")[1]
+                test_loss = parts[2].split("=")[1]
+                
+                with open(self.csv_path, "a", encoding="utf-8") as f:
+                    f.write(f"{epoch},{train_loss},{test_loss}\n")
+                    f.flush()
+            except (IndexError, ValueError):
+                pass
 
 from cellpose import io, models, train
 
@@ -19,6 +46,11 @@ def finetune_cellpose(cli_args):
     train_dir = Path(cli_args.train_dir)
     save_dir = Path(cli_args.model_save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
+
+    metrics_path = save_dir / "training_metrics.csv"
+    csv_handler = CSVLoggingHandler(metrics_path)
+    cellpose_logger = logging.getLogger("cellpose.train")
+    cellpose_logger.addHandler(csv_handler)
 
     n_epochs = int(cli_args.epochs)
     batch_size = 1
@@ -64,8 +96,6 @@ def finetune_cellpose(cli_args):
         model_name=model_name,
     )
 
-    metrics_path = save_dir / "training_metrics.csv"
-    update_training_metrics_file(train_losses, metrics_path)
 
     # Copy final model artifact into the caller-specified save directory.
     final_model_copy = save_dir / f"{model_name}.pth"
