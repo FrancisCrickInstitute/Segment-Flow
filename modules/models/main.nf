@@ -34,7 +34,7 @@ process splitStacks {
     path model_chkpt
 
     output:
-    path "${csv_path}", emit: csv_file
+    path "split_${csv_path}", emit: csv_file
 
     script:
     // Nextflow must have a string of comma separated values as input params, so split them here
@@ -44,7 +44,7 @@ process splitStacks {
     """
     python ${moduleDir}/resources/usr/bin/create_splits.py \
     --img-csv ${csv_path} \
-    --output-csv ${csv_path} \
+    --output-csv split_${csv_path} \
     --num-substacks $num_substacks \
     --overlap $overlap
     """
@@ -121,6 +121,7 @@ process runModel {
     path model_config
     path model_chkpt
     val model_type
+    val output_mask_type
 
     output:
     tuple val("${image_path.baseName}"), val(meta), val(mask_fname), val(mask_output_dir), path("${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
@@ -136,7 +137,8 @@ process runModel {
     --model-config ${model_config} \
     --idxs ${idxs.join(" ")} \
     --channels ${meta.channels} \
-    --num-slices ${meta.num_slices}
+    --num-slices ${meta.num_slices} \
+    --output-mask-type ${output_mask_type}
     """
 }
 
@@ -152,9 +154,11 @@ process combineStacks {
     input:
     tuple val(img_simplename), val(meta), val(model), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
     val postprocess
+    val output_format
+    val output_mask_type
 
     output:
-    path("${mask_fname}_all.rle")
+    path("${mask_fname}_all.${output_format}")
 
     script:
     def postprocess = postprocess ? "--postprocess" : ""
@@ -169,6 +173,8 @@ process combineStacks {
     --image-size ${meta.num_slices} ${meta.height} ${meta.width} \
     --overlap $overlap \
     --iou-threshold ${params.iou_threshold} \
+    --output-format ${output_format} \
+    --output-mask-type ${output_mask_type} \
     ${postprocess}
     """
 }

@@ -48,6 +48,7 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
     except KeyError:
         try:
             model_info = versions[model_version.replace("-", " ")].tasks[model_task]
+            model_version = model_version.replace("-", " ")
         except KeyError:
             raise KeyError(
                 f"Model version '{model_version}' with task '{model_task}' not found in the registry! Model version must be one of {versions.keys()}"

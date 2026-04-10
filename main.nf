@@ -39,6 +39,14 @@ def validateParams(params) {
     if ( params.img_dir && !file(params.img_dir).exists() ) 
         errors << "img_dir does not exist: ${params.img_dir}"
 
+    // Check output mask format is custom .rle or .tiff format
+    if ( !['rle', 'tiff'].contains(params.output_format?.toLowerCase()) )
+        errors << "Invalid output_format: ${params.output_format}. Must be one of 'rle' or 'tiff'."
+
+    // Check output mask type is either binary or instance, used for outputs
+    if ( !['auto', 'binary', 'instance'].contains(params.output_mask_type?.toLowerCase()) )
+        errors << "Invalid output_mask_type: ${params.output_mask_type}. Must be one of 'binary', 'instance', or 'auto'."
+
     if ( errors ) {
         log.error "Parameter validation failed:\n" + errors.join("\n")
         exit 1
@@ -49,7 +57,7 @@ validateParams(params)
 
 def resolvedParamHash = params.param_hash ?: {
     // Exclude params that don't affect output content
-    def excluded = ['help', 'param_hash', 'root_dir'] as Set
+    def excluded = ['help', 'param_hash', 'root_dir', 'output_format'] as Set
     def src = params
         .findAll { k, _v -> !(k in excluded) }
         .sort()
@@ -215,7 +223,8 @@ workflow {
         mask_output_dir,
         config_ch,
         chkpt_ch,
-        params.model_type
+        params.model_type,
+        params.output_mask_type.toLowerCase()
     ).mask
 
     // Group all the outputs per image together to combine
@@ -233,7 +242,7 @@ workflow {
     }
     | set { mask_ch }
 
-    combineStacks( mask_ch, params.postprocess )
+    combineStacks( mask_ch, params.postprocess, params.output_format.toLowerCase(), params.output_mask_type.toLowerCase() )
 }
 
 // Useful output upon completion, one way or another

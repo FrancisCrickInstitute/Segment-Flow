@@ -12,6 +12,7 @@ from numba.core import types
 from numba.typed import Dict
 import numpy as np
 import skimage.measure
+import tifffile
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
 
@@ -334,6 +335,20 @@ if __name__ == "__main__":
         default=0.8,
         help="IoU threshold for aligning masks (in SAM)",
     )
+    parser.add_argument(
+        "--output-format",
+        required=False,
+        default="rle",
+        choices=["rle", "tiff"],
+        help="Output format for the combined masks ('rle' or 'tiff')",
+    )
+    parser.add_argument(
+        "--output-mask-type",
+        required=False,
+        default="instance",
+        choices=["auto", "binary", "instance"],
+        help="Mask type of the combined output ('binary' or 'instance')",
+    )
 
     cli_args = parser.parse_args()
 
@@ -375,27 +390,37 @@ if __name__ == "__main__":
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
     print(f"Memory used in combination: {mem_used:.2f} GB")
     # Save the masks
-    save_path = f"{cli_args.mask_fname}_all.rle"
+    output_format = cli_args.output_format.lower()
+    save_path = f"{cli_args.mask_fname}_all.{output_format}"
     # Get downsample factor for metadata if used
     # NOTE: Our Napari plugin uses this as an identifier to rescale for visualization
     # FIXME: This is brittle and poor, the params should be extracted from the preprocess params
     # Which themselves should be tied to the image that they produced
     if "Downsample" in cli_args.mask_fname:
         downsample_factor = get_downsample_factor(filename=cli_args.mask_fname)
-        # Extract the downsample factor from the filename
         metadata = {"downsample_factor": downsample_factor}
     else:
         metadata = {}
-    # Reuse mask_type from decoded patches to avoid expensive check_mask_type()
-    encoded_masks = aiod_rle.encode(
-        combined_masks,
-        mask_type=mask_type_from_file,
-        metadata=metadata,
-    )
-    # Free up memory (though too late at this point)
+    if output_format == "tiff":
+        # Resolve 'auto' using the mask type recorded in the individual patches
+        resolved_mask_type = mask_type_from_file if cli_args.output_mask_type == "auto" else cli_args.output_mask_type
+        # Convert binary masks to uint8 0/255 for clean display
+        if resolved_mask_type == "binary":
+            # Convert to binary uint8 with 0/255 values for clean display in downstream tools
+            combined_masks = (combined_masks > 0) * np.uint8(255)
+        # metadata dict is serialised as JSON into the TIFF ImageDescription tag
+        tifffile.imwrite(save_path, combined_masks, metadata=metadata, imagej=True)
+    else:
+        # Reuse mask_type from decoded patches; fall back to CLI value (skip if 'auto' and absent)
+        resolved_mask_type = mask_type_from_file or (cli_args.output_mask_type if cli_args.output_mask_type != "auto" else None)
+        encoded_masks = aiod_rle.encode(
+            combined_masks,
+            mask_type=resolved_mask_type,
+            metadata=metadata,
+        )
+        # Free up memory (though too late at this point)
+        aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
     del combined_masks
-    # Save the masks
-    aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
     # Remove the (symlinked) individual masks now that they are combined
     for mask_path in cli_args.masks:
         (Path(cli_args.output_dir) / mask_path).unlink()
