@@ -44,8 +44,8 @@ def validateParams(params) {
         errors << "Invalid output_format: ${params.output_format}. Must be one of 'rle' or 'tiff'."
 
     // Check output mask type is either binary or instance, used for outputs
-    if ( !["binary", "instance"].contains(params.output_mask_type?.toLowerCase()) )
-        errors << "Invalid output_mask_type: ${params.output_mask_type}. Must be one of 'binary' or 'instance'."
+    if ( !['auto', 'binary', 'instance'].contains(params.output_mask_type?.toLowerCase()) )
+        errors << "Invalid output_mask_type: ${params.output_mask_type}. Must be one of 'binary', 'instance', or 'auto'."
 
     if ( errors ) {
         log.error "Parameter validation failed:\n" + errors.join("\n")

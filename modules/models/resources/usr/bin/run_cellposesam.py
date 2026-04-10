@@ -88,5 +88,5 @@ if __name__ == "__main__":
         config=config,
         model_chkpt=cli_args.model_chkpt,
         device=device,
-        output_mask_type=cli_args.output_mask_type,
+        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
     )

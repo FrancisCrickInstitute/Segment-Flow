@@ -397,5 +397,5 @@ if __name__ == "__main__":
         save_name=cli_args.mask_fname,
         masks=pan_seg,
         idxs=cli_args.idxs,
-        mask_type=cli_args.output_mask_type,
+        mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "binary",
     )

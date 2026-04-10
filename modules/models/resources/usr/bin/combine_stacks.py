@@ -346,7 +346,7 @@ if __name__ == "__main__":
         "--output-mask-type",
         required=False,
         default="instance",
-        choices=["binary", "instance"],
+        choices=["auto", "binary", "instance"],
         help="Mask type of the combined output ('binary' or 'instance')",
     )
 
@@ -402,22 +402,20 @@ if __name__ == "__main__":
     else:
         metadata = {}
     if output_format == "tiff":
-        # Convert to bool for binary masks so downstream tools get a clean binary image
-        if cli_args.output_mask_type == "binary":
-            # Convert to bool for quick binarisation
-            combined_masks = combined_masks.astype(bool)
-            # Convert to uint8 and ensure max is 255 for contrasst maximisation (easier display)
-            combined_masks = combined_masks.astype(np.uint8)
-            if combined_masks.max() == 1:
-                combined_masks *= 255
-        combined_masks = combined_masks.astype(bool) if cli_args.output_mask_type == "binary" else combined_masks
+        # Resolve 'auto' using the mask type recorded in the individual patches
+        resolved_mask_type = mask_type_from_file if cli_args.output_mask_type == "auto" else cli_args.output_mask_type
+        # Convert binary masks to uint8 0/255 for clean display
+        if resolved_mask_type == "binary":
+            # Convert to binary uint8 with 0/255 values for clean display in downstream tools
+            combined_masks = (combined_masks > 0) * np.uint8(255)
         # metadata dict is serialised as JSON into the TIFF ImageDescription tag
-        tifffile.imwrite(save_path, combined_masks, metadata=metadata)
+        tifffile.imwrite(save_path, combined_masks, metadata=metadata, imagej=True)
     else:
-        # Reuse mask_type from decoded patches; fall back to the CLI value if absent
+        # Reuse mask_type from decoded patches; fall back to CLI value (skip if 'auto' and absent)
+        resolved_mask_type = mask_type_from_file or (cli_args.output_mask_type if cli_args.output_mask_type != "auto" else None)
         encoded_masks = aiod_rle.encode(
             combined_masks,
-            mask_type=mask_type_from_file or cli_args.output_mask_type,
+            mask_type=resolved_mask_type,
             metadata=metadata,
         )
         # Free up memory (though too late at this point)

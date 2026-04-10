@@ -59,9 +59,9 @@ def create_argparser_inference():
     )
     parser.add_argument(
         "--output-mask-type",
-        default="instance",
-        choices=["binary", "instance"],
-        help="Mask type to store in output ('binary' or 'instance')",
+        default="auto",
+        choices=["binary", "instance", "auto"],
+        help="Mask type to store in output ('binary', 'instance', or 'auto' to use the model default)",
     )
 
     return parser

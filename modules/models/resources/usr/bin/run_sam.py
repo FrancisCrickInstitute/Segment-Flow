@@ -187,5 +187,5 @@ if __name__ == "__main__":
         model_chkpt=cli_args.model_chkpt,
         model_config=model_config,
         idxs=cli_args.idxs,
-        output_mask_type=cli_args.output_mask_type,
+        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
     )
