@@ -103,7 +103,6 @@ if __name__ == "__main__":
             max_substack_size = compute_max_substack_size(
                 memory_bytes=args.memory_per_job,
                 dtype=img_dtype,
-                n_channels=int(row["channels"]),
                 image_shape=img_shape,
             )
         else:
