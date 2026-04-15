@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
 import shutil
+from cellpose import io, models, train
+from utils import create_argparser_finetune
 
 class CSVLoggingHandler(logging.Handler):
     """Custom handler that writes loss metrics to CSV."""
@@ -27,10 +29,6 @@ class CSVLoggingHandler(logging.Handler):
                     f.flush()
             except (IndexError, ValueError):
                 pass
-
-from cellpose import io, models, train
-
-from utils import create_argparser_finetune
 
 
 def update_training_metrics_file(train_losses, fpath: Path):
@@ -72,8 +70,6 @@ def finetune_cellpose(cli_args):
             f"Expected image files with masks ending in '{masks_ext}'."
         )
 
-    # NOTE: Segment-Flow passes args like --patch_size and --layers for all models.
-    # They are currently not used by Cellpose finetuning.
     model = models.CellposeModel(
         model_type=cli_args.model_type,
         pretrained_model=cli_args.model_chkpt,
@@ -97,7 +93,7 @@ def finetune_cellpose(cli_args):
     )
 
 
-    # Copy final model artifact into the caller-specified save directory.
+    # Copy final model artifact into the given save directory.
     final_model_copy = save_dir / f"{model_name}.pth"
     if Path(new_model_path).exists():
         shutil.copy2(new_model_path, final_model_copy)
@@ -108,9 +104,7 @@ def finetune_cellpose(cli_args):
     with open(final_model_pointer, "w", encoding="utf-8") as f:
         f.write(str(new_model_path))
 
-    print(f"Finished Cellpose finetuning. Final model path: {new_model_path}")
-    if final_model_copy.exists():
-        print(f"Copied final model to: {final_model_copy}")
+    print(f"Finished Cellpose finetuning. Final model path: {final_model_copy}")
     print(f"Training metrics written to: {metrics_path}")
 
 
