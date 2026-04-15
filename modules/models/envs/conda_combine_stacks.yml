@@ -11,7 +11,6 @@ dependencies:
   - psutil
   - numba
   - tqdm
-  - git
   - pip
   - pip:
     - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

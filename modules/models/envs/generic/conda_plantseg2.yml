@@ -44,7 +44,6 @@ dependencies:
   - mkdocs-git-committers-plugin-2
   - mkdocstrings-python
   - mike
-  - git
   - pip
   - pip:
       - markdown-exec

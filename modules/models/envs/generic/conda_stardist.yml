@@ -6,7 +6,6 @@ dependencies:
   - pyyaml
   - tensorflow  # Conda selects GPU/CPU build based on CUDA availability
   - stardist
-  - git
   - pip
   - pip:
     - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

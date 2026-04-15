@@ -6,7 +6,6 @@ dependencies:
   - pyyaml
   - tensorflow-gpu  # explicitly request GPU version
   - stardist
-  - git
   - pip
   - pip:
     - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

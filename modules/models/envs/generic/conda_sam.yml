@@ -6,7 +6,6 @@ dependencies:
   - python=3.11
   - tqdm
   - pyyaml
-  - git
   - pip
   - pip:
     - numpy==1.26.4

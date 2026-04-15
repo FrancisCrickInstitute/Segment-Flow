@@ -5,7 +5,6 @@ channels:
 dependencies:
   - python=3.11
   - pyyaml
-  - git
   - pip
   - pip:
     - numpy==1.26.4

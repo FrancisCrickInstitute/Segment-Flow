@@ -7,7 +7,6 @@ dependencies:
   - mkl==2024.0
   - tqdm
   - pyyaml
-  - git
   - pip
   - pip:
     - numpy>=1.24,<2

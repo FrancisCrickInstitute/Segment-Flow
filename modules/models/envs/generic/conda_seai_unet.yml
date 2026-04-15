@@ -16,7 +16,6 @@ dependencies:
   - tqdm
   - openssh
   - imagecodecs
-  - git
   - pip
   - pip:
     - git+https://github.com/FrancisCrickInstitute/em-segment-pytorch.git
