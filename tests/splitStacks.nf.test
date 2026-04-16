@@ -1,0 +1,77 @@
+nextflow_process {
+    name "Test splitStacks"
+    script "modules/models/main.nf"
+    process "splitStacks"
+
+    // ---------------------------------------------------------------------------
+    // Smoke test: verify that splitStacks passes memory_per_job through to
+    // create_splits.py and produces the expected number of substacks.
+    //
+    // Test image: 2000 × 400 × 100, float32, 1 channel -> 2.56GB
+    // memory_per_job: 100 MB → compute_max_substack_size gives ~(1252, 250, 62)
+    //   → calc_num_stacks gives 2×2×2 = 8 substacks (1 header + 8 data rows)
+    //
+    // To run locally (requires Nextflow + conda env):
+    //   nf-test test tests/splitStacks.nf.test --profile local
+    //
+    // To run on the cluster (pre-merge CI):
+    //   nf-test test tests/splitStacks.nf.test --profile crick
+    // ---------------------------------------------------------------------------
+
+    test("8 substacks for 100 MB memory_per_job on 2000x400x100 float32 image") {
+
+        when {
+            params {
+                num_substacks   = "auto,auto,auto"
+                overlap         = "0.0,0.0,0.0"
+                memory_per_job  = "100.MB"
+                root_dir = "."
+            }
+            process {
+                """
+                input[0] = file("${projectDir}/tests/assets/test_splits_input.csv")
+                input[1] = file("${projectDir}/tests/assets/dummy_chkpt")
+                """
+            }
+        }
+
+        then {
+            assert process.success
+
+            def rows = path(process.out.csv_file.get(0)).readLines()
+            assert rows.size() - 1 == 8
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Fallback test: when memory_per_job is not set, MAX_SUBSTACK_SIZE is used
+    // and the pipeline still succeeds.
+    // ---------------------------------------------------------------------------
+
+    test("succeeds without memory_per_job (falls back to MAX_SUBSTACK_SIZE)") {
+
+        when {
+            params {
+                num_substacks = "auto,auto,auto"
+                overlap       = "0.0,0.0,0.0"
+                memory_per_job = null // Explicitly unset to test fallback
+                root_dir = "."
+            }
+            process {
+                """
+                input[0] = file("${projectDir}/tests/assets/test_splits_input.csv")
+                input[1] = file("${projectDir}/tests/assets/dummy_chkpt")
+                """
+            }
+        }
+
+        then {
+            assert process.success
+
+            def rows = path(process.out.csv_file[0]).readLines()
+            // With MAX_SUBSTACK_SIZE (5000×5000×50), this image (2000×400×100)
+            // split along depth dimension → 2 rows
+            assert rows.size() - 1 == 2 // subtract header
+        }
+    }
+}
