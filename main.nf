@@ -241,9 +241,13 @@ workflow finetune {
         params.model_type,
         params.epochs,
         params.finetune_layers,
+        params.weight_decay,
+        params.learning_rate,
+        params.sdg,
+        params.momentum,
+        params.model_save_name,
         params.train_dir,
         chkpt_ch,
-        params.model_save_name,
         params.model_save_dir
         )
 }

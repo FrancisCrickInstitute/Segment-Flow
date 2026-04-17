@@ -145,9 +145,13 @@ process finetuneModel {
     val model_type
     val epochs
     val finetune_layers
+    val weight_decay
+    val learning_rate
+    val sdg
+    val momentum
+    val model_save_name
     path train_dir
     path chkpt_ch
-    val model_save_name
     path model_save_dir
     script:
     """

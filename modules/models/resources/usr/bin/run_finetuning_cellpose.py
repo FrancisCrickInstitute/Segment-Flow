@@ -4,15 +4,17 @@ import shutil
 from cellpose import io, models, train
 from utils import create_argparser_finetune
 
+
 class CSVLoggingHandler(logging.Handler):
     """Custom handler that writes loss metrics to CSV."""
+
     def __init__(self, csv_path):
         super().__init__()
         self.csv_path = csv_path
         # Initialize CSV file
         with open(csv_path, "w", encoding="utf-8") as f:
             f.write("epoch,train_loss,test_loss\n")
-    
+
     def emit(self, record):
         """Extract and log loss values from training messages."""
         msg = record.getMessage()
@@ -23,7 +25,7 @@ class CSVLoggingHandler(logging.Handler):
                 epoch = parts[0]
                 train_loss = parts[1].split("=")[1]
                 test_loss = parts[2].split("=")[1]
-                
+
                 with open(self.csv_path, "a", encoding="utf-8") as f:
                     f.write(f"{epoch},{train_loss},{test_loss}\n")
                     f.flush()
@@ -52,8 +54,10 @@ def finetune_cellpose(cli_args):
 
     n_epochs = int(cli_args.epochs)
     batch_size = 1
-    learning_rate = 1e-3
-    weight_decay = 1e-4
+    learning_rate = float(cli_args.learning_rate)
+    weight_decay = float(cli_args.weight_decay)
+    use_sgd = bool(cli_args.sdg)
+    momentum = float(cli_args.momentum)
     masks_ext = "_seg"  # TODO: move these params to a default config AIOD-258
 
     # Load train data in Cellpose expected format; use train split as test split fallback.
@@ -87,11 +91,11 @@ def finetune_cellpose(cli_args):
         n_epochs=n_epochs,
         learning_rate=learning_rate,
         weight_decay=weight_decay,
-        SGD=True,
+        momentum=momentum,
+        SGD=use_sgd,
         min_train_masks=1,
         model_name=model_name,
     )
-
 
     # Copy final model artifact into the given save directory.
     final_model_copy = save_dir / f"{model_name}.pth"

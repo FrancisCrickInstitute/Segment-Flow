@@ -86,6 +86,30 @@ def create_argparser_finetune():
         default=None,
         help="Number of workers for data loading (defaults to auto-detect)",
     )
+    parser.add_argument(
+        "--learning_rate",
+        type=float,
+        default=1e-3,
+        help="Learning rate for finetuning (default: 1e-3)",
+    )
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=1e-4,
+        help="Weight decay for optimizer (default: 1e-4)",
+    )
+    parser.add_argument(
+        "--sdg",
+        type=bool,
+        default=False,
+        help="Use SGD optimizer instead of default (default: False)",
+    )
+    parser.add_argument(
+        "--momentum",
+        type=float,
+        default=0.9,
+        help="Momentum for SGD optimizer (default: 0.9)",
+    )
     return parser
 
 
