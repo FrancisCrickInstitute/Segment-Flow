@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
-import shutil
 from cellpose import io, models, train
 from utils import create_argparser_finetune
+from utils_finetuning import save_finetuned_model_artifact
+import yaml
 
 
 class CSVLoggingHandler(logging.Handler):
@@ -43,9 +44,19 @@ def update_training_metrics_file(train_losses, fpath: Path):
 def finetune_cellpose(cli_args):
     io.logger_setup()
 
-    train_dir = Path(cli_args.train_dir)
+    train_dir = cli_args.train_dir
+    test_dir = cli_args.test_dir if cli_args.test_dir else None
+
     save_dir = Path(cli_args.model_save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
+    with open(cli_args.model_config, "r") as f:
+        config = yaml.safe_load(f)
+
+    # Extract the segment and nucleus channels
+    channels = [
+        config["segment_channel"],
+        config["nucleus_channel"],
+    ]
 
     metrics_path = save_dir / "training_metrics.csv"
     csv_handler = CSVLoggingHandler(metrics_path)
@@ -58,12 +69,12 @@ def finetune_cellpose(cli_args):
     weight_decay = float(cli_args.weight_decay)
     use_sgd = bool(cli_args.sdg)
     momentum = float(cli_args.momentum)
-    masks_ext = "_seg"  # TODO: move these params to a default config AIOD-258
+    masks_ext = "_seg"
 
-    # Load train data in Cellpose expected format; use train split as test split fallback.
-    images, labels, *_ = io.load_train_test_data(
-        str(train_dir),
-        str(train_dir),  # TODO: Add testing data option
+    # Load train data and optional test data in Cellpose expected format.
+    images, labels, _, test_images, test_labels, _ = io.load_train_test_data(
+        train_dir,
+        test_dir,
         mask_filter=masks_ext,
         look_one_level_down=False,
     )
@@ -85,8 +96,10 @@ def finetune_cellpose(cli_args):
         model.net,
         train_data=images,
         train_labels=labels,
+        test_data=test_images,
+        test_labels=test_labels,
         normalize=True,
-        channels=[0, 0],
+        channels=channels,
         batch_size=batch_size,
         n_epochs=n_epochs,
         learning_rate=learning_rate,
@@ -97,10 +110,11 @@ def finetune_cellpose(cli_args):
         model_name=model_name,
     )
 
-    # Copy final model artifact into the given save directory.
-    final_model_copy = save_dir / f"{model_name}.pth"
-    if Path(new_model_path).exists():
-        shutil.copy2(new_model_path, final_model_copy)
+    final_model_copy = save_finetuned_model_artifact(
+        source_model_path=new_model_path,
+        save_dir=save_dir,
+        model_name=model_name,
+    )
 
     # Cellpose writes model checkpoints under its own training directory.
     # Persist the final resolved path for downstream registration/inspection.

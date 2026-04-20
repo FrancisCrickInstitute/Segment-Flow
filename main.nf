@@ -239,6 +239,7 @@ workflow finetune {
 
     finetuneModel(
         params.model_type,
+        params.model_config,
         params.epochs,
         params.finetune_layers,
         params.weight_decay,
@@ -247,6 +248,7 @@ workflow finetune {
         params.momentum,
         params.model_save_name,
         params.train_dir,
+        params.test_dir,
         chkpt_ch,
         params.model_save_dir
         )

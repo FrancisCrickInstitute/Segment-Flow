@@ -143,6 +143,7 @@ process finetuneModel {
 
     input:
     val model_type
+    path model_config
     val epochs
     val finetune_layers
     val weight_decay
@@ -151,20 +152,18 @@ process finetuneModel {
     val momentum
     val model_save_name
     path train_dir
+    val test_dir
     path chkpt_ch
     path model_save_dir
     script:
+    def test_dir = test_dir ? "--test_dir ${test_dir}" : ""
     """
-    echo "model_type: ${model_type}"
-    echo "epochs: ${epochs}"
-    echo "finetune_layers: ${finetune_layers}"
-    echo "Training data directory: ${train_dir}"
-    echo "Base model checkpoint: ${chkpt_ch}"
-    echo "model save name: ${model_save_name}"
     python ${moduleDir}/resources/usr/bin/run_finetuning_${params.model}.py \
     --train_dir ${train_dir} \
+    ${test_dir} \
     --model_chkpt ${chkpt_ch} \
     --model_type ${model_type} \
+    --model-config ${model_config} \
     --model_save_name ${model_save_name} \
     --model_save_dir ${model_save_dir} \
     --layers ${finetune_layers} \

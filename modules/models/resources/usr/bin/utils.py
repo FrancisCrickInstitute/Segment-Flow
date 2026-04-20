@@ -66,8 +66,15 @@ def create_argparser_finetune():
     parser.add_argument(
         "--train_dir", required=True, help="Path to ground truth for finetuning"
     )
+    parser.add_argument(
+        "--test_dir",
+        required=False,
+        default=None,
+        help="Optional path to held-out data for finetuning validation",
+    )
     parser.add_argument("--model_chkpt", required=True, help="Base model Checkpoint")
     parser.add_argument("--model_type", required=True, help="Model type/variant")
+    parser.add_argument("--model-config", required=True, help="Model config path")
     parser.add_argument(
         "--model_save_name", required=True, help="Name of the final finetuned model"
     )
@@ -131,14 +138,16 @@ def load_img(
     dim_order = kwargs.pop("dim_order", "CZYX")
     # TODO: Better to return Dask and index as needed?
     # NOTE: here rbg converted to channels; napari treats rbg separately
-    img = aiod_io.load_image_data(fpath, dim_order=dim_order, rgb_as_channels=True, **kwargs)
+    img = aiod_io.load_image_data(
+        fpath, dim_order=dim_order, rgb_as_channels=True, **kwargs
+    )
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = idxs
     # Validate array shape against expected channels and slices
     img = validate_dims(img, dim_order, channels, num_slices)
-    assert img.ndim == len(dim_order), (
-        "Something has gone wrong with the image dimensions!"
-    )
+    assert img.ndim == len(
+        dim_order
+    ), "Something has gone wrong with the image dimensions!"
     slices = {
         "C": np.s_[:],
         "Z": np.s_[start_z:end_z],
@@ -189,7 +198,6 @@ def validate_dims(
         )
         return np.swapaxes(img, c_idx, z_idx)
     raise ValueError(errmsg)
-
 
 
 def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
