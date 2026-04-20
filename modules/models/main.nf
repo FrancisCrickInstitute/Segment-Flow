@@ -168,7 +168,11 @@ process finetuneModel {
     --model_save_dir ${model_save_dir} \
     --layers ${finetune_layers} \
     --epochs ${epochs} \
-    --num_workers ${task.cpus}
+    --num_workers ${task.cpus} \
+    --weight_decay ${weight_decay} \
+    --learning_rate ${learning_rate} \
+    --momentum ${momentum} \
+    --sdg ${sdg}
     """
 
 }
