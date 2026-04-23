@@ -87,7 +87,7 @@ workflow inference {
     // never scheduled for it.
     def parseMeta = { label, meta_file ->
         def m = new groovy.json.JsonSlurper().parse(meta_file)
-        tuple(label, m.name, m.location, m.type)
+        tuple(label, m.name, m.location, m.type, m.base_model ?: null)
     }
 
     // Merge all artifact metadata into one channel so downloadArtifact is only
@@ -103,10 +103,13 @@ workflow inference {
             )
     )
 
-    chkpt_ch = downloadArtifact.out.artifact
-        | filter { label, _file -> label == 'checkpoint' }
-        | map    { _label, file -> file }
+    chkpt_artifact_ch = downloadArtifact.out.artifact
+        | filter { label, _file, _base_model -> label == 'checkpoint' }
+        | map    { _label, file, base_model -> tuple(file, base_model) }
         | first()
+
+    chkpt_ch = chkpt_artifact_ch | map { file, _base_model -> file }
+    base_model_ch = chkpt_artifact_ch | map { _file, base_model -> base_model }
 
     if ( params.preprocess ) {
         // Split the CSV into individual images, so we preprocessImage distributes over each source image
@@ -172,7 +175,8 @@ workflow inference {
         mask_output_dir,
         params.model_config,
         chkpt_ch,
-        params.model_type
+        params.model_type,
+        base_model_ch
     ).mask
 
     // Group all the outputs per image together to combine
@@ -216,7 +220,7 @@ workflow finetune {
     // never scheduled for it.
     def parseMeta = { label, meta_file ->
         def m = new groovy.json.JsonSlurper().parse(meta_file)
-        tuple(label, m.name, m.location, m.type)
+        tuple(label, m.name, m.location, m.type, m.base_model ?: null)
     }
 
     // Merge all artifact metadata into one channel so downloadArtifact is only
@@ -233,8 +237,8 @@ workflow finetune {
     )
 
     chkpt_ch = downloadArtifact.out.artifact
-        | filter { label, _file -> label == 'checkpoint' }
-        | map    { _label, file -> file }
+        | filter { label, _file, _base_model -> label == 'checkpoint' }
+        | map    { _label, file, _base_model -> file }
         | first()
 
     finetuneModel(

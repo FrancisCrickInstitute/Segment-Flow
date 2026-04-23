@@ -63,10 +63,10 @@ process downloadArtifact {
     storeDir params.model_chkpt_dir
 
     input:
-    tuple val(artifact_label), val(artifact_name), val(artifact_loc), val(artifact_type)
+    tuple val(artifact_label), val(artifact_name), val(artifact_loc), val(artifact_type), val(artifact_base_model)
 
     output:
-    tuple val(artifact_label), path("${artifact_name}"), emit: artifact
+    tuple val(artifact_label), path("${artifact_name}"), val(artifact_base_model), emit: artifact
 
     script:
     """
@@ -118,6 +118,7 @@ process runModel {
     path model_config
     path model_chkpt
     val model_type
+    val base_model
 
     output:
     tuple val("${image_path.baseName}"), val(meta), val(mask_fname), val(mask_output_dir), path("${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
@@ -130,6 +131,7 @@ process runModel {
     --output-dir ${mask_output_dir} \
     --model-chkpt ${model_chkpt} \
     --model-type ${model_type} \
+    --base-model "${base_model}" \
     --model-config ${model_config} \
     --idxs ${idxs.join(" ")} \
     --channels ${meta.channels} \

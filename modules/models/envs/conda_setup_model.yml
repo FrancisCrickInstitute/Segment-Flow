@@ -7,5 +7,4 @@ dependencies:
   - pip:
     - tqdm
     - requests
-    # - git+https://github.com/FrancisCrickInstitute/AIoD-Model-Registry.git #TODO: return to remote registry !
-    - -e /Users/ahmedn/aiod/AIoD-Model-Registry
+    - git+https://github.com/FrancisCrickInstitute/AIoD-Model-Registry.git

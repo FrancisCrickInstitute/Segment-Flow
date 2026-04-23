@@ -49,6 +49,11 @@ def create_argparser_inference():
         help="Start and end indices for stack",
     )
     parser.add_argument("--model-type", help="Select model type", default="default")
+    parser.add_argument(
+        "--base-model",
+        help="Base model family/name resolved from the registry version metadata",
+        default=None,
+    )
     parser.add_argument("--model-config", help="Model config path")
     parser.add_argument(
         "--channels", type=int, help="Number of channels in the input image"

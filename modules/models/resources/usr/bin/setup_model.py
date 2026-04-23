@@ -24,10 +24,19 @@ def artifact_extension(location: str, location_type: str) -> str:
     return Path(location).suffix
 
 
-def write_meta(fname: str, name: str, location: str, loc_type: str) -> None:
+def write_meta(
+    fname: str,
+    name: str,
+    location: str,
+    loc_type: str,
+    extra: dict | None = None,
+) -> None:
     """Write an artifact metadata JSON file for consumption by Nextflow."""
+    payload = {"name": name, "location": location, "type": loc_type}
+    if extra:
+        payload.update(extra)
     with open(fname, "w") as f:
-        json.dump({"name": name, "location": location, "type": loc_type}, f)
+        json.dump(payload, f)
     print(f"Written metadata for '{name}' -> {fname}")
 
 
@@ -43,14 +52,20 @@ def main(model_name: str, model_version: str, model_task: str):
     manifests = load_manifests(filter_access=False)
     versions = manifests[model_name].versions
     try:
-        model_info = versions[model_version].tasks[model_task]
+        version_key = model_version
+        version_info = versions[version_key]
+        model_info = version_info.tasks[model_task]
     except KeyError:
         try:
-            model_info = versions[model_version.replace("-", " ")].tasks[model_task]
+            version_key = model_version.replace("-", " ")
+            version_info = versions[version_key]
+            model_info = version_info.tasks[model_task]
         except KeyError:
             raise KeyError(
                 f"Model version '{model_version}' with task '{model_task}' not found in the registry! Model version must be one of {versions.keys()}"
             )
+    # If not explicitly set in the manifest, use the selected version key.
+    base_model = version_info.base_model or version_key
     # Extract required data from the manifest
     model_location = model_info.location
     model_location_type = get_location_type(model_location)
@@ -65,7 +80,11 @@ def main(model_name: str, model_version: str, model_task: str):
     # Write one metadata JSON per artifact; Nextflow reads these to decide whether
     # to stage from the external cache (storeDir) or run downloadModelData.
     write_meta(
-        "model_chkpt_meta.json", full_model_name, model_location, model_location_type
+        "model_chkpt_meta.json",
+        full_model_name,
+        model_location,
+        model_location_type,
+        extra={"base_model": base_model},
     )
 
     model_config_location = getattr(model_info, "config_path", None)
