@@ -3,6 +3,7 @@ import os
 import json
 from pathlib import Path
 from aiod_registry import load_manifests
+from aiod_registry.utils import generate_default_config
 from urllib.parse import urlparse
 
 
@@ -37,7 +38,7 @@ def check_access(location: str, loc_type: str) -> bool:
     return True
 
 
-def main(model_name: str, model_version: str, model_task: str):
+def main(model_name: str, model_version: str, model_task: str, user_config: str | None = None):
     # Create flag to ensure everything is accessible, otherwise error out
     all_accessible = True
     manifests = load_manifests(filter_access=False)
@@ -47,6 +48,7 @@ def main(model_name: str, model_version: str, model_task: str):
     except KeyError:
         try:
             model_info = versions[model_version.replace("-", " ")].tasks[model_task]
+            model_version = model_version.replace("-", " ")
         except KeyError:
             raise KeyError(
                 f"Model version '{model_version}' with task '{model_task}' not found in the registry! Model version must be one of {versions.keys()}"
@@ -67,18 +69,45 @@ def main(model_name: str, model_version: str, model_task: str):
     )
 
     model_config_location = getattr(model_info, "config_path", None)
-    if model_config_location:
-        config_location_type = get_location_type(model_config_location)
-        all_accessible = all_accessible and check_access(
-            model_config_location, config_location_type
-        )
+    if user_config:
+        # Route 1: user-supplied config path or URL
+        config_location_type = get_location_type(user_config)
+        if not check_access(user_config, config_location_type):
+            raise FileNotFoundError(
+                f"User-supplied config is not accessible: {user_config}"
+            )
         model_config_name = model_version + "_" + model_task + "_config.yml"
         write_meta(
-            "model_config_meta.json",
-            model_config_name,
-            model_config_location,
-            config_location_type,
+            "model_config_meta.json", model_config_name, user_config, config_location_type
         )
+        print(f"Using user-supplied config: {user_config}")
+    elif model_info.params:
+        # Route 2: generate default config from registry params
+        default_yaml = generate_default_config(manifests[model_name], model_version, model_task)
+        model_config_name = model_version + "_" + model_task + "_config.yml"
+        config_abs_path = Path.cwd() / model_config_name
+        config_abs_path.write_text(default_yaml, encoding="utf-8")
+        write_meta(
+            "model_config_meta.json", model_config_name, str(config_abs_path), "file"
+        )
+        print(f"Generated default config from registry params -> {config_abs_path}")
+    elif model_config_location:
+        # Route 3: model's registry config_path (may be a local path not available to all users)
+        config_location_type = get_location_type(model_config_location)
+        if not check_access(model_config_location, config_location_type):
+            raise PermissionError(
+                f"Config required but not accessible via any route:\n"
+                f"  Route 1 (user-supplied): not provided\n"
+                f"  Route 2 (registry default): no params defined for this model\n"
+                f"  Route 3 (registry config_path): '{model_config_location}' is not accessible"
+            )
+        model_config_name = model_version + "_" + model_task + "_config.yml"
+        write_meta(
+            "model_config_meta.json", model_config_name, model_config_location, config_location_type
+        )
+        print(f"Using registry config_path: {model_config_location}")
+    else:
+        print("No config available via any route — model likely requires no config file.")
 
     model_finetuning_location = getattr(model_info, "finetuning_path", None)
     if model_finetuning_location:
@@ -104,8 +133,6 @@ def main(model_name: str, model_version: str, model_task: str):
             "One or more model artifacts are not accessible! Please check the paths and permissions for the following locations:\n"
             f"Checkpoint: {model_location} (type: {model_location_type})\n"
         )
-        if model_config_location:
-            error_msg += f"Config: {model_config_location} (type: {config_location_type})\n"
         if model_finetuning_location:
             error_msg += f"Finetuning: {model_finetuning_location} (type: {finetuning_location_type})\n"
         raise PermissionError(error_msg)
@@ -128,6 +155,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--task", required=True, type=str, help="The task the model will be used for"
     )
+    parser.add_argument(
+        "--user-config",
+        required=False,
+        default=None,
+        type=str,
+        help="User-supplied config path or URL. If omitted, a default config is resolved from the registry.",
+    )
 
     args = parser.parse_args()
-    main(args.model_name, args.model_version, args.task)
+    main(args.model_name, args.model_version, args.task, args.user_config)
