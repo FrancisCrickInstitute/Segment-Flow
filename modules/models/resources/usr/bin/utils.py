@@ -85,7 +85,9 @@ def load_img(
     dim_order = kwargs.pop("dim_order", "CZYX")
     # TODO: Better to return Dask and index as needed?
     # NOTE: here rbg converted to channels; napari treats rbg separately
-    img = aiod_io.load_image_data(fpath, dim_order=dim_order, rgb_as_channels=True, **kwargs)
+    img = aiod_io.load_image_data(
+        fpath, dim_order=dim_order, rgb_as_channels=True, **kwargs
+    )
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = idxs
     # Validate array shape against expected channels and slices
@@ -143,7 +145,6 @@ def validate_dims(
         )
         return np.swapaxes(img, c_idx, z_idx)
     raise ValueError(errmsg)
-
 
 
 def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):

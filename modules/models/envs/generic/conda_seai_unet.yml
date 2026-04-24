@@ -14,7 +14,6 @@ dependencies:
   - beautifulsoup4
   - pyyaml
   - tqdm
-  - git
   - openssh
   - imagecodecs
   - pip
