@@ -2,9 +2,14 @@ from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
-
-from aiod_utils.stacks import Stack, calc_num_stacks, generate_stack_indices
-
+from aiod_utils.io import load_image
+from aiod_utils.stacks import (
+    MAX_SUBSTACK_SIZE,
+    Stack,
+    calc_num_stacks,
+    compute_max_substack_size,
+    generate_stack_indices,
+)
 
 if __name__ == "__main__":
     # Get the command line arguments
@@ -31,6 +36,13 @@ if __name__ == "__main__":
         type=str,
         help="Output csv file with stack indices",
     )
+    parser.add_argument(
+        "--memory-per-job",
+        required=False,
+        default=None,
+        type=int,
+        help="Memory available per runModel job in bytes (used to compute substack size dynamically).",
+    )
 
     args = parser.parse_args()
 
@@ -45,6 +57,7 @@ if __name__ == "__main__":
             raise ValueError(
                 f"Column '{col}' not found in input image path csv file ({img_csv_fpath})."
             )
+    fetch_dtype = "dtype" not in img_df.columns
 
     # Drop the stack info if it exists
     img_df = img_df.drop(
@@ -74,13 +87,33 @@ if __name__ == "__main__":
             depth=int(row["num_slices"]),
             channels=int(row["channels"]),
         )
+        # TODO modify napari csv export to include dtype column
+        # NOTE: If BioImage.dtype fails, will it return None? What are the possible failures here
+        if fetch_dtype:
+            try:
+                img_dtype = str(load_image(img_path).dtype)
+            except Exception:
+                img_dtype = "float32"  # conservative fallback
+        else:
+            img_dtype = (
+                str(row["dtype"]) if pd.notna(row["dtype"]) else "float32"
+            )  # conservative fallback
+        # Compute the maximum substack size: dynamic if memory_per_job provided, else use constant
+        if args.memory_per_job is not None:
+            max_substack_size = compute_max_substack_size(
+                memory_bytes=args.memory_per_job,
+                dtype=img_dtype,
+                image_shape=img_shape,
+            )
+        else:
+            max_substack_size = MAX_SUBSTACK_SIZE
         # Get the requested number of substacks (either int or 'auto' for each dimension)
         num_substacks = Stack(*args.num_substacks)
         # Ensure overlap is a tuple of floats
         overlap_fraction = Stack(*map(float, args.overlap))
         # Calculate the number of stacks and the effective shape
         num_substacks, eff_shape = calc_num_stacks(
-            img_shape, num_substacks, overlap_fraction
+            img_shape, num_substacks, overlap_fraction, max_substack_size
         )
         # Generate the stack indices
         stack_indices, num_stacks, stack_size = generate_stack_indices(
