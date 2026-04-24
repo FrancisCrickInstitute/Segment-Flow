@@ -12,6 +12,10 @@ on:
   repository_dispatch:
     types: [package-version-bump]
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   update-conda-envs:
     runs-on: ubuntu-latest
