@@ -149,18 +149,18 @@ if __name__ == "__main__":
             else:
                 diams = diameter
 
-                # delegate the rest to the CellposeModel
-                return self.cp.eval(
-                    x,
-                    channels=channels,
-                    channel_axis=channel_axis,
-                    batch_size=batch_size,
-                    normalize=normalize,
-                    invert=invert,
-                    diameter=diams,
-                    do_3D=do_3D,
-                    **kwargs,
-                )
+            # delegate the rest to the CellposeModel
+            return self.cp.eval(
+                x,
+                channels=channels,
+                channel_axis=channel_axis,
+                batch_size=batch_size,
+                normalize=normalize,
+                invert=invert,
+                diameter=diams,
+                do_3D=do_3D,
+                **kwargs,
+            )
 
     size_model = SizeModel(
         device=device, pretrained_size=base_size_model_path, cp_model=cp_model_inner

@@ -156,7 +156,7 @@ process finetuneModel {
     path train_dir
     val test_dir
     path chkpt_ch
-    path model_save_dir
+    val model_save_dir
     script:
     def test_dir = test_dir ? "--test_dir ${test_dir}" : ""
     """
