@@ -14,6 +14,7 @@ def run_plantseg2(
     idxs: list[int, ...],
     img: np.ndarray,
     config: dict,
+    output_mask_type: str,
 ):
     """Run PlantSeg2 pipeline: prediction -> watershed -> GASP.
 
@@ -96,7 +97,7 @@ def run_plantseg2(
     print(f"GASP complete. Segmentation shape: {segmentation.shape}, unique labels: {len(np.unique(segmentation))}")
 
     # Save the final segmentation
-    save_masks(Path(save_dir), save_name, segmentation, idxs=idxs, mask_type="instance")
+    save_masks(Path(save_dir), save_name, segmentation, idxs=idxs, mask_type=output_mask_type)
 
 
 if __name__ == "__main__":
@@ -145,4 +146,5 @@ if __name__ == "__main__":
         idxs=cli_args.idxs,
         img=img,
         config=config,
+        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance"
     )

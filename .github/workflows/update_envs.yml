@@ -1,0 +1,108 @@
+# .github/workflows/update-package.yml
+#
+# What it does:
+#   1. Receives a repository_dispatch event from the package repo
+#   2. Finds every conda environment YAML under envs/ (any depth)
+#   3. Patches all occurrences of `my-package==<old>` → `my-package==<new>`
+#   4. Opens a PR for human review using the gh CLI
+
+name: Update envs with new AIoD packages
+
+on:
+  repository_dispatch:
+    types: [package-version-bump]
+
+jobs:
+  update-conda-envs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch all conda env files
+        id: patch
+        env:
+          PACKAGE: ${{ github.event.client_payload.package }}
+          VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          echo "Updating $PACKAGE to $VERSION in all conda env files..."
+
+          # Find every .yml / .yaml under envs/ directories (edit the path
+          # glob below if your envs live elsewhere, e.g. `conf/envs`)
+          FILES=$(find . \
+            \( -name "*conda*.yml" -o -name "*conda*.yaml" \) \
+            -path "*/envs/*" \
+            -not -path "./.git/*")
+
+          if [ -z "$FILES" ]; then
+            echo "No conda env files found — nothing to do."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Regex replaces both pip-style (`my-package==1.0.0`) and
+          # conda-style (`- my-package=1.0.0`) pins.
+          echo "$FILES" | xargs sed -i \
+            -E "s/(${PACKAGE}[=><]+?)[0-9]+\.[0-9]+(\.[0-9]+)?/\1${VERSION}/g"
+
+          # Check whether anything actually changed
+          if git diff --quiet; then
+            echo "No changes detected (already on $VERSION?)."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Files changed:"
+            git diff --name-only
+          fi
+
+      - name: Commit and push branch
+        if: steps.patch.outputs.changed == 'true'
+        env:
+          PACKAGE: ${{ github.event.client_payload.package }}
+          VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          BRANCH="auto/bump-${PACKAGE}-${VERSION}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add -A
+          git commit -m "chore(deps): bump ${PACKAGE} to ${VERSION}"
+          git push origin "$BRANCH"
+
+          # Pass the branch name to the next step
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+        id: push
+
+      - name: Open PR
+        if: steps.patch.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE: ${{ github.event.client_payload.package }}
+          VERSION: ${{ github.event.client_payload.version }}
+          SOURCE_REPO: ${{ github.event.client_payload.source_repo }}
+          SOURCE_TAG: ${{ github.event.client_payload.source_tag }}
+          BRANCH: ${{ steps.push.outputs.branch }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(deps): bump ${PACKAGE} → ${VERSION}" \
+            --body "$(cat <<EOF
+          Automated dependency bump triggered by a new release of [${PACKAGE}](https://pypi.org/project/${PACKAGE}/).
+
+          **New version:** \`${VERSION}\`
+          **Source repo:** \`${SOURCE_REPO}\`
+          **Source tag:** \`${SOURCE_TAG}\`
+
+          ### What changed
+          All conda environment files under \`envs/\` have been updated to pin \`${PACKAGE}==${VERSION}\` (where relevant).
+
+          ### Checklist before merging
+          - [ ] Spot-check a representative env file looks correct
+          - [ ] No unintended files were modified
+          - [ ] CI passes on this branch (if applicable)
+          EOF
+          )" \
+            --label "dependencies" \
+            --label "automated"

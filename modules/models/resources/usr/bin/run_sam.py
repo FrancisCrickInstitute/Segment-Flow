@@ -26,6 +26,7 @@ def run_sam(
     model_chkpt: Union[Path, str],
     model_config: dict,
     idxs: list[int, ...],
+    output_mask_type: str,
 ):
     # Handle extra finetuned/other models
     if "MicroSAM" in model_type:
@@ -75,7 +76,7 @@ def run_sam(
             raise ValueError("Cannot handle a stack of multi-channel images")
     else:
         raise ValueError("Can only handle an image, or stack of images!")
-    save_masks(save_dir, save_name, all_masks, idxs=idxs, mask_type="instance")
+    save_masks(save_dir, save_name, all_masks, idxs=idxs, mask_type=output_mask_type)
     pbar.close()
     return img, all_masks
 
@@ -186,4 +187,5 @@ if __name__ == "__main__":
         model_chkpt=cli_args.model_chkpt,
         model_config=model_config,
         idxs=cli_args.idxs,
+        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
     )

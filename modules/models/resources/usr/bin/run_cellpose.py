@@ -12,9 +12,10 @@ from model_utils import get_device
 def run_cellpose(
     save_dir: Union[Path, str],
     save_name: str,
-    idxs: list[int],
-    config: dict[str, Any],
-) -> None:
+    idxs: list[int, ...],
+    config: dict,
+    output_mask_type: str,
+):
     # Extract model config arguments
     masks, _, _ = cp_model.eval(
         img,
@@ -32,7 +33,7 @@ def run_cellpose(
         min_size=config["min_size"],
     )
 
-    save_masks(Path(save_dir), save_name, masks, idxs=idxs, mask_type="instance")
+    save_masks(Path(save_dir), save_name, masks, idxs=idxs, mask_type=output_mask_type)
 
 
 if __name__ == "__main__":
@@ -174,4 +175,9 @@ if __name__ == "__main__":
         save_name=cli_args.mask_fname,
         idxs=cli_args.idxs,
         config=config,
+        output_mask_type=(
+            cli_args.output_mask_type
+            if cli_args.output_mask_type != "auto"
+            else "instance"
+        ),
     )
