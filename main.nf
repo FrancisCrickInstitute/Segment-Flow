@@ -8,25 +8,45 @@ def helpMessage() {
     ==============================================
 
     Usage:
-        nextflow run FrancisCrickInstitute/Segment-Flow [options]
+        nextflow run FrancisCrickInstitute/Segment-Flow -entry <inference|finetune> [options]
 
-    Required:
-        --img_dir       PATH    CSV of image filepaths to segment
-        --model         STR     Model to use          [default: ${params.model}]
-        --model_type    STR     Model variant         [default: ${params.model_type}]
-        --task          STR     Task to perform       [default: ${params.task}]
+    ── Shared (required) ──────────────────────────────────────────────────────
+        --model             STR     Model to use              [default: ${params.model}]
+        --model_type        STR     Model variant             [default: ${params.model_type}]
+        --task              STR     Task to perform           [default: ${params.task}]
 
-    Optional:
-        --help                  Show this message and exit
-        --model_config  PATH    Path to model config file
-        --param_hash    STR     Hash of model config
-        --root_dir      PATH    Root cache directory  [default: ${params.root_dir}]
-        --output_format STR     'rle' or 'tiff'       [default: ${params.output_format}]
-        --output_mask_type STR  'auto','binary','instance'      [default: ${params.output_mask_type}]
-        --preprocess    LIST    Preprocessing params (see docs) [default: ${params.preprocess}]
-        --postprocess   BOOL    Run postprocessing    [default: ${params.postprocess}]
+    ── Shared (optional) ──────────────────────────────────────────────────────
+        --help                      Show this message and exit
+        --model_config      PATH    Path to model config file
+        --root_dir          PATH    Root cache directory      [default: ${params.root_dir}]
 
-    Profiles:
+    ── Inference ──────────────────────────────────────────────────────────────
+      Required:
+        --img_dir           PATH    CSV of image filepaths to segment
+
+      Optional:
+        --param_hash        STR     Hash of model params (auto-computed if absent)
+        --preprocess        LIST    Preprocessing params (see docs)
+        --postprocess       BOOL    Run postprocessing        [default: ${params.postprocess}]
+        --output_format     STR     'rle' or 'tiff'           [default: ${params.output_format}]
+        --output_mask_type  STR     'auto','binary','instance' [default: ${params.output_mask_type}]
+
+    ── Finetuning ─────────────────────────────────────────────────────────────
+      Required:
+        --train_dir         PATH    Directory of training images
+        --test_dir          PATH    Directory of test images
+        --model_save_name   STR     Name for the saved model
+        --model_save_dir    PATH    Directory to save the finetuned model
+        --epochs            INT     Number of training epochs
+
+      Optional:
+        --finetune_layers   INT     Number of layers to finetune
+        --weight_decay      FLOAT   Weight decay
+        --learning_rate     FLOAT   Learning rate
+        --sdg               BOOL    Use SGD optimiser
+        --momentum          FLOAT   SGD momentum
+
+    ── Profiles ───────────────────────────────────────────────────────────────
         local, crick, crick_dev, rosalind
 
     Docs: ${workflow.manifest.docsUrl}
@@ -42,7 +62,6 @@ if ( params.help ) {
 def validateParams(params) {
     def errors = []
 
-    if ( !params.img_dir   ) errors << "Missing required parameter: --img_dir"
     if ( !params.model     ) errors << "Missing required parameter: --model"
     if ( !params.model_type) errors << "Missing required parameter: --model_type"
     if ( !params.task      ) errors << "Missing required parameter: --task"
@@ -165,8 +184,8 @@ workflow inference {
     chkpt_ch = chkpt_artifact_ch | map { file, _base_model -> file }
     base_model_ch = chkpt_artifact_ch | map { _file, base_model -> base_model }
     config_ch = downloadArtifact.out.artifact
-        | filter { label, _file -> label == 'config' }
-        | map    { _label, file -> file }
+        | filter { label, _file, _base_model -> label == 'config' }
+        | map    { _label, file, _base_model -> file }
         | first()
 
     if ( params.preprocess ) {
@@ -234,7 +253,7 @@ workflow inference {
         config_ch,
         chkpt_ch,
         params.model_type,
-        base_model_ch
+        base_model_ch,
         params.output_mask_type.toLowerCase()
     ).mask
 
@@ -269,6 +288,7 @@ workflow finetune {
         params.model,
         params.model_type,
         params.task,
+        params.model_config ?: '',
     )
 
     // Parse each registry metadata JSON into a (name, location, type) tuple and
