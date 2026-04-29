@@ -8,25 +8,45 @@ def helpMessage() {
     ==============================================
 
     Usage:
-        nextflow run FrancisCrickInstitute/Segment-Flow [options]
+        nextflow run FrancisCrickInstitute/Segment-Flow -entry <inference|finetune> [options]
 
-    Required:
-        --img_dir       PATH    CSV of image filepaths to segment
-        --model         STR     Model to use          [default: ${params.model}]
-        --model_type    STR     Model variant         [default: ${params.model_type}]
-        --task          STR     Task to perform       [default: ${params.task}]
+    ── Shared (required) ──────────────────────────────────────────────────────
+        --model             STR     Model to use              [default: ${params.model}]
+        --model_type        STR     Model variant             [default: ${params.model_type}]
+        --task              STR     Task to perform           [default: ${params.task}]
 
-    Optional:
-        --help                  Show this message and exit
-        --model_config  PATH    Path to model config file
-        --param_hash    STR     Hash of model config
-        --root_dir      PATH    Root cache directory  [default: ${params.root_dir}]
-        --output_format STR     'rle' or 'tiff'       [default: ${params.output_format}]
-        --output_mask_type STR  'auto','binary','instance'      [default: ${params.output_mask_type}]
-        --preprocess    LIST    Preprocessing params (see docs) [default: ${params.preprocess}]
-        --postprocess   BOOL    Run postprocessing    [default: ${params.postprocess}]
+    ── Shared (optional) ──────────────────────────────────────────────────────
+        --help                      Show this message and exit
+        --model_config      PATH    Path to model config file
+        --root_dir          PATH    Root cache directory      [default: ${params.root_dir}]
 
-    Profiles:
+    ── Inference ──────────────────────────────────────────────────────────────
+      Required:
+        --img_dir           PATH    CSV of image filepaths to segment
+
+      Optional:
+        --param_hash        STR     Hash of model params (auto-computed if absent)
+        --preprocess        LIST    Preprocessing params (see docs)
+        --postprocess       BOOL    Run postprocessing        [default: ${params.postprocess}]
+        --output_format     STR     'rle' or 'tiff'           [default: ${params.output_format}]
+        --output_mask_type  STR     'auto','binary','instance' [default: ${params.output_mask_type}]
+
+    ── Finetuning ─────────────────────────────────────────────────────────────
+      Required:
+        --train_dir         PATH    Directory of training images
+        --test_dir          PATH    Directory of test images
+        --model_save_name   STR     Name for the saved model
+        --model_save_dir    PATH    Directory to save the finetuned model
+        --epochs            INT     Number of training epochs
+
+      Optional:
+        --finetune_layers   INT     Number of layers to finetune
+        --weight_decay      FLOAT   Weight decay
+        --learning_rate     FLOAT   Learning rate
+        --sdg               BOOL    Use SGD optimiser
+        --momentum          FLOAT   SGD momentum
+
+    ── Profiles ───────────────────────────────────────────────────────────────
         local, crick, crick_dev, rosalind
 
     Docs: ${workflow.manifest.docsUrl}
@@ -42,7 +62,6 @@ if ( params.help ) {
 def validateParams(params) {
     def errors = []
 
-    if ( !params.img_dir   ) errors << "Missing required parameter: --img_dir"
     if ( !params.model     ) errors << "Missing required parameter: --model"
     if ( !params.model_type) errors << "Missing required parameter: --model_type"
     if ( !params.task      ) errors << "Missing required parameter: --task"
@@ -88,32 +107,28 @@ def model_chkpt_dir     = "${model_dir}/checkpoints"
 params.model_chkpt_dir  = model_chkpt_dir  // needed by storeDir in modules
 
 // Import processes from model modules
-include { setupModel; downloadArtifact; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
+include { setupModel; downloadArtifact; preprocessImage; splitStacks; runModel; combineStacks; finetuneModel } from './modules/models'
 
 def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
-// Could consider https://stackoverflow.com/a/71529563 for auto-printing
+display_pipeline_info()
 
-log.info """\
+def display_pipeline_info() {
+    log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
+    log.info """\
          ====================================================
                         AI ONDEMAND PIPELINE
                         ${log_timestamp}
          ====================================================
-         Model name      : ${params.model}
-         Model variant   : ${params.model_type}
-         Task            : ${params.task}
-         Model config    : ${params.model_config}
-         Config Hash     : ${resolvedParamHash}
-         Image filepaths : ${params.img_dir}
-         ---
-         Cache directory : ${model_dir}
-         Work directory  : ${workDir}
-         Profile         : ${workflow.profile}
-         ---
-         Full Command    : ${workflow.commandLine}
+    """.stripIndent()
+    params.each{ k, v -> log.info "${k.padRight(20)} : ${v}" }
+    log.info """
+         Work directory       : ${workDir}
+         Profile              : ${workflow.profile}
+         Full Command         : ${workflow.commandLine}
          ====================================================
-         """.stripIndent()
-
+    """.stripIndent()
+}
 
 // Function to get the name of the mask file given the image and model-version-task
 def getMaskName(img_file, resolvedParamHash) {
@@ -121,7 +136,7 @@ def getMaskName(img_file, resolvedParamHash) {
 }
 
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
-workflow {
+workflow inference {
     // Dynamically discover available models by scanning for run_<model>.py files
     def modelScriptsDir = file("${workflow.projectDir}/modules/models/resources/usr/bin")
     def availableModels = modelScriptsDir.listFiles()
@@ -145,7 +160,7 @@ workflow {
     // never scheduled for it.
     def parseMeta = { label, meta_file ->
         def m = new groovy.json.JsonSlurper().parse(meta_file)
-        tuple(label, m.name, m.location, m.type)
+        tuple(label, m.name, m.location, m.type, m.base_model ?: null)
     }
 
     // Merge all artifact metadata into one channel so downloadArtifact is only
@@ -161,14 +176,16 @@ workflow {
             )
     )
 
-    chkpt_ch = downloadArtifact.out.artifact
-        | filter { label, _file -> label == 'checkpoint' }
-        | map    { _label, file -> file }
+    chkpt_artifact_ch = downloadArtifact.out.artifact
+        | filter { label, _file, _base_model -> label == 'checkpoint' }
+        | map    { _label, file, base_model -> tuple(file, base_model) }
         | first()
 
+    chkpt_ch = chkpt_artifact_ch | map { file, _base_model -> file }
+    base_model_ch = chkpt_artifact_ch | map { _file, base_model -> base_model }
     config_ch = downloadArtifact.out.artifact
-        | filter { label, _file -> label == 'config' }
-        | map    { _label, file -> file }
+        | filter { label, _file, _base_model -> label == 'config' }
+        | map    { _label, file, _base_model -> file }
         | first()
 
     if ( params.preprocess ) {
@@ -236,6 +253,7 @@ workflow {
         config_ch,
         chkpt_ch,
         params.model_type,
+        base_model_ch,
         params.output_mask_type.toLowerCase()
     ).mask
 
@@ -255,6 +273,68 @@ workflow {
     | set { mask_ch }
 
     combineStacks( mask_ch, params.postprocess, params.output_format.toLowerCase(), params.output_mask_type.toLowerCase() )
+}
+
+workflow finetune {
+    // Dynamically discover available models by scanning for run_<model>.py files
+    def modelScriptsDir = file("${workflow.projectDir}/modules/models/resources/usr/bin")
+    def availableModels = modelScriptsDir.listFiles()
+        .findAll { it.name.startsWith('run_finetuning_') && it.name.endsWith('.py') }
+        .collect { it.name.replaceAll(/^run_finetuning_/, '').replaceAll(/\.py$/, '') }
+
+    assert availableModels.contains( params.model ), "Model ${params.model} not yet implemented! Available models: ${availableModels.join(', ')}"
+    // Download model checkpoint if it doesn't exist
+    setupModel(
+        params.model,
+        params.model_type,
+        params.task,
+        params.model_config ?: '',
+    )
+
+    // Parse each registry metadata JSON into a (name, location, type) tuple and
+    // call downloadArtifact once per artifact. Each call has a single mandatory
+    // output, so storeDir's cache check is always unambiguous. The optional
+    // channels from setupModel act as natural gates: if a model has no config,
+    // setupModel.out.model_config_meta emits nothing and downloadArtifact is
+    // never scheduled for it.
+    def parseMeta = { label, meta_file ->
+        def m = new groovy.json.JsonSlurper().parse(meta_file)
+        tuple(label, m.name, m.location, m.type, m.base_model ?: null)
+    }
+
+    // Merge all artifact metadata into one channel so downloadArtifact is only
+    // called once — DSL2 does not allow reusing a process in the same workflow.
+    // The label ('checkpoint', 'config', 'finetuning') is carried through as a
+    // val so we can filter the mixed output channel downstream.
+    downloadArtifact(
+        setupModel.out.model_chkpt_meta
+            | map { parseMeta('checkpoint', it) }
+            | mix(
+                setupModel.out.model_config_meta.map     { parseMeta('config',     it) },
+                setupModel.out.model_finetuning_meta.map { parseMeta('finetuning', it) },
+            )
+    )
+
+    chkpt_ch = downloadArtifact.out.artifact
+        | filter { label, _file, _base_model -> label == 'checkpoint' }
+        | map    { _label, file, _base_model -> file }
+        | first()
+
+    finetuneModel(
+        params.model_type,
+        params.model_config,
+        params.epochs,
+        params.finetune_layers,
+        params.weight_decay,
+        params.learning_rate,
+        params.sdg,
+        params.momentum,
+        params.model_save_name,
+        params.train_dir,
+        params.test_dir,
+        chkpt_ch,
+        params.model_save_dir
+        )
 }
 
 // Useful output upon completion, one way or another

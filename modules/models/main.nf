@@ -63,10 +63,10 @@ process downloadArtifact {
     storeDir params.model_chkpt_dir
 
     input:
-    tuple val(artifact_label), val(artifact_name), val(artifact_loc), val(artifact_type)
+    tuple val(artifact_label), val(artifact_name), val(artifact_loc), val(artifact_type), val(artifact_base_model)
 
     output:
-    tuple val(artifact_label), path("${artifact_name}"), emit: artifact
+    tuple val(artifact_label), path("${artifact_name}"), val(artifact_base_model), emit: artifact
 
     script:
     """
@@ -121,6 +121,7 @@ process runModel {
     path model_config
     path model_chkpt
     val model_type
+    val base_model
     val output_mask_type
 
     output:
@@ -134,12 +135,53 @@ process runModel {
     --output-dir ${mask_output_dir} \
     --model-chkpt ${model_chkpt} \
     --model-type ${model_type} \
+    --base-model "${base_model}" \
     --model-config ${model_config} \
     --idxs ${idxs.join(" ")} \
     --channels ${meta.channels} \
     --num-slices ${meta.num_slices} \
     --output-mask-type ${output_mask_type}
     """
+}
+
+process finetuneModel {
+    cpus { task.attempt }
+    conda "${moduleDir}/envs/${task.ext.condaDir}/conda_${params.model}.yml"
+
+    input:
+    val model_type
+    path model_config
+    val epochs
+    val finetune_layers
+    val weight_decay
+    val learning_rate
+    val sdg
+    val momentum
+    val model_save_name
+    path train_dir
+    val test_dir
+    path chkpt_ch
+    val model_save_dir
+    script:
+    def test_dir = test_dir ? "--test_dir ${test_dir}" : ""
+    """
+    python ${moduleDir}/resources/usr/bin/run_finetuning_${params.model}.py \
+    --train_dir ${train_dir} \
+    ${test_dir} \
+    --model_chkpt ${chkpt_ch} \
+    --model_type ${model_type} \
+    --model-config ${model_config} \
+    --model_save_name ${model_save_name} \
+    --model_save_dir ${model_save_dir} \
+    --layers ${finetune_layers} \
+    --epochs ${epochs} \
+    --num_workers ${task.cpus} \
+    --weight_decay ${weight_decay} \
+    --learning_rate ${learning_rate} \
+    --momentum ${momentum} \
+    --sdg ${sdg}
+    """
+
 }
 
 process combineStacks {

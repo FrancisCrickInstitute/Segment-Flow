@@ -25,10 +25,19 @@ def artifact_extension(location: str, location_type: str) -> str:
     return Path(location).suffix
 
 
-def write_meta(fname: str, name: str, location: str, loc_type: str) -> None:
+def write_meta(
+    fname: str,
+    name: str,
+    location: str,
+    loc_type: str,
+    extra: dict | None = None,
+) -> None:
     """Write an artifact metadata JSON file for consumption by Nextflow."""
+    payload = {"name": name, "location": location, "type": loc_type}
+    if extra:
+        payload.update(extra)
     with open(fname, "w") as f:
-        json.dump({"name": name, "location": location, "type": loc_type}, f)
+        json.dump(payload, f)
     print(f"Written metadata for '{name}' -> {fname}")
 
 
@@ -38,13 +47,17 @@ def check_access(location: str, loc_type: str) -> bool:
     return True
 
 
-def main(model_name: str, model_version: str, model_task: str, user_config: str | None = None):
+def main(
+    model_name: str, model_version: str, model_task: str, user_config: str | None = None
+):
     # Create flag to ensure everything is accessible, otherwise error out
     all_accessible = True
     manifests = load_manifests(filter_access=False)
     versions = manifests[model_name].versions
     try:
-        model_info = versions[model_version].tasks[model_task]
+        version_key = model_version
+        version_info = versions[version_key]
+        model_info = version_info.tasks[model_task]
     except KeyError:
         try:
             model_info = versions[model_version.replace("-", " ")].tasks[model_task]
@@ -53,11 +66,15 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             raise KeyError(
                 f"Model version '{model_version}' with task '{model_task}' not found in the registry! Model version must be one of {versions.keys()}"
             )
+    # If not explicitly set in the manifest, use the selected version key.
+    base_model = version_info.base_model or version_key
     # Extract required data from the manifest
     model_location = model_info.location
     model_location_type = get_location_type(model_location)
     # Check access to model checkpoint
-    all_accessible = all_accessible and check_access(model_location, model_location_type)
+    all_accessible = all_accessible and check_access(
+        model_location, model_location_type
+    )
     # Derive the canonical checkpoint filename (version + extension from source)
     ext = artifact_extension(model_location, model_location_type)
     full_model_name = model_version + "_" + model_task + ext
@@ -65,7 +82,11 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
     # Write one metadata JSON per artifact; Nextflow reads these to decide whether
     # to stage from the external cache (storeDir) or run downloadModelData.
     write_meta(
-        "model_chkpt_meta.json", full_model_name, model_location, model_location_type
+        "model_chkpt_meta.json",
+        full_model_name,
+        model_location,
+        model_location_type,
+        extra={"base_model": base_model},
     )
 
     model_config_location = getattr(model_info, "config_path", None)
@@ -78,12 +99,17 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             )
         model_config_name = model_version + "_" + model_task + "_config.yml"
         write_meta(
-            "model_config_meta.json", model_config_name, user_config, config_location_type
+            "model_config_meta.json",
+            model_config_name,
+            user_config,
+            config_location_type,
         )
         print(f"Using user-supplied config: {user_config}")
     elif model_info.params:
         # Route 2: generate default config from registry params
-        default_yaml = generate_default_config(manifests[model_name], model_version, model_task)
+        default_yaml = generate_default_config(
+            manifests[model_name], model_version, model_task
+        )
         model_config_name = model_version + "_" + model_task + "_config.yml"
         config_abs_path = Path.cwd() / model_config_name
         config_abs_path.write_text(default_yaml, encoding="utf-8")
@@ -103,11 +129,16 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             )
         model_config_name = model_version + "_" + model_task + "_config.yml"
         write_meta(
-            "model_config_meta.json", model_config_name, model_config_location, config_location_type
+            "model_config_meta.json",
+            model_config_name,
+            model_config_location,
+            config_location_type,
         )
         print(f"Using registry config_path: {model_config_location}")
     else:
-        print("No config available via any route — model likely requires no config file.")
+        print(
+            "No config available via any route — model likely requires no config file."
+        )
 
     model_finetuning_location = getattr(model_info, "finetuning_path", None)
     if model_finetuning_location:
@@ -127,7 +158,6 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             model_finetuning_location,
             finetuning_location_type,
         )
-    
     if not all_accessible:
         error_msg = (
             "One or more model artifacts are not accessible! Please check the paths and permissions for the following locations:\n"

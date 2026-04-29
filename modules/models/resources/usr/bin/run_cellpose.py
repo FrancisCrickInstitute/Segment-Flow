@@ -1,5 +1,6 @@
 from pathlib import Path
-from typing import Union
+from typing import Union, Any
+import numpy as np
 
 from cellpose import models
 import yaml
@@ -16,7 +17,7 @@ def run_cellpose(
     output_mask_type: str,
 ):
     # Extract model config arguments
-    masks, _, _, _ = cp_model.eval(
+    masks, _, _ = cp_model.eval(
         img,
         diameter=config["diameter"],
         channels=config["channels"],
@@ -73,16 +74,110 @@ if __name__ == "__main__":
         config["nucleus_channel"],
     ]
 
-    # Create the Cellpose model with available device
-    cp_model = models.Cellpose(
-        model_type=cli_args.model_type,
-        device=get_device(model_type=get_model_name_type(cli_args.model_type)),
+    device = get_device(model_type=get_model_name_type(cli_args.model_type))
+
+    # Initialize CellposeModel directly with finetuned checkpoint
+    cp_model_inner = models.CellposeModel(
+        pretrained_model=cli_args.model_chkpt,
+        device=device,
     )
+
+    # Now create a wrapper-like object that includes a SizeModel based on base_model
+    from cellpose.models import size_model_path, SizeModel
+
+    base_size_model_path = size_model_path(cli_args.base_model)
+
+    # Create a simple wrapper object that acts like Cellpose
+    class CellposeWrapper:
+        """
+        Wraps a fine-tuned CellposeModel with the base model's SizeModel.
+
+        This allows inference with a fine-tuned checkpoint while using the
+        base model's diameter estimation capability.
+        This has been adapted from:
+        https://github.com/MouseLand/cellpose/blob/fb22843e70d03f7884c301b7b72bedd7d9c3d2d9/cellpose/models.py#L96
+
+        Args:
+            cp_model: Fine-tuned CellposeModel instance
+            size_model: SizeModel from base model (e.g., 'cellpose')
+        """
+
+        def __init__(self, cp_model: Any, size_model: Any) -> None:
+            self.cp = cp_model
+            self.sz = size_model
+            self.device = cp_model.device
+            self.diam_mean = cp_model.diam_mean
+            self.pretrained_size = size_model.pretrained_size
+
+        def eval(
+            self,
+            x: np.ndarray,
+            batch_size: int = 8,
+            channels: list[int] = [0, 0],
+            channel_axis: int | None = None,
+            invert: bool = False,
+            normalize: bool = True,
+            diameter: float | list[float] | None = 30.0,
+            do_3D: bool = False,
+            **kwargs: Any,
+        ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+
+            diam0 = (
+                diameter[0] if isinstance(diameter, (np.ndarray, list)) else diameter
+            )
+            estimate_size = True if (diameter is None or diam0 == 0) else False
+
+            if (
+                estimate_size
+                and self.pretrained_size is not None
+                and not do_3D
+                and x[0].ndim < 4
+            ):
+                diams, _ = self.sz.eval(
+                    x,
+                    channels=channels,
+                    channel_axis=channel_axis,
+                    batch_size=batch_size,
+                    normalize=normalize,
+                    invert=invert,
+                )
+                diameter = None
+            elif estimate_size:
+                if self.pretrained_size is None:
+                    reason = "no pretrained size model specified in model Cellpose"
+                else:
+                    reason = "does not work on non-2D images"
+                print(f"could not estimate diameter, {reason}")
+                diams = self.diam_mean
+            else:
+                diams = diameter
+
+            # delegate the rest to the CellposeModel
+            return self.cp.eval(
+                x,
+                channels=channels,
+                channel_axis=channel_axis,
+                batch_size=batch_size,
+                normalize=normalize,
+                invert=invert,
+                diameter=diams,
+                do_3D=do_3D,
+                **kwargs,
+            )
+
+    size_model = SizeModel(
+        device=device, pretrained_size=base_size_model_path, cp_model=cp_model_inner
+    )
+    cp_model = CellposeWrapper(cp_model_inner, size_model)
 
     run_cellpose(
         save_dir=cli_args.output_dir,
         save_name=cli_args.mask_fname,
         idxs=cli_args.idxs,
         config=config,
-        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
+        output_mask_type=(
+            cli_args.output_mask_type
+            if cli_args.output_mask_type != "auto"
+            else "instance"
+        ),
     )
