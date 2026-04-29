@@ -93,6 +93,8 @@ if __name__ == "__main__":
 
         This allows inference with a fine-tuned checkpoint while using the
         base model's diameter estimation capability.
+        This has been adapted from:
+        https://github.com/MouseLand/cellpose/blob/fb22843e70d03f7884c301b7b72bedd7d9c3d2d9/cellpose/models.py#L96
 
         Args:
             cp_model: Fine-tuned CellposeModel instance
