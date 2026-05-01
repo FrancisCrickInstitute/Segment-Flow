@@ -3,7 +3,7 @@ import os
 import json
 from pathlib import Path
 from aiod_registry import load_manifests
-from aiod_registry.utils import generate_default_config
+from aiod_registry.utils import generate_default_config, is_accessible
 from urllib.parse import urlparse
 
 
@@ -39,10 +39,18 @@ def check_access(location: str, loc_type: str) -> bool:
 
 
 def main(model_name: str, model_version: str, model_task: str, user_config: str | None = None):
-    # Create flag to ensure everything is accessible, otherwise error out
-    all_accessible = True
+    # Load full registry without accessibility filtering to allow precise error reporting
     manifests = load_manifests(filter_access=False)
+
+    # User input check: model name
+    if model_name not in manifests:
+        raise KeyError(
+            f"Model '{model_name}' not found in the registry. "
+            f"Available models: {list(manifests.keys())}"
+        )
+
     versions = manifests[model_name].versions
+    # User input check: version and task
     try:
         model_info = versions[model_version].tasks[model_task]
     except KeyError:
@@ -51,13 +59,26 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             model_version = model_version.replace("-", " ")
         except KeyError:
             raise KeyError(
-                f"Model version '{model_version}' with task '{model_task}' not found in the registry! Model version must be one of {versions.keys()}"
+                f"Model version '{model_version}' with task '{model_task}' not found in the registry! "
+                f"Model version must be one of {list(versions.keys())}"
             )
-    # Extract required data from the manifest
-    model_location = model_info.location
+
+    # Environment check: at least one location must be accessible
+    accessible_entry = next(
+        (entry for entry in model_info.locations if is_accessible(entry.location)),
+        None,
+    )
+    if accessible_entry is None:
+        raise PermissionError(
+            f"Model '{model_name}' / '{model_version}' / '{model_task}' exists in the registry "
+            f"but none of its locations are accessible on this machine:\n"
+            + "\n".join(f"  {e.location}" for e in model_info.locations)
+        )
+
+    # Extract required data from the accessible entry
+    model_location = accessible_entry.location
     model_location_type = get_location_type(model_location)
-    # Check access to model checkpoint
-    all_accessible = all_accessible and check_access(model_location, model_location_type)
+    model_config_location = accessible_entry.config_path
     # Derive the canonical checkpoint filename (version + extension from source)
     ext = artifact_extension(model_location, model_location_type)
     full_model_name = model_version + "_" + model_task + ext
@@ -68,7 +89,6 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
         "model_chkpt_meta.json", full_model_name, model_location, model_location_type
     )
 
-    model_config_location = getattr(model_info, "config_path", None)
     if user_config:
         # Route 1: user-supplied config path or URL
         config_location_type = get_location_type(user_config)
@@ -112,9 +132,10 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
     model_finetuning_location = getattr(model_info, "finetuning_path", None)
     if model_finetuning_location:
         finetuning_location_type = get_location_type(model_finetuning_location)
-        all_accessible = all_accessible and check_access(
-            model_finetuning_location, finetuning_location_type
-        )
+        if not check_access(model_finetuning_location, finetuning_location_type):
+            raise PermissionError(
+                f"Finetuning artifact is not accessible: {model_finetuning_location} (type: {finetuning_location_type})"
+            )
         finetuning_ext = artifact_extension(
             model_finetuning_location, finetuning_location_type
         )
@@ -127,15 +148,6 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             model_finetuning_location,
             finetuning_location_type,
         )
-    
-    if not all_accessible:
-        error_msg = (
-            "One or more model artifacts are not accessible! Please check the paths and permissions for the following locations:\n"
-            f"Checkpoint: {model_location} (type: {model_location_type})\n"
-        )
-        if model_finetuning_location:
-            error_msg += f"Finetuning: {model_finetuning_location} (type: {finetuning_location_type})\n"
-        raise PermissionError(error_msg)
 
 
 if __name__ == "__main__":
