@@ -3,7 +3,7 @@ import os
 import json
 from pathlib import Path
 from aiod_registry import load_manifests
-from aiod_registry.utils import generate_default_config, is_accessible
+from aiod_registry.utils import generate_default_config, is_accessible, resolve_version
 from urllib.parse import urlparse
 
 
@@ -50,18 +50,17 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
         )
 
     versions = manifests[model_name].versions
-    # User input check: version and task
+    # User input check: version and task (accepts exact name or slug)
     try:
+        model_version = resolve_version(manifests[model_name], model_version)
         model_info = versions[model_version].tasks[model_task]
-    except KeyError:
-        try:
-            model_info = versions[model_version.replace("-", " ")].tasks[model_task]
-            model_version = model_version.replace("-", " ")
-        except KeyError:
-            raise KeyError(
-                f"Model version '{model_version}' with task '{model_task}' not found in the registry! "
-                f"Model version must be one of {list(versions.keys())}"
-            )
+    except KeyError as e:
+        raise KeyError(
+            f"Model version '{model_version}' with task '{model_task}' not found in the registry! "
+            f"Model version must be one of {list(versions.keys())}"
+        ) from e
+    # Use the slug for all filesystem/metadata names to avoid spaces
+    model_version_slug = versions[model_version].slug
 
     # Environment check: at least one location must be accessible
     accessible_entry = next(
@@ -81,7 +80,7 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
     model_config_location = accessible_entry.config_path
     # Derive the canonical checkpoint filename (version + extension from source)
     ext = artifact_extension(model_location, model_location_type)
-    full_model_name = model_version + "_" + model_task + ext
+    full_model_name = model_version_slug + "_" + model_task + ext
 
     # Write one metadata JSON per artifact; Nextflow reads these to decide whether
     # to stage from the external cache (storeDir) or run downloadModelData.
@@ -96,7 +95,7 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             raise FileNotFoundError(
                 f"User-supplied config is not accessible: {user_config}"
             )
-        model_config_name = model_version + "_" + model_task + "_config.yml"
+        model_config_name = model_version_slug + "_" + model_task + "_config.yml"
         write_meta(
             "model_config_meta.json", model_config_name, user_config, config_location_type
         )
@@ -104,7 +103,7 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
     elif model_info.params:
         # Route 2: generate default config from registry params
         default_yaml = generate_default_config(manifests[model_name], model_version, model_task)
-        model_config_name = model_version + "_" + model_task + "_config.yml"
+        model_config_name = model_version_slug + "_" + model_task + "_config.yml"
         config_abs_path = Path.cwd() / model_config_name
         config_abs_path.write_text(default_yaml, encoding="utf-8")
         write_meta(
@@ -121,7 +120,7 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
                 f"  Route 2 (registry default): no params defined for this model\n"
                 f"  Route 3 (registry config_path): '{model_config_location}' is not accessible"
             )
-        model_config_name = model_version + "_" + model_task + "_config.yml"
+        model_config_name = model_version_slug + "_" + model_task + "_config.yml"
         write_meta(
             "model_config_meta.json", model_config_name, model_config_location, config_location_type
         )
@@ -140,7 +139,7 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             model_finetuning_location, finetuning_location_type
         )
         finetuning_name = (
-            model_version + "_" + model_task + "_finetuning_meta" + finetuning_ext
+            model_version_slug + "_" + model_task + "_finetuning_meta" + finetuning_ext
         )
         write_meta(
             "model_finetuning_meta.json",
