@@ -131,9 +131,9 @@ process runModel {
     python ${moduleDir}/resources/usr/bin/run_${params.model}.py \
     --img-path ${image_path} \
     --mask-fname "${mask_fname}" \
-    --output-dir ${mask_output_dir} \
+    --output-dir "${mask_output_dir}" \
     --model-chkpt ${model_chkpt} \
-    --model-type ${model_type} \
+    --model-type "${model_type}" \
     --model-config ${model_config} \
     --idxs ${idxs.join(" ")} \
     --channels ${meta.channels} \
@@ -167,7 +167,7 @@ process combineStacks {
     echo ${task.memory}
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
-    --output-dir ${mask_output_dir} \
+    --output-dir "${mask_output_dir}" \
     --masks ${masks} \
     --model ${model} \
     --image-size ${meta.num_slices} ${meta.height} ${meta.width} \
