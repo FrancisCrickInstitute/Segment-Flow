@@ -58,6 +58,13 @@ def finetune_cellpose(cli_args):
         config["nucleus_channel"],
     ]
 
+    # Load per-model finetune parameters from the YAML config produced by the
+    # napari plugin (or fall back to script-level defaults if not provided).
+    finetune_cfg = {}
+    if cli_args.finetune_config:
+        with open(cli_args.finetune_config, "r") as f:
+            finetune_cfg = yaml.safe_load(f) or {}
+
     metrics_path = save_dir / "training_metrics.csv"
     csv_handler = CSVLoggingHandler(metrics_path)
     cellpose_logger = logging.getLogger("cellpose.train")
@@ -65,10 +72,10 @@ def finetune_cellpose(cli_args):
 
     n_epochs = int(cli_args.epochs)
     batch_size = 1
-    learning_rate = float(cli_args.learning_rate)
-    weight_decay = float(cli_args.weight_decay)
-    use_sgd = bool(cli_args.sdg)
-    momentum = float(cli_args.momentum)
+    learning_rate = float(finetune_cfg.get("learning_rate", 1e-3))
+    weight_decay = float(finetune_cfg.get("weight_decay", 1e-4))
+    use_sgd = bool(finetune_cfg.get("sdg", False))
+    momentum = float(finetune_cfg.get("momentum", 0.9))
     masks_ext = "_seg"
 
     # Load train data and optional test data in Cellpose expected format.
