@@ -93,9 +93,9 @@ def combine_masks(
                 mask = mask.astype(np.uint8)
             # Just sum, naive method
             if is_2d:
-                all_masks[start_x:end_x, start_y:end_y] += mask
+                all_masks[start_y:end_y, start_x:end_x] += mask
             else:
-                all_masks[start_z:end_z, start_x:end_x, start_y:end_y] += mask
+                all_masks[start_z:end_z, start_y:end_y, start_x:end_x] += mask
 
     # Validate mask type consistency across all mask files
     if len(mask_types_seen) > 1:
@@ -133,15 +133,15 @@ def insert_mask(
         mask[mask > 0] += max_val
         # Insert the mask into the array
         if is_2d:
-            all_masks[start_x:end_x, start_y:end_y] = mask
+            all_masks[start_y:end_y, start_x:end_x] = mask
         else:
-            all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask
+            all_masks[start_z:end_z, start_y:end_y, start_x:end_x] = mask
     else:
         # Insert the mask into the array
         if is_2d:
-            all_masks[start_x:end_x, start_y:end_y] = mask
+            all_masks[start_y:end_y, start_x:end_x] = mask
         else:
-            all_masks[start_z:end_z, start_x:end_x, start_y:end_y] = mask
+            all_masks[start_z:end_z, start_y:end_y, start_x:end_x] = mask
     return all_masks
 
 
