@@ -40,11 +40,7 @@ def helpMessage() {
         --epochs            INT     Number of training epochs
 
       Optional:
-        --finetune_layers   INT     Number of layers to finetune
-        --weight_decay      FLOAT   Weight decay
-        --learning_rate     FLOAT   Learning rate
-        --sdg               BOOL    Use SGD optimiser
-        --momentum          FLOAT   SGD momentum
+        --finetune_config   PATH    YAML of model-specific finetune params
 
     ── Profiles ───────────────────────────────────────────────────────────────
         local, crick, crick_dev, rosalind
@@ -324,11 +320,7 @@ workflow finetune {
         params.model_type,
         params.model_config,
         params.epochs,
-        params.finetune_layers,
-        params.weight_decay,
-        params.learning_rate,
-        params.sdg,
-        params.momentum,
+        params.finetune_config ?: '',
         params.model_save_name,
         params.train_dir,
         params.test_dir,

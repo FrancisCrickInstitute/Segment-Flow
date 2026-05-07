@@ -152,11 +152,7 @@ process finetuneModel {
     val model_type
     path model_config
     val epochs
-    val finetune_layers
-    val weight_decay
-    val learning_rate
-    val sdg
-    val momentum
+    val finetune_config
     val model_save_name
     path train_dir
     val test_dir
@@ -164,6 +160,7 @@ process finetuneModel {
     val model_save_dir
     script:
     def test_dir = test_dir ? "--test_dir ${test_dir}" : ""
+    def finetune_config_arg = finetune_config ? "--finetune-config ${finetune_config}" : ""
     """
     python ${moduleDir}/resources/usr/bin/run_finetuning_${params.model}.py \
     --train_dir ${train_dir} \
@@ -173,13 +170,9 @@ process finetuneModel {
     --model-config ${model_config} \
     --model_save_name ${model_save_name} \
     --model_save_dir ${model_save_dir} \
-    --layers ${finetune_layers} \
     --epochs ${epochs} \
     --num_workers ${task.cpus} \
-    --weight_decay ${weight_decay} \
-    --learning_rate ${learning_rate} \
-    --momentum ${momentum} \
-    --sdg ${sdg}
+    ${finetune_config_arg}
     """
 
 }
