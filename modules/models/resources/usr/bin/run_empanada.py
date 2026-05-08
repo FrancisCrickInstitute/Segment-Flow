@@ -193,7 +193,7 @@ def infer_3d(engine: PanopticDeepLabRenderEngine3d, img, norms, inference_kwargs
     matcher_proc.join()
     # Now propagate labels backward through stack
     axis_len = img.shape[axis]
-    for idx, rle_seg in backward_matching(rle_stack, matchers, axis_len):
+    for idx, rle_seg in backward_matching(rle_stack, matchers, min(len(rle_stack), axis_len)):
         update_trackers(rle_seg, idx, trackers)
     finish_tracking(trackers)
 
@@ -277,6 +277,17 @@ def consensus_volume(engine, trackers_dict, inference_kwargs):
 
 
 def run_3d(engine, img, norms, inference_kwargs):
+
+    print(img.shape)
+    print("Kernel size b4: ", engine.ks)
+    
+    if img.shape[0] < engine.ks:
+        engine.ks = 1
+        engine.mid_idx = 0
+        engine.reset()
+
+    print("Kernel size aftr: ", engine.ks)
+    
     # NOTE: Long-term, the pipeline would fail long before here if the data doesn't match the requested model+params
     if img.ndim == 2:
         raise ValueError("Image must be a stack for ortho/3D inference!")
