@@ -129,9 +129,7 @@ def create_trackers(engine, img_shape, axis_name, labels):
     ]
 
 
-def infer_3d(engine: PanopticDeepLabRenderEngine3d, img, norms, inference_kwargs):
-    axis_name = inference_kwargs["inference_plane"].lower()
-    axis = _AXES[axis_name]
+def infer_3d(engine: PanopticDeepLabRenderEngine3d, img, norms, inference_kwargs, axis_name, axis):
     dataset = VolumeDataset(
         img,
         axis,
@@ -277,17 +275,14 @@ def consensus_volume(engine, trackers_dict, inference_kwargs):
 
 
 def run_3d(engine, img, norms, inference_kwargs):
-
-    print(img.shape)
-    print("Kernel size b4: ", engine.ks)
-    
-    if img.shape[0] < engine.ks:
+    axis_name = inference_kwargs["inference_plane"].lower()
+    axis = _AXES[axis_name]
+    # The default ks(kernel size) is 3 which is incompatible with z = 2 images
+    if img.shape[axis] < engine.ks:
         engine.ks = 1
         engine.mid_idx = 0
         engine.reset()
 
-    print("Kernel size aftr: ", engine.ks)
-    
     # NOTE: Long-term, the pipeline would fail long before here if the data doesn't match the requested model+params
     if img.ndim == 2:
         raise ValueError("Image must be a stack for ortho/3D inference!")
@@ -300,7 +295,7 @@ def run_3d(engine, img, norms, inference_kwargs):
             img = np.moveaxis(img, 1, 0)
         elif inference_kwargs["inference_plane"] == "YZ":
             img = np.moveaxis(img, 2, 0)
-        stack, trackers = infer_3d(engine, img, norms, inference_kwargs)
+        stack, trackers = infer_3d(engine, img, norms, inference_kwargs, axis_name, axis)
         trackers_dict[inference_kwargs["inference_plane"].lower()] = trackers
         stack = postprocess_volume(engine, trackers_dict, img.shape, inference_kwargs)
     else:
@@ -308,7 +303,7 @@ def run_3d(engine, img, norms, inference_kwargs):
         stacks = []
         for plane in _AXES.keys():
             inference_kwargs["inference_plane"] = plane
-            stack, trackers = infer_3d(engine, img, norms, inference_kwargs)
+            stack, trackers = infer_3d(engine, img, norms, inference_kwargs, axis_name, axis)
             trackers_dict[plane] = trackers
             stacks.append(stack)
         stack = consensus_volume(engine, trackers_dict, inference_kwargs)
