@@ -85,7 +85,8 @@ process setupModel {
     // this process, so Nextflow never skips execution based on output existence.
     // An absent config/finetuning simply means the script didn't write that file,
     // and the optional channel emits nothing — which is the intended behaviour.
-    conda "${moduleDir}/envs/conda_setup_model.yml"
+    // conda "${moduleDir}/envs/conda_setup_model.yml"
+    container 'ghcr.io/n4hm3/aiod-setupmodel:dev'
 
     input:
     val model_name
@@ -101,6 +102,10 @@ process setupModel {
     script:
     def userConfigArg = user_config ? "--user-config \"${user_config}\"" : ""
     """
+    echo "Hostname: \$(hostname)"
+    echo "Inside container: \$(grep -i docker /proc/1/cgroup || echo NO)"
+    echo "User: \$(whoami)"
+    echo "Python: \$(which python)"
     python ${moduleDir}/resources/usr/bin/setup_model.py \
     --model_name "${model_name}" \
     --model_version "${model_version}" \
