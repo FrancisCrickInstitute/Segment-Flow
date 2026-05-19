@@ -103,9 +103,9 @@ process setupModel {
     def userConfigArg = user_config ? "--user-config \"${user_config}\"" : ""
     """
     echo "Hostname: \$(hostname)"
-    echo "Inside container: \$(grep -i docker /proc/1/cgroup || echo NO)"
     echo "User: \$(whoami)"
     echo "Python: \$(which python)"
+    sleep 3
     python ${moduleDir}/resources/usr/bin/setup_model.py \
     --model_name "${model_name}" \
     --model_version "${model_version}" \
