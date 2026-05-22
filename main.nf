@@ -179,7 +179,7 @@ workflow {
                 [
                     meta,
                     file(row.img_path),
-                    getMaskName( file(row.img_path) ),
+                    getMaskName( file(row.img_path), resolvedParamHash ),
                 ]
             }
             | set { img_ch1 }
