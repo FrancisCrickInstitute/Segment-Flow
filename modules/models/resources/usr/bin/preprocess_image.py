@@ -44,6 +44,10 @@ if __name__ == "__main__":
     # Reconstruct full path and match with DF to only get the row for this image
     df_img["img_path"] = df_img["img_path"].apply(lambda x: Path(x).name)
     df_img = df_img.loc[df_img.img_path == args.img_path]
+    if len(df_img) == 0:
+        raise ValueError(f"No matching image found in CSV for {args.img_path}")
+    elif len(df_img) > 1:
+        raise ValueError(f"Multiple matching images found in CSV for {args.img_path}")
     # Preprocess the image
     # TODO: Switch to return_dask, map over blocks, and check output as described at top
     # TODO: Specify dim order and ensure it's preserved on save
