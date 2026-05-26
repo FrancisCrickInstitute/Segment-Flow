@@ -48,8 +48,8 @@ if __name__ == "__main__":
     # TODO: Switch to return_dask, map over blocks, and check output as described at top
     # TODO: Specify dim order and ensure it's preserved on save
     image = load_image_data(args.img_path).squeeze()
-    # Extract all preprocessing sets
-    preprocess_methods = load_methods(args.preprocess_params)
+    # Extract all preprocessing sets (except empty no-ops)
+    preprocess_methods = load_methods(args.preprocess_params, filter_noop=True)
     # Create a new dataframe to store the new images, repeating rows per preprocessing set
     df_new = pd.concat([df_img] * len(preprocess_methods), ignore_index=True)
     # Loop over each set and preprocess
@@ -63,7 +63,7 @@ if __name__ == "__main__":
         )
         # Update the dataframe with the new image path, ensuring full path given
         df_new.loc[i, "img_path"] = fname
-        # TODO: Update size and other metadata in the dataframe, needed if downsampled
+        # Update shape info in the dataframe if downsampled/modified
         if image.shape != prep_image.shape:
             # Find the column for each of the elements, and overwrite
             # NOTE: If we add a preprocessing function that modifies number of channels, this will need to be updated
