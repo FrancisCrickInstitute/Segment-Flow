@@ -59,7 +59,7 @@ process downloadArtifact {
     //
     // One process call per artifact means each has a single mandatory output, so
     // storeDir's cache check is always unambiguous — no optional outputs needed.
-    conda "${moduleDir}/envs/conda_setup_model.yml"
+    container 'ghcr.io/n4hm3/aiod-setupmodel:dev'
     storeDir params.model_chkpt_dir
 
     input:
@@ -70,6 +70,10 @@ process downloadArtifact {
 
     script:
     """
+    echo "Downloading Artifact..."
+    echo "Hostname: \$(hostname)"
+    echo "User: \$(whoami)"
+    echo "Python: \$(which python)"
     python ${moduleDir}/resources/usr/bin/download_model.py \
     --chkpt-loc  "${artifact_loc}" \
     --chkpt-type "${artifact_type}" \
@@ -116,6 +120,7 @@ process setupModel {
 
 process runModel {
     label 'small_gpu'
+    // container "ghcr.io/n4hm3/aiod-${params.model}:dev"
     conda "${moduleDir}/envs/${task.ext.condaDir}/conda_${params.model}.yml"
     // Symlink to where AIoD Napari plugin file watcher is looking
     publishDir "$mask_output_dir"
