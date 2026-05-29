@@ -38,6 +38,22 @@ def check_access(location: str, loc_type: str) -> bool:
     return True
 
 
+def config_stem(source: str) -> str:
+    """Return the stem of a config source filename (works for both paths and URLs).
+
+    Appended to config artifact filenames so that storeDir's existence check
+    becomes source-specific: changing params.model_config to a file with a
+    different name produces a different artifact filename and therefore a cache
+    miss, forcing the new config to be fetched.
+    Checkpoints are intentionally excluded from this scheme — they are immutable
+    and should always be served from the storeDir cache.
+    """
+    parsed = urlparse(source)
+    # For URLs use the URL path component; for local paths use the source directly
+    path_part = parsed.path if parsed.scheme in ("http", "https") else source
+    return Path(path_part).stem
+
+
 def main(model_name: str, model_version: str, model_task: str, user_config: str | None = None):
     # Load full registry without accessibility filtering to allow precise error reporting
     manifests = load_manifests(filter_access=False)
@@ -95,13 +111,14 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             raise FileNotFoundError(
                 f"User-supplied config is not accessible: {user_config}"
             )
-        model_config_name = model_version_slug + "_" + model_task + "_config.yml"
+        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_stem(user_config)}.yml"
         write_meta(
             "model_config_meta.json", model_config_name, user_config, config_location_type
         )
         print(f"Using user-supplied config: {user_config}")
     elif model_info.params:
-        # Route 2: generate default config from registry params
+        # Route 2: generate default config from registry params — content is deterministic
+        # for a given model version/task, so no source tag is needed.
         default_yaml = generate_default_config(manifests[model_name], model_version, model_task)
         model_config_name = model_version_slug + "_" + model_task + "_config.yml"
         config_abs_path = Path.cwd() / model_config_name
@@ -120,7 +137,7 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
                 f"  Route 2 (registry default): no params defined for this model\n"
                 f"  Route 3 (registry config_path): '{model_config_location}' is not accessible"
             )
-        model_config_name = model_version_slug + "_" + model_task + "_config.yml"
+        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_stem(model_config_location)}.yml"
         write_meta(
             "model_config_meta.json", model_config_name, model_config_location, config_location_type
         )
