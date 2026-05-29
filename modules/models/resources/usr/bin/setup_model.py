@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import os
 import json
 from pathlib import Path
@@ -38,20 +39,25 @@ def check_access(location: str, loc_type: str) -> bool:
     return True
 
 
-def config_stem(source: str) -> str:
-    """Return the stem of a config source filename (works for both paths and URLs).
+def config_tag(source: str) -> str:
+    """Return a short tag for a config source to disambiguate storeDir entries.
 
-    Appended to config artifact filenames so that storeDir's existence check
-    becomes source-specific: changing params.model_config to a file with a
-    different name produces a different artifact filename and therefore a cache
-    miss, forcing the new config to be fetched.
+    For local files the tag is an 8-char MD5 of the file contents, so an
+    in-place edit (same path, different content) is correctly treated as a cache
+    miss.
+    For URLs the file is not yet available at setup time, so we fall back
+    to a hash of the URL string (sufficient because a URL change always implies
+    a content change).
+
     Checkpoints are intentionally excluded from this scheme — they are immutable
     and should always be served from the storeDir cache.
     """
     parsed = urlparse(source)
-    # For URLs use the URL path component; for local paths use the source directly
-    path_part = parsed.path if parsed.scheme in ("http", "https") else source
-    return Path(path_part).stem
+    if parsed.scheme in ("http", "https"):
+        # URL: hash the URL string as the best available proxy for content
+        return hashlib.md5(source.encode()).hexdigest()[:8]
+    # Local file: hash the actual contents so in-place edits are detected
+    return hashlib.md5(Path(source).read_bytes()).hexdigest()[:8]
 
 
 def main(model_name: str, model_version: str, model_task: str, user_config: str | None = None):
@@ -111,7 +117,7 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             raise FileNotFoundError(
                 f"User-supplied config is not accessible: {user_config}"
             )
-        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_stem(user_config)}.yml"
+        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_tag(user_config)}.yml"
         write_meta(
             "model_config_meta.json", model_config_name, user_config, config_location_type
         )
@@ -137,7 +143,7 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
                 f"  Route 2 (registry default): no params defined for this model\n"
                 f"  Route 3 (registry config_path): '{model_config_location}' is not accessible"
             )
-        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_stem(model_config_location)}.yml"
+        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_tag(model_config_location)}.yml"
         write_meta(
             "model_config_meta.json", model_config_name, model_config_location, config_location_type
         )
