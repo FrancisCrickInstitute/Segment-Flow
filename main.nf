@@ -183,16 +183,30 @@ workflow {
                 ]
             }
             | set { img_ch1 }
-        // Preprocess the images, outputting one per preprocess set
+        // Preprocess the images, outputting one per non-empty preprocess set
+        // Empty sets (i.e. no-ops) are mixed in later so no copies are made
         preprocessImage( img_ch1, file(params.img_dir) )
         preprocessImage.out.prep_imgs
             | flatten()
             | map{ img -> [img.name, img] }
-            | set { img_names }
+            | set { prep_img_names }
         // Collect all CSVs together into original file
         preprocessImage.out.img_csv
             | collectFile(name: "all_img_info.csv", keepHeader: true)
             | set { all_img_info }
+        // Check for presence of any no-op sets & integrate if so
+        if ( params.preprocess.any { it instanceof List && it.isEmpty() } ) {
+            channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
+                | map{ row -> [row.img_path, file(row.img_path)] }
+                | mix(prep_img_names)
+                | set { img_names }
+            all_img_info
+                | mix(channel.fromPath(params.img_dir))
+                | collectFile(name: "all_img_info.csv", keepHeader: true)
+                | set { all_img_info }
+        } else {
+            prep_img_names.set { img_names }
+        }
         // Split the image stacks into substacks (after model download completes)
         splitStacks( all_img_info, chkpt_ch )
     }

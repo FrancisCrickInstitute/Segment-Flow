@@ -44,12 +44,16 @@ if __name__ == "__main__":
     # Reconstruct full path and match with DF to only get the row for this image
     df_img["img_path"] = df_img["img_path"].apply(lambda x: Path(x).name)
     df_img = df_img.loc[df_img.img_path == args.img_path]
+    if len(df_img) == 0:
+        raise ValueError(f"No matching image found in CSV for {args.img_path}")
+    elif len(df_img) > 1:
+        raise ValueError(f"Multiple matching images found in CSV for {args.img_path}")
     # Preprocess the image
     # TODO: Switch to return_dask, map over blocks, and check output as described at top
     # TODO: Specify dim order and ensure it's preserved on save
     image = load_image_data(args.img_path).squeeze()
-    # Extract all preprocessing sets
-    preprocess_methods = load_methods(args.preprocess_params)
+    # Extract all preprocessing sets (except empty no-ops)
+    preprocess_methods = load_methods(args.preprocess_params, filter_noop=True)
     # Create a new dataframe to store the new images, repeating rows per preprocessing set
     df_new = pd.concat([df_img] * len(preprocess_methods), ignore_index=True)
     # Loop over each set and preprocess
@@ -63,7 +67,7 @@ if __name__ == "__main__":
         )
         # Update the dataframe with the new image path, ensuring full path given
         df_new.loc[i, "img_path"] = fname
-        # TODO: Update size and other metadata in the dataframe, needed if downsampled
+        # Update shape info in the dataframe if downsampled/modified
         if image.shape != prep_image.shape:
             # Find the column for each of the elements, and overwrite
             # NOTE: If we add a preprocessing function that modifies number of channels, this will need to be updated
