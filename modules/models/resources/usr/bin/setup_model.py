@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import os
 import json
 from pathlib import Path
@@ -36,6 +37,27 @@ def check_access(location: str, loc_type: str) -> bool:
     if loc_type == "file":
         return os.access(location, os.F_OK | os.R_OK)
     return True
+
+
+def config_tag(source: str) -> str:
+    """Return a short tag for a config source to disambiguate storeDir entries.
+
+    For local files the tag is an 8-char MD5 of the file contents, so an
+    in-place edit (same path, different content) is correctly treated as a cache
+    miss.
+    For URLs the file is not yet available at setup time, so we fall back
+    to a hash of the URL string (sufficient because a URL change always implies
+    a content change).
+
+    Checkpoints are intentionally excluded from this scheme — they are immutable
+    and should always be served from the storeDir cache.
+    """
+    parsed = urlparse(source)
+    if parsed.scheme in ("http", "https"):
+        # URL: hash the URL string as the best available proxy for content
+        return hashlib.md5(source.encode()).hexdigest()[:8]
+    # Local file: hash the actual contents so in-place edits are detected
+    return hashlib.md5(Path(source).read_bytes()).hexdigest()[:8]
 
 
 def main(model_name: str, model_version: str, model_task: str, user_config: str | None = None):
@@ -95,13 +117,14 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             raise FileNotFoundError(
                 f"User-supplied config is not accessible: {user_config}"
             )
-        model_config_name = model_version_slug + "_" + model_task + "_config.yml"
+        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_tag(user_config)}.yml"
         write_meta(
             "model_config_meta.json", model_config_name, user_config, config_location_type
         )
         print(f"Using user-supplied config: {user_config}")
     elif model_info.params:
-        # Route 2: generate default config from registry params
+        # Route 2: generate default config from registry params — content is deterministic
+        # for a given model version/task, so no source tag is needed.
         default_yaml = generate_default_config(manifests[model_name], model_version, model_task)
         model_config_name = model_version_slug + "_" + model_task + "_config.yml"
         config_abs_path = Path.cwd() / model_config_name
@@ -120,7 +143,7 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
                 f"  Route 2 (registry default): no params defined for this model\n"
                 f"  Route 3 (registry config_path): '{model_config_location}' is not accessible"
             )
-        model_config_name = model_version_slug + "_" + model_task + "_config.yml"
+        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_tag(model_config_location)}.yml"
         write_meta(
             "model_config_meta.json", model_config_name, model_config_location, config_location_type
         )
