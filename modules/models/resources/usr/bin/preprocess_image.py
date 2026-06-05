@@ -68,7 +68,8 @@ if __name__ == "__main__":
             # Find the column for each of the elements, and overwrite
             # NOTE: If we add a preprocessing function that modifies number of channels, this will need to be updated
             # TODO: Reorder columns to match order of image.shape, regardless
-            cols = ["num_slices", "height", "width"]
+            # FIXME: this slicing is a hotfix for AIOD-309; replace with global use of Stack or bioio_base.dimensions.Dimensions objects
+            cols = ["num_slices", "height", "width"][-len(prep_image.shape):]
             orig_shape = tuple(df_new.loc[i, cols])
             for j, val in enumerate(prep_image.shape):
                 if val not in orig_shape:
