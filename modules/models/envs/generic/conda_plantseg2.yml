@@ -6,7 +6,6 @@ channels:
   # - defaults
 dependencies:
   - python>=3.11
-  - pip
   # Neural Network and GPU
   - pytorch
   - tensorboard
@@ -45,7 +44,7 @@ dependencies:
   - mkdocs-git-committers-plugin-2
   - mkdocstrings-python
   - mike
-  - git
+  - pip
   - pip:
       - markdown-exec
       # AI OnDemand
