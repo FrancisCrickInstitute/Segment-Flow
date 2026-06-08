@@ -63,7 +63,7 @@ process downloadArtifact {
     //
     // One process call per artifact means each has a single mandatory output, so
     // storeDir's cache check is always unambiguous — no optional outputs needed.
-    conda "${moduleDir}/envs/conda_setup_model.yml"
+    container 'ghcr.io/franciscrickinstitute/aiod-setupmodel:dev'
     storeDir params.model_chkpt_dir
 
     input:
@@ -89,7 +89,7 @@ process setupModel {
     // this process, so Nextflow never skips execution based on output existence.
     // An absent config/finetuning simply means the script didn't write that file,
     // and the optional channel emits nothing — which is the intended behaviour.
-    conda "${moduleDir}/envs/conda_setup_model.yml"
+    container 'ghcr.io/franciscrickinstitute/aiod-setupmodel:dev'
 
     input:
     val model_name
