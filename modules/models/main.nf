@@ -102,9 +102,6 @@ process setupModel {
     script:
     def userConfigArg = user_config ? "--user-config \"${user_config}\"" : ""
     """
-    echo "Hostname: \$(hostname)"
-    echo "User: \$(whoami)"
-    sleep 3
     python ${moduleDir}/resources/usr/bin/setup_model.py \
     --model_name "${model_name}" \
     --model_version "${model_version}" \
