@@ -85,7 +85,6 @@ process setupModel {
     // this process, so Nextflow never skips execution based on output existence.
     // An absent config/finetuning simply means the script didn't write that file,
     // and the optional channel emits nothing — which is the intended behaviour.
-    // conda "${moduleDir}/envs/conda_setup_model.yml"
     container 'ghcr.io/franciscrickinstitute/aiod-setupmodel:dev'
 
     input:
@@ -112,7 +111,6 @@ process setupModel {
 
 process runModel {
     label 'small_gpu'
-    // container "ghcr.io/n4hm3/aiod-${params.model}:dev"
     conda "${moduleDir}/envs/${task.ext.condaDir}/conda_${params.model}.yml"
     // Symlink to where AIoD Napari plugin file watcher is looking
     publishDir "$mask_output_dir"
