@@ -1,8 +1,10 @@
 import argparse
+import hashlib
 import os
 import json
 from pathlib import Path
 from aiod_registry import load_manifests
+from aiod_registry.utils import generate_default_config, is_accessible, resolve_version
 from urllib.parse import urlparse
 
 
@@ -37,28 +39,70 @@ def check_access(location: str, loc_type: str) -> bool:
     return True
 
 
-def main(model_name: str, model_version: str, model_task: str):
-    # Create flag to ensure everything is accessible, otherwise error out
-    all_accessible = True
+def config_tag(source: str) -> str:
+    """Return a short tag for a config source to disambiguate storeDir entries.
+
+    For local files the tag is an 8-char MD5 of the file contents, so an
+    in-place edit (same path, different content) is correctly treated as a cache
+    miss.
+    For URLs the file is not yet available at setup time, so we fall back
+    to a hash of the URL string (sufficient because a URL change always implies
+    a content change).
+
+    Checkpoints are intentionally excluded from this scheme — they are immutable
+    and should always be served from the storeDir cache.
+    """
+    parsed = urlparse(source)
+    if parsed.scheme in ("http", "https"):
+        # URL: hash the URL string as the best available proxy for content
+        return hashlib.md5(source.encode()).hexdigest()[:8]
+    # Local file: hash the actual contents so in-place edits are detected
+    return hashlib.md5(Path(source).read_bytes()).hexdigest()[:8]
+
+
+def main(model_name: str, model_version: str, model_task: str, user_config: str | None = None):
+    # Load full registry without accessibility filtering to allow precise error reporting
     manifests = load_manifests(filter_access=False)
+
+    # User input check: model name
+    if model_name not in manifests:
+        raise KeyError(
+            f"Model '{model_name}' not found in the registry. "
+            f"Available models: {list(manifests.keys())}"
+        )
+
     versions = manifests[model_name].versions
+    # User input check: version and task (accepts exact name or slug)
     try:
+        model_version = resolve_version(manifests[model_name], model_version)
         model_info = versions[model_version].tasks[model_task]
-    except KeyError:
-        try:
-            model_info = versions[model_version.replace("-", " ")].tasks[model_task]
-        except KeyError:
-            raise KeyError(
-                f"Model version '{model_version}' with task '{model_task}' not found in the registry! Model version must be one of {versions.keys()}"
-            )
-    # Extract required data from the manifest
-    model_location = model_info.location
+    except KeyError as e:
+        raise KeyError(
+            f"Model version '{model_version}' with task '{model_task}' not found in the registry! "
+            f"Model version must be one of {list(versions.keys())}"
+        ) from e
+    # Use the slug for all filesystem/metadata names to avoid spaces
+    model_version_slug = versions[model_version].slug
+
+    # Environment check: at least one location must be accessible
+    accessible_entry = next(
+        (entry for entry in model_info.locations if is_accessible(entry.location)),
+        None,
+    )
+    if accessible_entry is None:
+        raise PermissionError(
+            f"Model '{model_name}' / '{model_version}' / '{model_task}' exists in the registry "
+            f"but none of its locations are accessible on this machine:\n"
+            + "\n".join(f"  {e.location}" for e in model_info.locations)
+        )
+
+    # Extract required data from the accessible entry
+    model_location = accessible_entry.location
     model_location_type = get_location_type(model_location)
-    # Check access to model checkpoint
-    all_accessible = all_accessible and check_access(model_location, model_location_type)
+    model_config_location = accessible_entry.config_path
     # Derive the canonical checkpoint filename (version + extension from source)
     ext = artifact_extension(model_location, model_location_type)
-    full_model_name = model_version + "_" + model_task + ext
+    full_model_name = model_version_slug + "_" + model_task + ext
 
     # Write one metadata JSON per artifact; Nextflow reads these to decide whether
     # to stage from the external cache (storeDir) or run downloadModelData.
@@ -66,31 +110,59 @@ def main(model_name: str, model_version: str, model_task: str):
         "model_chkpt_meta.json", full_model_name, model_location, model_location_type
     )
 
-    model_config_location = getattr(model_info, "config_path", None)
-    if model_config_location:
-        config_location_type = get_location_type(model_config_location)
-        all_accessible = all_accessible and check_access(
-            model_config_location, config_location_type
-        )
-        model_config_name = model_version + "_" + model_task + "_config.yml"
+    if user_config:
+        # Route 1: user-supplied config path or URL
+        config_location_type = get_location_type(user_config)
+        if not check_access(user_config, config_location_type):
+            raise FileNotFoundError(
+                f"User-supplied config is not accessible: {user_config}"
+            )
+        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_tag(user_config)}.yml"
         write_meta(
-            "model_config_meta.json",
-            model_config_name,
-            model_config_location,
-            config_location_type,
+            "model_config_meta.json", model_config_name, user_config, config_location_type
         )
+        print(f"Using user-supplied config: {user_config}")
+    elif model_info.params:
+        # Route 2: generate default config from registry params — content is deterministic
+        # for a given model version/task, so no source tag is needed.
+        default_yaml = generate_default_config(manifests[model_name], model_version, model_task)
+        model_config_name = model_version_slug + "_" + model_task + "_config.yml"
+        config_abs_path = Path.cwd() / model_config_name
+        config_abs_path.write_text(default_yaml, encoding="utf-8")
+        write_meta(
+            "model_config_meta.json", model_config_name, str(config_abs_path), "file"
+        )
+        print(f"Generated default config from registry params -> {config_abs_path}")
+    elif model_config_location:
+        # Route 3: model's registry config_path (may be a local path not available to all users)
+        config_location_type = get_location_type(model_config_location)
+        if not check_access(model_config_location, config_location_type):
+            raise PermissionError(
+                f"Config required but not accessible via any route:\n"
+                f"  Route 1 (user-supplied): not provided\n"
+                f"  Route 2 (registry default): no params defined for this model\n"
+                f"  Route 3 (registry config_path): '{model_config_location}' is not accessible"
+            )
+        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_tag(model_config_location)}.yml"
+        write_meta(
+            "model_config_meta.json", model_config_name, model_config_location, config_location_type
+        )
+        print(f"Using registry config_path: {model_config_location}")
+    else:
+        print("No config available via any route — model likely requires no config file.")
 
     model_finetuning_location = getattr(model_info, "finetuning_path", None)
     if model_finetuning_location:
         finetuning_location_type = get_location_type(model_finetuning_location)
-        all_accessible = all_accessible and check_access(
-            model_finetuning_location, finetuning_location_type
-        )
+        if not check_access(model_finetuning_location, finetuning_location_type):
+            raise PermissionError(
+                f"Finetuning artifact is not accessible: {model_finetuning_location} (type: {finetuning_location_type})"
+            )
         finetuning_ext = artifact_extension(
             model_finetuning_location, finetuning_location_type
         )
         finetuning_name = (
-            model_version + "_" + model_task + "_finetuning_meta" + finetuning_ext
+            model_version_slug + "_" + model_task + "_finetuning_meta" + finetuning_ext
         )
         write_meta(
             "model_finetuning_meta.json",
@@ -98,17 +170,6 @@ def main(model_name: str, model_version: str, model_task: str):
             model_finetuning_location,
             finetuning_location_type,
         )
-    
-    if not all_accessible:
-        error_msg = (
-            "One or more model artifacts are not accessible! Please check the paths and permissions for the following locations:\n"
-            f"Checkpoint: {model_location} (type: {model_location_type})\n"
-        )
-        if model_config_location:
-            error_msg += f"Config: {model_config_location} (type: {config_location_type})\n"
-        if model_finetuning_location:
-            error_msg += f"Finetuning: {model_finetuning_location} (type: {finetuning_location_type})\n"
-        raise PermissionError(error_msg)
 
 
 if __name__ == "__main__":
@@ -128,6 +189,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--task", required=True, type=str, help="The task the model will be used for"
     )
+    parser.add_argument(
+        "--user-config",
+        required=False,
+        default=None,
+        type=str,
+        help="User-supplied config path or URL. If omitted, a default config is resolved from the registry.",
+    )
 
     args = parser.parse_args()
-    main(args.model_name, args.model_version, args.task)
+    main(args.model_name, args.model_version, args.task, args.user_config)

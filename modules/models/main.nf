@@ -34,19 +34,23 @@ process splitStacks {
     path model_chkpt
 
     output:
-    path "${csv_path}", emit: csv_file
+    path "split_${csv_path}", emit: csv_file
 
     script:
     // Nextflow must have a string of comma separated values as input params, so split them here
     // https://github.com/nextflow-io/nextflow/issues/3595 should track this
     num_substacks = params.num_substacks.replace(",", " ")
     overlap = params.overlap.replace(",", " ")
+    def mem_arg = (params.containsKey('memory_per_job') && params.memory_per_job) \
+        ? "--memory-per-job ${(params.memory_per_job as nextflow.util.MemoryUnit).toBytes()}" \
+        : ""
     """
     python ${moduleDir}/resources/usr/bin/create_splits.py \
     --img-csv ${csv_path} \
-    --output-csv ${csv_path} \
+    --output-csv split_${csv_path} \
     --num-substacks $num_substacks \
-    --overlap $overlap
+    --overlap $overlap \
+    $mem_arg
     """
 }
 
@@ -91,6 +95,7 @@ process setupModel {
     val model_name
     val model_version
     val model_task
+    val user_config
 
     output:
     path "model_chkpt_meta.json",      emit: model_chkpt_meta
@@ -98,16 +103,18 @@ process setupModel {
     path "model_finetuning_meta.json", emit: model_finetuning_meta, optional: true
 
     script:
+    def userConfigArg = user_config ? "--user-config \"${user_config}\"" : ""
     """
     python ${moduleDir}/resources/usr/bin/setup_model.py \
     --model_name "${model_name}" \
     --model_version "${model_version}" \
-    --task "${model_task}"
+    --task "${model_task}" \
+    ${userConfigArg}
     """
 }
 
 process runModel {
-    label 'small_gpu'
+    label 'gpu_process'
     conda "${moduleDir}/envs/${task.ext.condaDir}/conda_${params.model}.yml"
     // Symlink to where AIoD Napari plugin file watcher is looking
     publishDir "$mask_output_dir"
@@ -118,6 +125,7 @@ process runModel {
     path model_config
     path model_chkpt
     val model_type
+    val output_mask_type
 
     output:
     tuple val("${image_path.baseName}"), val(meta), val(mask_fname), val(mask_output_dir), path("${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
@@ -127,13 +135,14 @@ process runModel {
     python ${moduleDir}/resources/usr/bin/run_${params.model}.py \
     --img-path ${image_path} \
     --mask-fname "${mask_fname}" \
-    --output-dir ${mask_output_dir} \
+    --output-dir "${mask_output_dir}" \
     --model-chkpt ${model_chkpt} \
-    --model-type ${model_type} \
+    --model-type "${model_type}" \
     --model-config ${model_config} \
     --idxs ${idxs.join(" ")} \
     --channels ${meta.channels} \
-    --num-slices ${meta.num_slices}
+    --num-slices ${meta.num_slices} \
+    --output-mask-type ${output_mask_type}
     """
 }
 
@@ -149,9 +158,11 @@ process combineStacks {
     input:
     tuple val(img_simplename), val(meta), val(model), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
     val postprocess
+    val output_format
+    val output_mask_type
 
     output:
-    path("${mask_fname}_all.rle")
+    path("${mask_fname}_all.${output_format}")
 
     script:
     def postprocess = postprocess ? "--postprocess" : ""
@@ -160,12 +171,14 @@ process combineStacks {
     echo ${task.memory}
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
-    --output-dir ${mask_output_dir} \
+    --output-dir "${mask_output_dir}" \
     --masks ${masks} \
     --model ${model} \
     --image-size ${meta.num_slices} ${meta.height} ${meta.width} \
     --overlap $overlap \
     --iou-threshold ${params.iou_threshold} \
+    --output-format ${output_format} \
+    --output-mask-type ${output_mask_type} \
     ${postprocess}
     """
 }

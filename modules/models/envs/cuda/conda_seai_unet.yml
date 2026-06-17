@@ -4,8 +4,6 @@ channels:
   - defaults
 dependencies:
   - python=3.11
-  - pytorch
-  - torchvision
   - numpy
   - numba
   - scipy
@@ -18,5 +16,8 @@ dependencies:
   - openssh
   - pip
   - pip:
+    - --extra-index-url https://download.pytorch.org/whl/cu126
+    - torch==2.11.0+cu126
+    - torchvision==0.26.0+cu126
     - git+https://github.com/FrancisCrickInstitute/em-segment-pytorch.git
     - git+https://github.com/FrancisCrickInstitute/aiod_utils.git

@@ -16,6 +16,7 @@ def run_cellpose(
     config: dict,
     model_chkpt: str,
     device: torch.device,
+    output_mask_type: str,
 ):
     # NOTE: This is just a link to the Cellpose-SAM model, but circumvents Cellpose's fixed model location
     # Initialize Cellpose-SAM model
@@ -40,7 +41,7 @@ def run_cellpose(
         max_size_fraction=config["max_size_fraction"],
     )
 
-    save_masks(Path(save_dir), save_name, masks, idxs=idxs, mask_type="instance")
+    save_masks(Path(save_dir), save_name, masks, idxs=idxs, mask_type=output_mask_type)
 
 
 if __name__ == "__main__":
@@ -87,4 +88,5 @@ if __name__ == "__main__":
         config=config,
         model_chkpt=cli_args.model_chkpt,
         device=device,
+        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
     )

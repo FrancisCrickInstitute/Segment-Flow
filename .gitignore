@@ -27,3 +27,4 @@ var/
 # Nextflow ignores
 .nextflow*
 **/work/*
+.nf-test*
