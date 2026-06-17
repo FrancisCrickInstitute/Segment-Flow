@@ -8,8 +8,6 @@ from csbdeep.utils import normalize
 from stardist.models import StarDist2D, StarDist3D
 from utils import create_argparser_inference, load_img, save_masks
 
-print("Latest!!")
-
 STARDIST_MODEL_FILES = ("config.json", "thresholds.json")
 
 
@@ -287,6 +285,7 @@ def run_stardist(
     channels: int,
     num_slices: int,
     channel_idx: int = 0,
+    output_mask_type: str = "instance",
 ):
     """Run StarDist segmentation pipeline.
 
@@ -301,7 +300,9 @@ def run_stardist(
         channels: Number of image channels in the source data
         num_slices: Number of Z slices in the source data
         channel_idx: Channel index to use when channel selection is required
+        output_mask_type: Mask type to save ('binary', 'instance')
     """
+    print(f"Channel index for inference: {channel_idx}")
     save_dir = Path(save_dir)
     model_axes = _get_model_axes(config)
 
@@ -324,7 +325,7 @@ def run_stardist(
     print(f"Running inference on {channel_desc}; prepared axes: {prepared_axes}, shape: {prepared_img.shape}")
 
     if run_over_slices:
-        print(f"Running 2D model slice-by-slice over Z axis.")
+        print("Running 2D model slice-by-slice over Z axis.")
         labels = _run_stardist_2d_stack(
             prepared_img,
             prepared_axes,
@@ -337,7 +338,7 @@ def run_stardist(
 
     print(f"Segmentation complete. Labels shape: {labels.shape}, unique labels: {len(np.unique(labels))}")
 
-    save_masks(save_dir, save_name, labels, idxs=idxs, mask_type="instance")
+    save_masks(save_dir, save_name, labels, idxs=idxs, mask_type=output_mask_type)
 
 
 if __name__ == "__main__":
@@ -375,4 +376,5 @@ if __name__ == "__main__":
         channels=cli_args.channels,
         num_slices=cli_args.num_slices,
         channel_idx=config.get("channel_idx", cli_args.channel_idx),
+        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
     )
