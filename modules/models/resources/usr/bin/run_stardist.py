@@ -284,7 +284,7 @@ def run_stardist(
     config: dict,
     channels: int,
     num_slices: int,
-    channel_idx: int = 0,
+    channel_idx: int = -1,
     output_mask_type: str = "instance",
 ):
     """Run StarDist segmentation pipeline.
@@ -343,12 +343,6 @@ def run_stardist(
 
 if __name__ == "__main__":
     parser = create_argparser_inference()
-    parser.add_argument(
-        "--channel-idx",
-        type=int,
-        default=0,
-        help="Channel index to use for multi-channel images (default: 0)",
-    )
     cli_args = parser.parse_args()
 
     with open(cli_args.model_config) as f:
@@ -375,6 +369,6 @@ if __name__ == "__main__":
         config=config,
         channels=cli_args.channels,
         num_slices=cli_args.num_slices,
-        channel_idx=config.get("channel_idx", cli_args.channel_idx),
+        channel_idx=config.get("channel_idx", -1),
         output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
     )
