@@ -1,15 +1,13 @@
 from pathlib import Path
-from typing import Union
 
 import numpy as np
 import yaml
-
-from utils import save_masks, create_argparser_inference, load_img, get_model_name_type
 from model_utils import get_device
+from utils import create_argparser_inference, get_model_name_type, load_img, save_masks
 
 
 def run_plantseg2(
-    save_dir: Union[Path, str],
+    save_dir: Path | str,
     save_name: str,
     idxs: list[int, ...],
     img: np.ndarray,
@@ -34,10 +32,10 @@ def run_plantseg2(
     # Prepare prediction parameters
     # Use the selected version from AIOD's Model Selection as the model name
     model_name = cli_args.model_type
-    patch = config.get("patch", None)
+    patch = config.get("patch")
     if patch is not None:
         patch = tuple(patch)
-    patch_halo = config.get("patch_halo", None)
+    patch_halo = config.get("patch_halo")
     if patch_halo is not None:
         patch_halo = tuple(patch_halo)
 
@@ -74,13 +72,15 @@ def run_plantseg2(
         sigma_weights=config.get("ws_sigma_weights", 2.0),
         min_size=config.get("ws_min_size", 100),
         alpha=config.get("ws_alpha", 1.0),
-        pixel_pitch=config.get("ws_pixel_pitch", None),
+        pixel_pitch=config.get("ws_pixel_pitch"),
         apply_nonmax_suppression=config.get("ws_apply_nonmax_suppression", False),
-        n_threads=config.get("n_threads", None),
-        mask=config.get("mask", None),
+        n_threads=config.get("n_threads"),
+        mask=config.get("mask"),
     )
 
-    print(f"Watershed complete. Superpixels shape: {superpixels.shape}, unique labels: {len(np.unique(superpixels))}")
+    print(
+        f"Watershed complete. Superpixels shape: {superpixels.shape}, unique labels: {len(np.unique(superpixels))}"
+    )
 
     # Step 3: Run GASP segmentation
     print("Running GASP segmentation...")
@@ -94,17 +94,21 @@ def run_plantseg2(
         n_threads=config.get("n_threads", 6),
     )
 
-    print(f"GASP complete. Segmentation shape: {segmentation.shape}, unique labels: {len(np.unique(segmentation))}")
+    print(
+        f"GASP complete. Segmentation shape: {segmentation.shape}, unique labels: {len(np.unique(segmentation))}"
+    )
 
     # Save the final segmentation
-    save_masks(Path(save_dir), save_name, segmentation, idxs=idxs, mask_type=output_mask_type)
+    save_masks(
+        Path(save_dir), save_name, segmentation, idxs=idxs, mask_type=output_mask_type
+    )
 
 
 if __name__ == "__main__":
     parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
-    with open(cli_args.model_config, "r") as f:
+    with open(cli_args.model_config) as f:
         config = yaml.safe_load(f)
 
     # Load image and apply preprocessing if specified
@@ -146,5 +150,7 @@ if __name__ == "__main__":
         idxs=cli_args.idxs,
         img=img,
         config=config,
-        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance"
+        output_mask_type=cli_args.output_mask_type
+        if cli_args.output_mask_type != "auto"
+        else "instance",
     )

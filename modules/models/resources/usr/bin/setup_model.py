@@ -1,11 +1,12 @@
 import argparse
 import hashlib
-import os
 import json
+import os
 from pathlib import Path
+from urllib.parse import urlparse
+
 from aiod_registry import load_manifests
 from aiod_registry.utils import generate_default_config, is_accessible, resolve_version
-from urllib.parse import urlparse
 
 
 def get_location_type(location: str) -> str:
@@ -60,7 +61,9 @@ def config_tag(source: str) -> str:
     return hashlib.md5(Path(source).read_bytes()).hexdigest()[:8]
 
 
-def main(model_name: str, model_version: str, model_task: str, user_config: str | None = None):
+def main(
+    model_name: str, model_version: str, model_task: str, user_config: str | None = None
+):
     # Load full registry without accessibility filtering to allow precise error reporting
     manifests = load_manifests(filter_access=False)
 
@@ -117,15 +120,25 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
             raise FileNotFoundError(
                 f"User-supplied config is not accessible: {user_config}"
             )
-        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_tag(user_config)}.yml"
+        model_config_name = (
+            model_version_slug
+            + "_"
+            + model_task
+            + f"_config_{config_tag(user_config)}.yml"
+        )
         write_meta(
-            "model_config_meta.json", model_config_name, user_config, config_location_type
+            "model_config_meta.json",
+            model_config_name,
+            user_config,
+            config_location_type,
         )
         print(f"Using user-supplied config: {user_config}")
     elif model_info.params:
         # Route 2: generate default config from registry params — content is deterministic
         # for a given model version/task, so no source tag is needed.
-        default_yaml = generate_default_config(manifests[model_name], model_version, model_task)
+        default_yaml = generate_default_config(
+            manifests[model_name], model_version, model_task
+        )
         model_config_name = model_version_slug + "_" + model_task + "_config.yml"
         config_abs_path = Path.cwd() / model_config_name
         config_abs_path.write_text(default_yaml, encoding="utf-8")
@@ -143,13 +156,23 @@ def main(model_name: str, model_version: str, model_task: str, user_config: str 
                 f"  Route 2 (registry default): no params defined for this model\n"
                 f"  Route 3 (registry config_path): '{model_config_location}' is not accessible"
             )
-        model_config_name = model_version_slug + "_" + model_task + f"_config_{config_tag(model_config_location)}.yml"
+        model_config_name = (
+            model_version_slug
+            + "_"
+            + model_task
+            + f"_config_{config_tag(model_config_location)}.yml"
+        )
         write_meta(
-            "model_config_meta.json", model_config_name, model_config_location, config_location_type
+            "model_config_meta.json",
+            model_config_name,
+            model_config_location,
+            config_location_type,
         )
         print(f"Using registry config_path: {model_config_location}")
     else:
-        print("No config available via any route — model likely requires no config file.")
+        print(
+            "No config available via any route — model likely requires no config file."
+        )
 
     model_finetuning_location = getattr(model_info, "finetuning_path", None)
     if model_finetuning_location:

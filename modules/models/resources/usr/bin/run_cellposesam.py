@@ -1,16 +1,14 @@
 from pathlib import Path
-from typing import Union
 
-from cellpose import models
 import torch
 import yaml
-
-from utils import save_masks, create_argparser_inference, load_img, get_model_name_type
+from cellpose import models
 from model_utils import get_device
+from utils import create_argparser_inference, get_model_name_type, load_img, save_masks
 
 
 def run_cellpose(
-    save_dir: Union[Path, str],
+    save_dir: Path | str,
     save_name: str,
     idxs: list[int, ...],
     config: dict,
@@ -47,7 +45,7 @@ def run_cellpose(
 if __name__ == "__main__":
     parser = create_argparser_inference()
     cli_args = parser.parse_args()
-    with open(cli_args.model_config, "r") as f:
+    with open(cli_args.model_config) as f:
         config = yaml.safe_load(f)
 
     # Load image and apply preprocessing if specified
@@ -77,7 +75,7 @@ if __name__ == "__main__":
         config["z_axis"] = None
     # Ensure 3D properly set
     # TODO: Does Cellpose-SAM still need this or does it better handle 3D in 2D mode?
-    config["do_3D"] = True if cli_args.num_slices > 1 else False
+    config["do_3D"] = cli_args.num_slices > 1
 
     device = get_device(model_type=get_model_name_type(cli_args.model_type))
 
@@ -88,5 +86,7 @@ if __name__ == "__main__":
         config=config,
         model_chkpt=cli_args.model_chkpt,
         device=device,
-        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
+        output_mask_type=cli_args.output_mask_type
+        if cli_args.output_mask_type != "auto"
+        else "instance",
     )

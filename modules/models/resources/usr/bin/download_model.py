@@ -1,9 +1,8 @@
 import argparse
-import os
-from pathlib import Path
 import shutil
 import subprocess
 import time
+from pathlib import Path
 
 import requests
 from tqdm.auto import tqdm
@@ -55,7 +54,9 @@ def _download_with_curl(url: str, chkpt_fname: Path) -> bool:
     return result.returncode == 0
 
 
-def download_from_url(url: str, chkpt_fname: Path, max_retries: int = 3, retry_wait: int = 60):
+def download_from_url(
+    url: str, chkpt_fname: Path, max_retries: int = 3, retry_wait: int = 60
+):
     headers = _build_headers(url)
 
     for attempt in range(1, max_retries + 1):
@@ -65,12 +66,14 @@ def download_from_url(url: str, chkpt_fname: Path, max_retries: int = 3, retry_w
             req.close()
             # Try curl once to avoid 403, can sometimes works (e.g. Zenodo)
             if _curl_available():
-                print(f"Received 403 error, retrying with curl...")
+                print("Received 403 error, retrying with curl...")
                 if _download_with_curl(url, chkpt_fname):
                     print(f"Done! Checkpoint saved to {chkpt_fname}")
                     return
             if attempt < max_retries:
-                print(f"Failed (attempt {attempt}/{max_retries}), retrying in {retry_wait}s...")
+                print(
+                    f"Failed (attempt {attempt}/{max_retries}), retrying in {retry_wait}s..."
+                )
                 time.sleep(retry_wait)
                 continue
             req.raise_for_status()
@@ -80,18 +83,20 @@ def download_from_url(url: str, chkpt_fname: Path, max_retries: int = 3, retry_w
     content_length = int(req.headers.get("Content-Length"))
 
     # Download the file and update the progress bar
-    with open(chkpt_fname, "wb") as f:
-        with tqdm(
+    with (
+        open(chkpt_fname, "wb") as f,
+        tqdm(
             desc=f"Downloading {chkpt_fname.name}...",
             total=content_length,
             unit="B",
             unit_scale=True,
             unit_divisor=1024,
-        ) as pbar:
-            for chunk in req.iter_content(chunk_size=8192):
-                if chunk:
-                    f.write(chunk)
-                    pbar.update(len(chunk))
+        ) as pbar,
+    ):
+        for chunk in req.iter_content(chunk_size=8192):
+            if chunk:
+                f.write(chunk)
+                pbar.update(len(chunk))
     req.close()
     print(f"Done! Checkpoint saved to {chkpt_fname}")
 

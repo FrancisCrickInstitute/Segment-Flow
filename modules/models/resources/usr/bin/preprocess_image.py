@@ -6,9 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 import skimage.io
-
-from aiod_utils.preprocess import get_params_str, run_preprocess, load_methods
 from aiod_utils.io import load_image_data
+from aiod_utils.preprocess import get_params_str, load_methods, run_preprocess
 
 
 def construct_fname(img_path, preprocess_params):
@@ -73,7 +72,7 @@ if __name__ == "__main__":
             # NOTE: If we add a preprocessing function that modifies number of channels, this will need to be updated
             # TODO: Reorder columns to match order of image.shape, regardless
             # FIXME: this slicing is a hotfix for AIOD-309; replace with global use of Stack or bioio_base.dimensions.Dimensions objects
-            cols = ["num_slices", "height", "width"][-len(prep_image.shape):]
+            cols = ["num_slices", "height", "width"][-len(prep_image.shape) :]
             orig_shape = tuple(df_new.loc[i, cols])
             for j, val in enumerate(prep_image.shape):
                 if val not in orig_shape:
