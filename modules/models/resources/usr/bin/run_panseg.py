@@ -6,7 +6,7 @@ from model_utils import get_device
 from utils import create_argparser_inference, get_model_name_type, load_img, save_masks
 
 
-def run_plantseg2(
+def run_panseg(
     save_dir: Path | str,
     save_name: str,
     idxs: list[int, ...],
@@ -14,7 +14,7 @@ def run_plantseg2(
     config: dict,
     output_mask_type: str,
 ):
-    """Run PlantSeg2 pipeline: prediction -> watershed -> GASP.
+    """Run PanSeg pipeline: prediction -> watershed -> GASP.
 
     Args:
         save_dir: Directory to save the output masks
@@ -23,8 +23,8 @@ def run_plantseg2(
         img: Input image array
         config: Configuration dictionary containing model and segmentation parameters
     """
-    from plantseg.functionals.prediction.prediction import unet_prediction
-    from plantseg.functionals.segmentation.segmentation import dt_watershed, gasp
+    from panseg.functionals.prediction.prediction import unet_prediction
+    from panseg.functionals.segmentation.segmentation import dt_watershed, gasp
 
     # Step 1: Run prediction to get boundary probability maps
     print("Running prediction...")
@@ -144,7 +144,7 @@ if __name__ == "__main__":
 
     config["input_layout"] = input_layout
 
-    run_plantseg2(
+    run_panseg(
         save_dir=cli_args.output_dir,
         save_name=cli_args.mask_fname,
         idxs=cli_args.idxs,
