@@ -2,18 +2,23 @@ import argparse
 import inspect
 import warnings
 from pathlib import Path
-from typing import Optional
-
-import numpy as np
-from skimage.segmentation import relabel_sequential
 
 import aiod_utils.io as aiod_io
 import aiod_utils.rle as aiod_rle
+import numpy as np
+from skimage.segmentation import relabel_sequential
 
 
 def save_masks(
-    save_dir, save_name, masks, idxs: list[int, ...], metadata: dict = {}, **kwargs
+    save_dir,
+    save_name,
+    masks,
+    idxs: list[int, ...],
+    metadata: dict | None = None,
+    **kwargs,
 ):
+    if metadata is None:
+        metadata = {}
     save_dir.mkdir(parents=True, exist_ok=True)
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = idxs
@@ -77,15 +82,17 @@ def guess_rgb(img_shape, dim: int = 0):
 def load_img(
     fpath,
     idxs: list[int, ...],
-    channels: Optional[int] = None,
-    num_slices: Optional[int] = None,
+    channels: int | None = None,
+    num_slices: int | None = None,
     **kwargs,
 ):
     # Caller should specify desired dimension ordering (model dependent)
     dim_order = kwargs.pop("dim_order", "CZYX")
     # TODO: Better to return Dask and index as needed?
     # NOTE: here rbg converted to channels; napari treats rbg separately
-    img = aiod_io.load_image_data(fpath, dim_order=dim_order, rgb_as_channels=True, **kwargs)
+    img = aiod_io.load_image_data(
+        fpath, dim_order=dim_order, rgb_as_channels=True, **kwargs
+    )
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = idxs
     # Validate array shape against expected channels and slices
@@ -106,8 +113,8 @@ def load_img(
 def validate_dims(
     img,
     dim_order: str,
-    channels: Optional[int] = 1,
-    num_slices: Optional[int] = 1,
+    channels: int | None = 1,
+    num_slices: int | None = 1,
 ):
     """
     Validate and potentially fix dimension order of image array.
@@ -139,11 +146,11 @@ def validate_dims(
 
     if size_c == num_slices and size_z == channels and channels != num_slices:
         warnings.warn(
-            f"Swapping C and Z: detected C={size_c}, Z={size_z} but expected C={channels}, Z={num_slices}"
+            f"Swapping C and Z: detected C={size_c}, Z={size_z} but expected C={channels}, Z={num_slices}",
+            stacklevel=2,
         )
         return np.swapaxes(img, c_idx, z_idx)
     raise ValueError(errmsg)
-
 
 
 def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
@@ -166,7 +173,9 @@ def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
         next_labels = next_labels[next_labels != 0]
         new_next_slice = np.zeros_like(next_slice)
         if len(next_labels) > 0:
-            for next_label, next_label_count in zip(next_labels, next_label_counts):
+            for next_label, next_label_count in zip(
+                next_labels, next_label_counts, strict=True
+            ):
                 current_roi_labels = current_slice[next_slice == next_label]
                 current_roi_labels, current_roi_label_counts = np.unique(
                     current_roi_labels, return_counts=True

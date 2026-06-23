@@ -2,11 +2,10 @@ from pathlib import Path
 
 import numpy as np
 import skimage.measure
-
 from em_segment.modules.loading import load_from_yaml
 from em_segment.predictions import do_predictions
 from model_utils import get_device
-from utils import save_masks, create_argparser_inference, load_img, get_model_name_type
+from utils import create_argparser_inference, get_model_name_type, load_img, save_masks
 
 if __name__ == "__main__":
     parser = create_argparser_inference()
@@ -51,5 +50,7 @@ if __name__ == "__main__":
         save_name=cli_args.mask_fname,
         masks=labelled_stack,
         idxs=cli_args.idxs,
-        mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "binary",
+        mask_type=cli_args.output_mask_type
+        if cli_args.output_mask_type != "auto"
+        else "binary",
     )

@@ -1,23 +1,21 @@
-from pathlib import Path
-from typing import Union
-import yaml
 import warnings
+from pathlib import Path
 
 import hydra
-from hydra import initialize_config_dir
 import numpy as np
 import requests
-from sam2.build_sam import build_sam2
+import yaml
+from hydra import initialize_config_dir
+from model_utils import get_device
 from sam2.automatic_mask_generator import SAM2AutomaticMaskGenerator
-
+from sam2.build_sam import build_sam2
 from utils import (
-    save_masks,
     create_argparser_inference,
+    get_model_name_type,
     guess_rgb,
     load_img,
-    get_model_name_type,
+    save_masks,
 )
-from model_utils import get_device
 
 # NOTE: Placeholder until internalisation from Meta, or us
 BASE_CONFIGS = {
@@ -42,10 +40,10 @@ BASE_CONFIGS = {
 
 def run_sam2(
     img: np.ndarray,
-    save_dir: Union[Path, str],
+    save_dir: Path | str,
     save_name: str,
     model_type: str,
-    model_chkpt: Union[Path, str],
+    model_chkpt: Path | str,
     model_config: dict,
     idxs: list[int, ...],
     output_mask_type: str,
@@ -70,7 +68,8 @@ def run_sam2(
     model = SAM2AutomaticMaskGenerator(sam2, **model_config)
     if img.max() > 255:
         warnings.warn(
-            "Image values are greater than 255, converting to uint8. This may result in loss of information."
+            "Image values are greater than 255, converting to uint8. This may result in loss of information.",
+            stacklevel=2,
         )
         img = img.astype(np.uint8)
     # Extract the dimensions
@@ -188,7 +187,7 @@ if __name__ == "__main__":
     parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
-    with open(cli_args.model_config, "r") as f:
+    with open(cli_args.model_config) as f:
         model_config = yaml.safe_load(f)
 
     img = load_img(
@@ -210,5 +209,7 @@ if __name__ == "__main__":
         model_chkpt=cli_args.model_chkpt,
         model_config=model_config,
         idxs=cli_args.idxs,
-        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance"
+        output_mask_type=cli_args.output_mask_type
+        if cli_args.output_mask_type != "auto"
+        else "instance",
     )

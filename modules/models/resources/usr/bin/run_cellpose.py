@@ -1,15 +1,13 @@
 from pathlib import Path
-from typing import Union
 
-from cellpose import models
 import yaml
-
-from utils import save_masks, create_argparser_inference, load_img, get_model_name_type
+from cellpose import models
 from model_utils import get_device
+from utils import create_argparser_inference, get_model_name_type, load_img, save_masks
 
 
 def run_cellpose(
-    save_dir: Union[Path, str],
+    save_dir: Path | str,
     save_name: str,
     idxs: list[int, ...],
     config: dict,
@@ -39,7 +37,7 @@ if __name__ == "__main__":
     parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
-    with open(cli_args.model_config, "r") as f:
+    with open(cli_args.model_config) as f:
         config = yaml.safe_load(f)
 
     # Load image and apply preprocessing if specified
@@ -65,7 +63,7 @@ if __name__ == "__main__":
     else:
         config["z_axis"] = None
 
-    config["do_3D"] = True if cli_args.num_slices > 1 else False
+    config["do_3D"] = cli_args.num_slices > 1
 
     # Extract the segment and nucleus channels
     config["channels"] = [
@@ -84,5 +82,7 @@ if __name__ == "__main__":
         save_name=cli_args.mask_fname,
         idxs=cli_args.idxs,
         config=config,
-        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
+        output_mask_type=cli_args.output_mask_type
+        if cli_args.output_mask_type != "auto"
+        else "instance",
     )

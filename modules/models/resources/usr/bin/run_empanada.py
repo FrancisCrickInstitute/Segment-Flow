@@ -1,33 +1,33 @@
-from pathlib import Path
+import contextlib
 import platform
+from pathlib import Path
 
+import numpy as np
+import skimage
+import torch
+import torch.multiprocessing as mp
+import yaml
 from empanada.data import VolumeDataset
 from empanada.data.utils import resize_by_factor
 from empanada.inference.engines import (
     PanopticDeepLabRenderEngine,
     PanopticDeepLabRenderEngine3d,
 )
-from empanada.inference.tracker import InstanceTracker
 from empanada.inference.patterns import (
-    create_matchers,
-    forward_matching,
     backward_matching,
-    update_trackers,
-    finish_tracking,
     create_instance_consensus,
+    create_matchers,
     create_semantic_consensus,
     fill_volume,
+    finish_tracking,
+    forward_matching,
     get_axis_trackers_by_class,
+    update_trackers,
 )
-import numpy as np
-import skimage
-import torch
-import torch.multiprocessing as mp
-from torch.utils.data import DataLoader
-import yaml
-
-from utils import save_masks, create_argparser_inference, load_img, get_model_name_type
+from empanada.inference.tracker import InstanceTracker
 from model_utils import get_device
+from torch.utils.data import DataLoader
+from utils import create_argparser_inference, get_model_name_type, load_img, save_masks
 
 # IoU / IoA thresholds used for instance matching across planes
 _MERGE_IOU_THR = 0.25
@@ -129,7 +129,9 @@ def create_trackers(engine, img_shape, axis_name, labels):
     ]
 
 
-def infer_3d(engine: PanopticDeepLabRenderEngine3d, img, norms, inference_kwargs, axis_name, axis):
+def infer_3d(
+    engine: PanopticDeepLabRenderEngine3d, img, norms, inference_kwargs, axis_name, axis
+):
     dataset = VolumeDataset(
         img,
         axis,
@@ -149,10 +151,8 @@ def infer_3d(engine: PanopticDeepLabRenderEngine3d, img, norms, inference_kwargs
     # NOTE: Skip the panoptic_stack/zarr_store stuff for now
     # Safeguard check for MacOS
     if platform.system() == "Darwin":
-        try:
+        with contextlib.suppress(RuntimeError):
             mp.set_start_method("spawn")
-        except RuntimeError:
-            pass
 
     queue = mp.Queue()
     rle_stack = []
@@ -191,7 +191,9 @@ def infer_3d(engine: PanopticDeepLabRenderEngine3d, img, norms, inference_kwargs
     matcher_proc.join()
     # Now propagate labels backward through stack
     axis_len = img.shape[axis]
-    for idx, rle_seg in backward_matching(rle_stack, matchers, min(len(rle_stack), axis_len)):
+    for idx, rle_seg in backward_matching(
+        rle_stack, matchers, min(len(rle_stack), axis_len)
+    ):
         update_trackers(rle_seg, idx, trackers)
     finish_tracking(trackers)
 
@@ -231,7 +233,7 @@ def instance_relabel(tracker):
 def postprocess_volume(engine, trackers_dict, img_shape, inference_kwargs):
     class_names = inference_kwargs["class_names"]
 
-    for class_id, class_name in class_names.items():
+    for class_id, _class_name in class_names.items():
         class_tracker = get_axis_trackers_by_class(trackers_dict, class_id)[0]
         shape3d = class_tracker.shape3d
 
@@ -244,7 +246,7 @@ def postprocess_volume(engine, trackers_dict, img_shape, inference_kwargs):
         stack_tracker.instances = instance_relabel(class_tracker)
 
     stack_vol = np.zeros(img_shape, dtype=np.uint16)
-    fill_volume(stack_vol, stack_tracker.instances) # pyright: ignore[reportPossiblyUnboundVariable]
+    fill_volume(stack_vol, stack_tracker.instances)  # pyright: ignore[reportPossiblyUnboundVariable]
     return stack_vol
 
 
@@ -255,7 +257,7 @@ def consensus_volume(engine, trackers_dict, inference_kwargs):
     shape3d = next(iter(trackers_dict.values()))[0].shape3d
     consensus_vol = np.zeros(shape3d, dtype=np.uint16)
 
-    for class_id, class_name in class_names.items():
+    for class_id, _class_name in class_names.items():
         class_trackers = get_axis_trackers_by_class(trackers_dict, class_id)
 
         if class_id in thing_list:
@@ -295,15 +297,19 @@ def run_3d(engine, img, norms, inference_kwargs):
             img = np.moveaxis(img, 1, 0)
         elif inference_kwargs["inference_plane"] == "YZ":
             img = np.moveaxis(img, 2, 0)
-        stack, trackers = infer_3d(engine, img, norms, inference_kwargs, axis_name, axis)
+        stack, trackers = infer_3d(
+            engine, img, norms, inference_kwargs, axis_name, axis
+        )
         trackers_dict[inference_kwargs["inference_plane"].lower()] = trackers
         stack = postprocess_volume(engine, trackers_dict, img.shape, inference_kwargs)
     else:
         trackers_dict = {}
         stacks = []
-        for plane in _AXES.keys():
+        for plane in _AXES:
             inference_kwargs["inference_plane"] = plane
-            stack, trackers = infer_3d(engine, img, norms, inference_kwargs, axis_name, axis)
+            stack, trackers = infer_3d(
+                engine, img, norms, inference_kwargs, axis_name, axis
+            )
             trackers_dict[plane] = trackers
             stacks.append(stack)
         stack = consensus_volume(engine, trackers_dict, inference_kwargs)
@@ -322,7 +328,7 @@ if __name__ == "__main__":
         dim_order="CZYX",
     )
 
-    with open(cli_args.model_config, "r") as f:
+    with open(cli_args.model_config) as f:
         config = yaml.safe_load(f)
     device = get_device(model_type=get_model_name_type(cli_args.model_type))
     model = torch.jit.load(cli_args.model_chkpt, map_location=device)
@@ -333,10 +339,10 @@ if __name__ == "__main__":
     norms = config.get("norms", {"mean": 0.57571, "std": 0.12765})
     if "padding_factor" not in config:
         # Dropnet
-        if "dropnet" in cli_args.model_type.lower():
-            padding_factor = 512
-        # NucleoNet
-        elif "nucleonet" in cli_args.model_type.lower():
+        if (
+            "dropnet" in cli_args.model_type.lower()
+            or "nucleonet" in cli_args.model_type.lower()
+        ):
             padding_factor = 512
         # MitoNet Mini
         elif "mini" in cli_args.model_type.lower():
@@ -403,5 +409,7 @@ if __name__ == "__main__":
         save_name=cli_args.mask_fname,
         masks=pan_seg,
         idxs=cli_args.idxs,
-        mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "binary",
+        mask_type=cli_args.output_mask_type
+        if cli_args.output_mask_type != "auto"
+        else "binary",
     )

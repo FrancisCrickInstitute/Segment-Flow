@@ -1,9 +1,7 @@
-from typing import Optional
-
 import torch
 
 
-def get_device(model_type: Optional[str] = None, verbose: bool = False) -> torch.device:
+def get_device(model_type: str | None = None, verbose: bool = False) -> torch.device:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if model_type is not None:
         print(f"Using device: {device} for model type: {model_type}")
