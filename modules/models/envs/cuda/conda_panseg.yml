@@ -5,6 +5,7 @@ channels:
   # `defaults` of Anaconda is not accessible for many non-profit institutes such as EMBL.
   # - defaults
 dependencies:
+  - python=3.12
   - panseg
   - pip
   - pip:
