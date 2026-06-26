@@ -327,6 +327,10 @@ if __name__ == "__main__":
         num_slices=cli_args.num_slices,
         dim_order="CZYX",
     )
+    # Raise an error if it's not single-channel
+    # TODO: Larger fix in earlier validation step
+    if cli_args.channels > 1:
+        raise ValueError("Empanada models only support single-channel input images!")
 
     with open(cli_args.model_config) as f:
         config = yaml.safe_load(f)
