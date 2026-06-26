@@ -4,6 +4,7 @@ For this first version, where we will implement this new pipeline for preprocess
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import skimage.io
 from aiod_utils.io import load_image_data
@@ -19,7 +20,7 @@ def construct_fname(img_path, preprocess_params):
 def save_preprocessed_image(img_path, preprocess_params, prep_image):
     fname = construct_fname(img_path, preprocess_params)
     # Save the image
-    # TODO: Switch over to bioio when fully sorted
+    # TODO: Switch over to bioio when fully sorted, standardising to OME-TIFF internally within Segment-Flow
     skimage.io.imsave(fname, prep_image)
     return fname
 
@@ -49,12 +50,16 @@ if __name__ == "__main__":
         raise ValueError(f"Multiple matching images found in CSV for {args.img_path}")
     # Preprocess the image
     # TODO: Switch to return_dask, map over blocks, and check output as described at top
-    # TODO: Specify dim order and ensure it's preserved on save
-    image = load_image_data(args.img_path).squeeze()
+    # Load with explicit CZYX ordering so axis identity is preserved for all image types,
+    # including RGB images where the S (samples) dimension is mapped to C, giving (C, Z, H, W).
+    image_4d = load_image_data(args.img_path, dim_order="CZYX")
+    # Record which axes are singleton before squeezing so we can reconstruct CZYX afterwards
+    squeezed_axes = [i for i, s in enumerate(image_4d.shape) if s == 1]
+    image = image_4d.squeeze()
     # Extract all preprocessing sets (except empty no-ops)
     preprocess_methods = load_methods(args.preprocess_params, filter_noop=True)
     # Create a new dataframe to store the new images, repeating rows per preprocessing set
-    df_new = pd.concat([df_img] * len(preprocess_methods), ignore_index=True)
+    df_new = pd.concat([df_img.copy()] * len(preprocess_methods), ignore_index=True)
     # Loop over each set and preprocess
     for i, preprocess_dict in enumerate(preprocess_methods):
         prep_image = run_preprocess(image, methods=preprocess_dict, parse=False)
@@ -68,14 +73,18 @@ if __name__ == "__main__":
         df_new.loc[i, "img_path"] = fname
         # Update shape info in the dataframe if downsampled/modified
         if image.shape != prep_image.shape:
-            # Find the column for each of the elements, and overwrite
-            # NOTE: If we add a preprocessing function that modifies number of channels, this will need to be updated
-            # TODO: Reorder columns to match order of image.shape, regardless
-            # FIXME: this slicing is a hotfix for AIOD-309; replace with global use of Stack or bioio_base.dimensions.Dimensions objects
-            cols = ["num_slices", "height", "width"][-len(prep_image.shape) :]
-            orig_shape = tuple(df_new.loc[i, cols])
-            for j, val in enumerate(prep_image.shape):
-                if val not in orig_shape:
-                    df_new.loc[i, cols[j]] = val
+            # Re-insert the singleton axes that were squeezed out to restore CZYX identity.
+            # This is critical for images like RGB (C=3, Z=1) where squeeze gives (C, H, W):
+            # without re-expansion, axis 0 (C) would be misread as num_slices.
+            prep_4d = (
+                np.expand_dims(prep_image, axis=squeezed_axes)
+                if squeezed_axes
+                else prep_image
+            )
+            # CZYX order is always: axis0=channels, axis1=num_slices, axis2=height, axis3=width
+            _, new_slices, new_height, new_width = prep_4d.shape
+            df_new.loc[i, "num_slices"] = new_slices
+            df_new.loc[i, "height"] = new_height
+            df_new.loc[i, "width"] = new_width
     # Save the new dataframe
     df_new.to_csv(f"{Path(args.img_path).stem}.csv", index=False)
