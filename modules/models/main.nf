@@ -10,7 +10,7 @@ process preprocessImage {
 
     output:
     path "${image_path.simpleName}.csv", emit: img_csv
-    path "${image_path.simpleName}_*.${image_path.extension}", emit: prep_imgs
+    path "${image_path.simpleName}_*.{${image_path.extension},ome.zarr}", emit: prep_imgs
 
     script:
     """

@@ -6,22 +6,23 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import skimage.io
-from aiod_utils.io import load_image_data
+from aiod_utils.io import load_image_data, save_image
 from aiod_utils.preprocess import get_params_str, load_methods, run_preprocess
 
 
 def construct_fname(img_path, preprocess_params):
     suffix = get_params_str(preprocess_params, to_save=True)
     img_path = Path(img_path)
-    return f"{img_path.stem}_{suffix}{img_path.suffix}"
+    return Path(f"{img_path.stem}_{suffix}{img_path.suffix}")
 
 
 def save_preprocessed_image(img_path, preprocess_params, prep_image):
     fname = construct_fname(img_path, preprocess_params)
-    # Save the image
-    # TODO: Switch over to bioio when fully sorted, standardising to OME-TIFF internally within Segment-Flow
-    skimage.io.imsave(fname, prep_image)
+    # Save the image in the original format if possible, else OME-Zarr
+    try:
+        save_image(prep_image, fname)
+    except (ValueError, KeyError):
+        save_image(prep_image, fname := fname.with_suffix(".ome.zarr"))
     return fname
 
 
