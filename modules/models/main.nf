@@ -9,8 +9,8 @@ process preprocessImage {
     path img_csv
 
     output:
-    path "${image_path.simpleName}.csv", emit: img_csv
-    path "${image_path.simpleName}_*.{${image_path.extension},ome.zarr}", emit: prep_imgs
+    path "${image_path.name}.csv", emit: img_csv
+    path "${image_path.name}_*.ome.zarr", emit: prep_imgs
 
     script:
     """
@@ -128,7 +128,7 @@ process runModel {
     val output_mask_type
 
     output:
-    tuple val("${image_path.baseName}"), val(meta), val(mask_fname), val(mask_output_dir), path("${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
+    tuple val("${image_path.name}"), val(meta), val(mask_fname), val(mask_output_dir), path("${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
 
     script:
     """

@@ -15,18 +15,15 @@ DIM_ORDER = 'CZYX'
 
 def construct_fname(img_path, preprocess_params):
     suffix = get_params_str(preprocess_params, to_save=True)
-    img_path = Path(img_path)
-    return Path(f"{img_path.stem}_{suffix}{img_path.suffix}")
+    # Preserve full original filename (including extension) to avoid
+    # Nextflow simpleName stripping dots in param values (e.g. clipLimit=3.0).
+    # Always output as OME-Zarr for intermediates.
+    return Path(f"{Path(img_path).name}_{suffix}.ome.zarr")
 
 
 def save_preprocessed_image(img_path, preprocess_params, prep_image, save_dims):
     fname = construct_fname(img_path, preprocess_params)
-    # Save the image in the original format if possible, else OME-Zarr.
-    # save_dims matches the squeezed data shape; BioImage expands back to CZYX on load.
-    try:
-        save_image(prep_image, fname, dim_order=save_dims)
-    except (ValueError, KeyError):
-        save_image(prep_image, fname := fname.with_suffix(".ome.zarr"), dim_order=save_dims)
+    save_image(prep_image, fname, dim_order=save_dims)
     return fname
 
 
@@ -95,4 +92,4 @@ if __name__ == "__main__":
             df_new.loc[i, "height"] = new_height
             df_new.loc[i, "width"] = new_width
     # Save the new dataframe
-    df_new.to_csv(f"{Path(args.img_path).stem}.csv", index=False)
+    df_new.to_csv(f"{Path(args.img_path).name}.csv", index=False)
