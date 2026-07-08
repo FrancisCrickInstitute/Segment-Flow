@@ -10,19 +10,23 @@ from aiod_utils.io import load_image_data, save_image
 from aiod_utils.preprocess import get_params_str, load_methods, run_preprocess
 
 
+DIM_ORDER = 'CZYX'
+
+
 def construct_fname(img_path, preprocess_params):
     suffix = get_params_str(preprocess_params, to_save=True)
     img_path = Path(img_path)
     return Path(f"{img_path.stem}_{suffix}{img_path.suffix}")
 
 
-def save_preprocessed_image(img_path, preprocess_params, prep_image):
+def save_preprocessed_image(img_path, preprocess_params, prep_image, save_dims):
     fname = construct_fname(img_path, preprocess_params)
-    # Save the image in the original format if possible, else OME-Zarr
+    # Save the image in the original format if possible, else OME-Zarr.
+    # save_dims matches the squeezed data shape; BioImage expands back to CZYX on load.
     try:
-        save_image(prep_image, fname)
+        save_image(prep_image, fname, dim_order=save_dims)
     except (ValueError, KeyError):
-        save_image(prep_image, fname := fname.with_suffix(".ome.zarr"))
+        save_image(prep_image, fname := fname.with_suffix(".ome.zarr"), dim_order=save_dims)
     return fname
 
 
@@ -53,7 +57,7 @@ if __name__ == "__main__":
     # TODO: Switch to return_dask, map over blocks, and check output as described at top
     # Load with explicit CZYX ordering so axis identity is preserved for all image types,
     # including RGB images where the S (samples) dimension is mapped to C, giving (C, Z, H, W).
-    image_4d = load_image_data(args.img_path, dim_order="CZYX")
+    image_4d = load_image_data(args.img_path, dim_order=DIM_ORDER)
     # Record which axes are singleton before squeezing so we can reconstruct CZYX afterwards
     squeezed_axes = [i for i, s in enumerate(image_4d.shape) if s == 1]
     image = image_4d.squeeze()
@@ -62,6 +66,8 @@ if __name__ == "__main__":
     # Create a new dataframe to store the new images, repeating rows per preprocessing set
     df_new = pd.concat([df_img.copy()] * len(preprocess_methods), ignore_index=True)
     # Loop over each set and preprocess
+    # Derive the dim_order that matches the squeezed data
+    save_dims = "".join(d for i, d in enumerate(DIM_ORDER) if i not in squeezed_axes)
     for i, preprocess_dict in enumerate(preprocess_methods):
         prep_image = run_preprocess(image, methods=preprocess_dict, parse=False)
         # Get the new filename with embedded preprocessing params
@@ -69,6 +75,7 @@ if __name__ == "__main__":
             img_path=args.img_path,
             preprocess_params=preprocess_dict,
             prep_image=prep_image,
+            save_dims=save_dims,
         )
         # Update the dataframe with the new image path, ensuring full path given
         df_new.loc[i, "img_path"] = fname
