@@ -220,7 +220,9 @@ workflow {
 
     // Now prepare each substack for each (poss preprocessed) image
     // To then distribute to the model
-    img_ch = splitStacks.out.csv_file.splitCsv( header: true, quote: '\"' )
+    split_csv_rows = splitStacks.out.csv_file.splitCsv( header: true, quote: '\"' )
+
+    img_ch = split_csv_rows
         | map{ row ->
             meta = row.subMap("height", "width", "num_slices", "channels")
             [
@@ -239,6 +241,15 @@ workflow {
         }
         | combine(img_names, by: 0)
 
+    // Split CSV will now be one row per substack (i.e. runModel job)
+    // Key on the file basename (not the raw img_path string) as row.img_path is a
+    // full path in the no-preprocess branch but a bare filename in the preprocess
+    // branch; .baseName normalises both to match runModel's output key
+    substack_counts = split_csv_rows
+        | map { row -> tuple( file(row.img_path).baseName, 1 ) }
+        | groupTuple()
+        | map { img_name, ones -> tuple( img_name, ones.size() ) }
+
     // Create the name for the mask output directory
     mask_output_dir = "${model_dir}/${params.model_type}_masks"
 
@@ -253,9 +264,15 @@ workflow {
         params.output_mask_type.toLowerCase()
     ).mask
 
-    // Group all the outputs per image together to combine
+    // Group all the outputs per image together to combine.
+    // groupKey(img_name, n_substacks) tells groupTuple num substacks for each image
+    // emitting those dataset masks when those are done
     mask_out
-    | groupTuple
+    | combine( substack_counts, by: 0 )
+    | map{ img_name, meta, mask_fname, output_dir, mask_path, n_substacks ->
+        tuple( groupKey(img_name, n_substacks), meta, mask_fname, output_dir, mask_path )
+    }
+    | groupTuple()
     | map{ img_name, meta, mask_fnames, output_dirs, mask_paths ->
         [
             img_name,
