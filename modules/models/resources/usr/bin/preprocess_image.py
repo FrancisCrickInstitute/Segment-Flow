@@ -8,9 +8,7 @@ import numpy as np
 import pandas as pd
 from aiod_utils.io import load_image_data, save_image
 from aiod_utils.preprocess import get_params_str, load_methods, run_preprocess
-
-
-DIM_ORDER = 'CZYX'
+from utils import DEFAULT_DIM_ORDER as DIM_ORDER
 
 
 def construct_fname(img_path, preprocess_params):

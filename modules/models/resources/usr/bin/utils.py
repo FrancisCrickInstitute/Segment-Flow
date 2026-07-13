@@ -8,6 +8,8 @@ import aiod_utils.rle as aiod_rle
 import numpy as np
 from skimage.segmentation import relabel_sequential
 
+DEFAULT_DIM_ORDER = "CZYX"
+
 
 def save_masks(
     save_dir,
@@ -84,10 +86,9 @@ def load_img(
     idxs: list[int, ...],
     channels: int | None = None,
     num_slices: int | None = None,
+    dim_order: str = DEFAULT_DIM_ORDER,
     **kwargs,
 ):
-    # Caller should specify desired dimension ordering (model dependent)
-    dim_order = kwargs.pop("dim_order", "CZYX")
     # TODO: Better to return Dask and index as needed?
     # NOTE: here rbg converted to channels; napari treats rbg separately
     img = aiod_io.load_image_data(
