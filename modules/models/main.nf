@@ -167,9 +167,20 @@ process combineStacks {
     script:
     def postprocess = postprocess ? "--postprocess" : ""
     overlap = params.overlap.replace(",", " ")
+    // When enabled, run the combine script under memray instead of bare python, then
+    // render its capture into a flamegraph + text stats alongside the task's outputs
+    def runner = params.profile_memory \
+        ? "memray run --native -o ${mask_fname}_memray.bin" \
+        : "python"
+    def profile_report = params.profile_memory \
+        ? """
+    memray flamegraph -o ${mask_fname}_memray_flamegraph.html ${mask_fname}_memray.bin
+    memray stats ${mask_fname}_memray.bin > ${mask_fname}_memray_stats.txt
+    """
+        : ""
     """
     echo ${task.memory}
-    python ${moduleDir}/resources/usr/bin/combine_stacks.py \
+    ${runner} ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
     --output-dir "${mask_output_dir}" \
     --masks ${masks} \
@@ -180,5 +191,6 @@ process combineStacks {
     --output-format ${output_format} \
     --output-mask-type ${output_mask_type} \
     ${postprocess}
+    ${profile_report}
     """
 }
