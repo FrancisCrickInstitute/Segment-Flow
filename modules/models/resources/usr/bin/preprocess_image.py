@@ -2,25 +2,32 @@
 For this first version, where we will implement this new pipeline for preprocessing sets, we will just use the existing functions and run them over the whole image naively without Dask/chunk thoughts
 """
 
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from aiod_utils.io import load_image_data, save_image
-from aiod_utils.preprocess import get_params_str, load_methods, run_preprocess
+from aiod_utils.io import get_image_id, load_image_data, save_image
+from aiod_utils.preprocess import (
+    get_params_str,
+    hash_params_str,
+    load_methods,
+    run_preprocess,
+)
 from utils import DEFAULT_DIM_ORDER as DIM_ORDER
 
 
-def construct_fname(img_path, preprocess_params):
-    suffix = get_params_str(preprocess_params, to_save=True)
-    # Preserve full original filename (including extension) to avoid
-    # Nextflow simpleName stripping dots in param values (e.g. clipLimit=3.0).
-    # Always output as OME-Zarr for intermediates.
-    return Path(f"{Path(img_path).name}_{suffix}.ome.zarr")
+def construct_fname(img_path, params_str):
+    image_id = get_image_id(img_path)
+    param_hash = hash_params_str(params_str)
+    # image_id + a short hash of the preprocessing params (not the raw
+    # string) keeps names short and stops them accumulating a fresh
+    # extension-like segment per pipeline stage. Always output OME-Zarr.
+    return Path(f"{image_id}_{param_hash}.ome.zarr")
 
 
-def save_preprocessed_image(img_path, preprocess_params, prep_image, save_dims):
-    fname = construct_fname(img_path, preprocess_params)
+def save_preprocessed_image(img_path, params_str, prep_image, save_dims):
+    fname = construct_fname(img_path, params_str)
     save_image(prep_image, fname, dim_order=save_dims)
     return fname
 
@@ -60,20 +67,38 @@ if __name__ == "__main__":
     preprocess_methods = load_methods(args.preprocess_params, filter_noop=True)
     # Create a new dataframe to store the new images, repeating rows per preprocessing set
     df_new = pd.concat([df_img.copy()] * len(preprocess_methods), ignore_index=True)
+    # prep_hash's placeholder value is an empty string, which round-trips
+    # through CSV as NaN (float64) if every row happens to be blank;
+    # force it back to string dtype so per-branch hash assignment below
+    # doesn't fail dtype compatibility checks.
+    df_new["prep_hash"] = df_new["prep_hash"].astype(object)
     # Loop over each set and preprocess
     # Derive the dim_order that matches the squeezed data
     save_dims = "".join(d for i, d in enumerate(DIM_ORDER) if i not in squeezed_axes)
+    # Stable identity for the source image, independent of preprocessing branch
+    image_id = get_image_id(args.img_path)
     for i, preprocess_dict in enumerate(preprocess_methods):
         prep_image = run_preprocess(image, methods=preprocess_dict, parse=False)
-        # Get the new filename with embedded preprocessing params
+        params_str = get_params_str(preprocess_dict, to_save=True)
+        # Get the new filename, identified by a short hash of the params
         fname = save_preprocessed_image(
             img_path=args.img_path,
-            preprocess_params=preprocess_dict,
+            params_str=params_str,
             prep_image=prep_image,
             save_dims=save_dims,
         )
         # Update the dataframe with the new image path, ensuring full path given
         df_new.loc[i, "img_path"] = fname
+        # image_id/prep_hash travel onward as plain fields so downstream
+        # naming (getMaskName) never has to re-derive identity from a
+        # filename, or recompute a hash that must stay bit-for-bit
+        # consistent with what aiod_napari independently predicts.
+        # preprocess_params is the structured provenance for this branch,
+        # needed by combine_stacks.py to recover e.g. the downsample factor
+        # without regexing it back out of an (now hashed) filename.
+        df_new.loc[i, "image_id"] = image_id
+        df_new.loc[i, "prep_hash"] = hash_params_str(params_str)
+        df_new.loc[i, "preprocess_params"] = json.dumps(preprocess_dict)
         # Update shape info in the dataframe if downsampled/modified
         if image.shape != prep_image.shape:
             # Re-insert the singleton axes that were squeezed out to restore CZYX identity.
