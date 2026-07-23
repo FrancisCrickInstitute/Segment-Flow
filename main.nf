@@ -115,14 +115,12 @@ log.info """\
          """.stripIndent()
 
 
-// Function to get the name of the mask file given an image's stable identity,
-// its preprocessing branch hash (empty string if no preprocessing applied),
-// and the whole-run param hash. Built purely from plain string fields —
-// never from a prior artifact's own filename — so no accessor here can ever
-// mis-parse an accumulated or compound extension.
+// Mirrors aiod_utils.io.get_mask_name() - keep both in sync if this changes.
+// Deliberately opaque (no task/model/model_type): resolvedParamHash already
+// covers them for uniqueness, and they're visible in the relevant model dir
 def getMaskName(image_id, prep_hash, resolvedParamHash) {
     def prep_suffix = prep_hash ? "_${prep_hash}" : ""
-    return "${image_id}${prep_suffix}_masks_${params.task}-${params.model}-${params.model_type}-${resolvedParamHash}"
+    return "${image_id}${prep_suffix}_masks_${resolvedParamHash}"
 }
 
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
