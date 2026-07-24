@@ -1,3 +1,27 @@
+process computeImageIds {
+    // Adds a stable image_id (plus placeholder prep_hash/preprocess_params)
+    // to every row of the image CSV before any preprocessing branching.
+    // image_id depends on aiod_utils' bioio-based extension recognition,
+    // which Groovy cannot replicate, so every downstream naming decision
+    // reads it from here rather than re-deriving it independently.
+    conda "${moduleDir}/envs/conda_combine_stacks.yml"
+    memory { 500.MB * task.attempt as MemoryUnit }
+    time { 5.m * task.attempt }
+
+    input:
+    path img_csv
+
+    output:
+    path "with_ids_${img_csv}", emit: csv
+
+    script:
+    """
+    python ${moduleDir}/resources/usr/bin/add_image_ids.py \
+    --img-csv ${img_csv} \
+    --output-csv with_ids_${img_csv}
+    """
+}
+
 process preprocessImage {
     // Re-use the combine stacks conda env
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
@@ -179,6 +203,7 @@ process combineStacks {
     --iou-threshold ${params.iou_threshold} \
     --output-format ${output_format} \
     --output-mask-type ${output_mask_type} \
+    --preprocess-params '${meta.preprocess_params ?: "[]"}' \
     ${postprocess}
     """
 }

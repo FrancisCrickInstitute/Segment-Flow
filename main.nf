@@ -88,7 +88,7 @@ def model_chkpt_dir     = "${model_dir}/checkpoints"
 params.model_chkpt_dir  = model_chkpt_dir  // needed by storeDir in modules
 
 // Import processes from model modules
-include { setupModel; downloadArtifact; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
+include { setupModel; downloadArtifact; computeImageIds; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
 
 def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
@@ -115,9 +115,12 @@ log.info """\
          """.stripIndent()
 
 
-// Function to get the name of the mask file given the image and model-version-task
-def getMaskName(img_file, resolvedParamHash) {
-    return "${img_file.name}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}-${resolvedParamHash}"
+// Mirrors aiod_utils.io.get_mask_name() - keep both in sync if this changes.
+// Deliberately opaque (no task/model/model_type): resolvedParamHash already
+// covers them for uniqueness, and they're visible in the relevant model dir
+def getMaskName(image_id, prep_hash, resolvedParamHash) {
+    def prep_suffix = prep_hash ? "_${prep_hash}" : ""
+    return "${image_id}${prep_suffix}_masks_${resolvedParamHash}"
 }
 
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
@@ -171,21 +174,30 @@ workflow {
         | map    { _label, file -> file }
         | first()
 
+    // Add a stable image_id (and placeholder prep_hash/preprocess_params)
+    // to every row up front. image_id relies on Python-side (bioio)
+    // extension recognition that Groovy cannot replicate, so every later
+    // naming decision reads it from here rather than re-deriving it —
+    // including the no-op/non-preprocessing paths below, which never run
+    // through preprocessImage at all.
+    computeImageIds( file(params.img_dir) )
+    normalized_img_dir = computeImageIds.out.csv
+
     if ( params.preprocess ) {
         // Split the CSV into individual images, so we preprocessImage distributes over each source image
-        channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
+        normalized_img_dir.splitCsv( header: true, quote: '\"' )
             | map{ row ->
                 meta = row.subMap("height", "width", "num_slices", "channels")
                 [
                     meta,
                     file(row.img_path),
-                    getMaskName( file(row.img_path), resolvedParamHash ),
+                    "", // mask_fname: unused by preprocessImage's script
                 ]
             }
             | set { img_ch1 }
         // Preprocess the images, outputting one per non-empty preprocess set
         // Empty sets (i.e. no-ops) are mixed in later so no copies are made
-        preprocessImage( img_ch1, file(params.img_dir) )
+        preprocessImage( img_ch1, normalized_img_dir )
         preprocessImage.out.prep_imgs
             | flatten()
             | map{ img -> [img.name, img] }
@@ -196,12 +208,16 @@ workflow {
             | set { all_img_info }
         // Check for presence of any no-op sets & integrate if so
         if ( params.preprocess.any { it instanceof List && it.isEmpty() } ) {
-            channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
+            normalized_img_dir.splitCsv( header: true, quote: '\"' )
                 | map{ row -> [row.img_path, file(row.img_path)] }
                 | mix(prep_img_names)
                 | set { img_names }
             all_img_info
-                | mix(channel.fromPath(params.img_dir))
+                // normalized_img_dir already shares all_img_info's column
+                // schema (image_id/prep_hash/preprocess_params included),
+                // so this merge stays schema-consistent unlike mixing in
+                // the raw, unaugmented img_dir CSV directly.
+                | mix(normalized_img_dir)
                 | collectFile(name: "all_img_info.csv", keepHeader: true)
                 | set { all_img_info }
         } else {
@@ -212,21 +228,21 @@ workflow {
     }
     // If not preprocessing, just split the stacks using the original CSV
     else {
-        channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
+        normalized_img_dir.splitCsv( header: true, quote: '\"' )
             | map{ row -> [row.img_path, file(row.img_path)]}
             | set { img_names }
-        splitStacks( file(params.img_dir), chkpt_ch )
+        splitStacks( normalized_img_dir, chkpt_ch )
     }
 
     // Now prepare each substack for each (poss preprocessed) image
     // To then distribute to the model
     img_ch = splitStacks.out.csv_file.splitCsv( header: true, quote: '\"' )
         | map{ row ->
-            meta = row.subMap("height", "width", "num_slices", "channels")
+            meta = row.subMap("height", "width", "num_slices", "channels", "preprocess_params")
             [
                 row.img_path,
                 meta,
-                getMaskName( file( row.img_path ), resolvedParamHash ),
+                getMaskName( row.image_id, row.prep_hash, resolvedParamHash ),
                 [
                     row.start_w.toInteger(),
                     row.end_w.toInteger(),

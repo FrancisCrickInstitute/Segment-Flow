@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -346,6 +347,16 @@ if __name__ == "__main__":
         choices=["auto", "binary", "instance"],
         help="Mask type of the combined output ('binary' or 'instance')",
     )
+    parser.add_argument(
+        "--preprocess-params",
+        required=False,
+        default="[]",
+        help=(
+            "JSON-encoded list of preprocessing method dicts applied to this "
+            "image branch; used to recover e.g. the downsample factor for "
+            "output metadata without parsing it back out of the mask filename."
+        ),
+    )
 
     cli_args = parser.parse_args()
 
@@ -389,15 +400,21 @@ if __name__ == "__main__":
     # Save the masks
     output_format = cli_args.output_format.lower()
     save_path = f"{cli_args.mask_fname}_all.{output_format}"
-    # Get downsample factor for metadata if used
-    # NOTE: Our Napari plugin uses this as an identifier to rescale for visualization
-    # FIXME: This is brittle and poor, the params should be extracted from the preprocess params
-    # Which themselves should be tied to the image that they produced
-    if "Downsample" in cli_args.mask_fname:
-        downsample_factor = get_downsample_factor(filename=cli_args.mask_fname)
-        metadata = {"downsample_factor": downsample_factor}
-    else:
-        metadata = {}
+    # Get downsample factor for metadata if used.
+    # NOTE: Our Napari plugin uses this as an identifier to rescale for visualization.
+    # Read from the structured preprocess params passed through the pipeline's
+    # CSV/meta, rather than regexing the (now hashed) mask filename.
+    preprocess_methods = json.loads(cli_args.preprocess_params)
+    downsample_factor = (
+        get_downsample_factor(methods=preprocess_methods)
+        if preprocess_methods
+        else None
+    )
+    metadata = (
+        {"downsample_factor": downsample_factor}
+        if downsample_factor is not None
+        else {}
+    )
     if output_format == "tiff":
         # Resolve 'auto' using the mask type recorded in the individual patches
         resolved_mask_type = (
