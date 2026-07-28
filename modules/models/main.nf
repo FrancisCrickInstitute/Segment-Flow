@@ -148,9 +148,14 @@ process runModel {
 
 process combineStacks {
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
-    // Add a minimum amount of memory, otherwise scale as a multiple of the input mask size
-    // NOTE: Masks are RLE-compressed, so multiply by buffer (10) then by average compression factor (1000)
-    memory { (Math.max((5.GB).toBytes(), masks*.size().sum() * 10000) * task.attempt) as MemoryUnit }
+    // Use the same flat per-job budget as every other process rather than a bespoke formula.
+    // Since AIOD-266 the combined mask lives in a Zarr store and is encoded in z-slabs, so
+    // peak memory is bounded by one decoded substack and no longer scales with the total
+    // volume. Measured on EMPIAR-12627 (3598x3944x4455, 63.2 Gvoxel): Slurm MaxRSS 24.4 GB,
+    // down from 253.5 GB before the fix -- comfortably inside the 50.GB crick default.
+    // NOTE: memory_per_job also sizes the substacks in create_splits.py, which is the right
+    // coupling here: a bigger substack budget is exactly what makes this process need more.
+    memory { params.memory_per_job * task.attempt }
     // Give more base time if postprocessing
     time { params.postprocess ? 45.m * Math.pow(2, task.attempt) : 10.min * Math.pow(2, task.attempt) }
     publishDir "$mask_output_dir", mode: 'copy'
@@ -169,13 +174,25 @@ process combineStacks {
     overlap = params.overlap.replace(",", " ")
     // When enabled, run the combine script under memray instead of bare python, then
     // render its capture into a flamegraph + text stats alongside the task's outputs
+    //
+    // NOTE: deliberately no --native. It doubles the capture size, and on the AIOD-266
+    // profiling run every reporter that merges native with Python frames (flamegraph,
+    // summary, table) died in memray's hybrid_stack_trace with an AssertionError -- taking
+    // a successful hour-long job down with it. Python-level attribution is sufficient now
+    // that the allocation sites are known.
+    // NOTE: also deliberately no --aggregate. It shrinks the capture, but makes
+    // `memray stats` and temporal flamegraphs raise NotImplementedError, and stats was the
+    // only report that survived the run above.
     def runner = params.profile_memory \
-        ? "memray run --native -o ${mask_fname}_memray.bin" \
+        ? "memray run -o ${mask_fname}_memray.bin" \
         : "python"
+    // Reporting is diagnostic only, so it must never fail the task: a broken reporter
+    // should not discard a completed run's real output.
     def profile_report = params.profile_memory \
         ? """
-    memray flamegraph -o ${mask_fname}_memray_flamegraph.html ${mask_fname}_memray.bin
-    memray stats ${mask_fname}_memray.bin > ${mask_fname}_memray_stats.txt
+    memray stats ${mask_fname}_memray.bin > ${mask_fname}_memray_stats.txt || echo "WARN: memray stats failed"
+    memray flamegraph -o ${mask_fname}_memray_flamegraph.html ${mask_fname}_memray.bin || echo "WARN: memray flamegraph failed"
+    memray flamegraph --temporal -o ${mask_fname}_memray_temporal.html ${mask_fname}_memray.bin || echo "WARN: memray temporal flamegraph failed"
     """
         : ""
     """
