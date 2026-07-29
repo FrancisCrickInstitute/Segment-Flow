@@ -1,0 +1,2 @@
+img_path,height,width,num_slices,channels,dtype
+/fake/path/regression_image.tif,866,1166,1600,1,uint8
