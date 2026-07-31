@@ -1,9 +1,6 @@
 process computeImageIds {
-    // Adds a stable image_id (plus placeholder prep_hash/preprocess_params)
-    // to every row of the image CSV before any preprocessing branching.
-    // image_id depends on aiod_utils' bioio-based extension recognition,
-    // which Groovy cannot replicate, so every downstream naming decision
-    // reads it from here rather than re-deriving it independently.
+    // Adds a stable image_id (plus a placeholder prep_hash) to every row of
+    // the image CSV before any preprocessing branching.
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
     memory { 500.MB * task.attempt as MemoryUnit }
     time { 5.m * task.attempt }
@@ -33,8 +30,10 @@ process preprocessImage {
     path img_csv
 
     output:
-    path "${image_path.name}.csv", emit: img_csv
-    path "${image_path.name}_*.ome.zarr", emit: prep_imgs
+    // preprocess_image.py names both outputs by image_id (bioio-based
+    // extension stripping)
+    path "${meta.image_id}.csv", emit: img_csv
+    path "${meta.image_id}_*.ome.zarr", emit: prep_imgs
 
     script:
     """
@@ -144,7 +143,7 @@ process runModel {
     publishDir "$mask_output_dir"
 
     input:
-    tuple val(image_name), val(meta), val(mask_fname), val(idxs), path(image_path)
+    tuple val(img_path_key), val(meta), val(mask_fname), val(idxs), path(image_path)
     val mask_output_dir
     path model_config
     path model_chkpt
@@ -152,7 +151,8 @@ process runModel {
     val output_mask_type
 
     output:
-    tuple val("${image_path.name}"), val(meta), val(mask_fname), val(mask_output_dir), path("${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
+    // Output mask_fname to uniquely group on image + preprocesing branch
+    tuple val(mask_fname), val(meta), val(mask_output_dir), path("${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
 
     script:
     """
@@ -180,7 +180,7 @@ process combineStacks {
     publishDir "$mask_output_dir", mode: 'copy'
 
     input:
-    tuple val(img_simplename), val(meta), val(model), val(mask_fname), val(mask_output_dir), path(masks, arity: '1..*')
+    tuple val(mask_fname), val(meta), val(model), val(mask_output_dir), path(masks, arity: '1..*')
     val postprocess
     val output_format
     val output_mask_type
@@ -191,8 +191,12 @@ process combineStacks {
     script:
     def postprocess = postprocess ? "--postprocess" : ""
     overlap = params.overlap.replace(",", " ")
+    // Same run-level preprocess config preprocessImage receives - combine_stacks.py
+    // matches meta.prep_hash against it to recover this branch's own preprocessing
+    // set, rather than threading the raw set itself through the CSV pipeline.
     """
     echo ${task.memory}
+    echo '${groovy.json.JsonOutput.toJson(params.preprocess)}' > preprocess_config.json
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
     --output-dir "${mask_output_dir}" \
@@ -203,7 +207,8 @@ process combineStacks {
     --iou-threshold ${params.iou_threshold} \
     --output-format ${output_format} \
     --output-mask-type ${output_mask_type} \
-    --preprocess-params '${meta.preprocess_params ?: "[]"}' \
+    --preprocess-config preprocess_config.json \
+    --prep-hash "${meta.prep_hash ?: ""}" \
     ${postprocess}
     """
 }

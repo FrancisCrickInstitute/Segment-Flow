@@ -2,7 +2,6 @@
 For this first version, where we will implement this new pipeline for preprocessing sets, we will just use the existing functions and run them over the whole image naively without Dask/chunk thoughts
 """
 
-import json
 from pathlib import Path
 
 import numpy as np
@@ -93,12 +92,11 @@ if __name__ == "__main__":
         # naming (getMaskName) never has to re-derive identity from a
         # filename, or recompute a hash that must stay bit-for-bit
         # consistent with what aiod_napari independently predicts.
-        # preprocess_params is the structured provenance for this branch,
-        # needed by combine_stacks.py to recover e.g. the downsample factor
-        # without regexing it back out of an (now hashed) filename.
+        # prep_hash also lets combine_stacks.py recover this branch's full
+        # preprocessing config later by matching it back against
+        # params.preprocess, rather than regexing it out of a filename.
         df_new.loc[i, "image_id"] = image_id
         df_new.loc[i, "prep_hash"] = hash_params_str(params_str)
-        df_new.loc[i, "preprocess_params"] = json.dumps(preprocess_dict)
         # Update shape info in the dataframe if downsampled/modified
         if image.shape != prep_image.shape:
             # Re-insert the singleton axes that were squeezed out to restore CZYX identity.
@@ -114,5 +112,5 @@ if __name__ == "__main__":
             df_new.loc[i, "num_slices"] = new_slices
             df_new.loc[i, "height"] = new_height
             df_new.loc[i, "width"] = new_width
-    # Save the new dataframe
-    df_new.to_csv(f"{Path(args.img_path).name}.csv", index=False)
+    # Save the new dataframe, matching the img_csv glob in modules/models/main.nf
+    df_new.to_csv(f"{image_id}.csv", index=False)

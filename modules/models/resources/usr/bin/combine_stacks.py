@@ -1,4 +1,3 @@
-import json
 import os
 from pathlib import Path
 
@@ -10,12 +9,36 @@ import psutil
 import skimage.measure
 import tifffile
 from aiod_utils.io import extract_idxs_from_fname, reduce_dtype
-from aiod_utils.preprocess import get_downsample_factor
+from aiod_utils.preprocess import (
+    get_downsample_factor,
+    get_params_str,
+    hash_params_str,
+    load_methods,
+)
 from numba import jit, prange
 from numba.core import types
 from numba.typed import Dict
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
+
+
+def get_preprocess_methods(config_path: str, prep_hash: str) -> list[dict]:
+    """
+    Find the specific preprocessing methods set matching prep_hash within the
+    run's full preprocessing config (params.preprocess). Matches by
+    recomputing the same hash used to create prep_hash in the first place
+    (see preprocess_image.py), rather than threading the set itself through
+    the pipeline's CSV, which can't safely carry raw JSON.
+    """
+    if not prep_hash:
+        return []
+    candidates = load_methods(config_path, filter_noop=True)
+    for methods in candidates:
+        if hash_params_str(get_params_str(methods, to_save=True)) == prep_hash:
+            return methods
+    raise ValueError(
+        f"No preprocessing set in {config_path} matches prep_hash '{prep_hash}'"
+    )
 
 
 def combine_masks(
@@ -348,14 +371,19 @@ if __name__ == "__main__":
         help="Mask type of the combined output ('binary' or 'instance')",
     )
     parser.add_argument(
-        "--preprocess-params",
-        required=False,
-        default="[]",
+        "--preprocess-config",
+        required=True,
         help=(
-            "JSON-encoded list of preprocessing method dicts applied to this "
-            "image branch; used to recover e.g. the downsample factor for "
-            "output metadata without parsing it back out of the mask filename."
+            "Path to a JSON file of the run's full params.preprocess config "
+            "(same file preprocessImage receives); used with --prep-hash to "
+            "recover e.g. the downsample factor for output metadata."
         ),
+    )
+    parser.add_argument(
+        "--prep-hash",
+        required=False,
+        default="",
+        help="Hash identifying this image's preprocessing branch, empty if none",
     )
 
     cli_args = parser.parse_args()
@@ -402,9 +430,11 @@ if __name__ == "__main__":
     save_path = f"{cli_args.mask_fname}_all.{output_format}"
     # Get downsample factor for metadata if used.
     # NOTE: Our Napari plugin uses this as an identifier to rescale for visualization.
-    # Read from the structured preprocess params passed through the pipeline's
-    # CSV/meta, rather than regexing the (now hashed) mask filename.
-    preprocess_methods = json.loads(cli_args.preprocess_params)
+    # Recover this branch's preprocessing set from the run's full config by
+    # matching prep_hash, rather than regexing out of the hashed mask fname
+    preprocess_methods = get_preprocess_methods(
+        cli_args.preprocess_config, cli_args.prep_hash
+    )
     downsample_factor = (
         get_downsample_factor(methods=preprocess_methods)
         if preprocess_methods

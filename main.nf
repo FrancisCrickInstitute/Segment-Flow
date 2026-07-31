@@ -174,12 +174,9 @@ workflow {
         | map    { _label, file -> file }
         | first()
 
-    // Add a stable image_id (and placeholder prep_hash/preprocess_params)
-    // to every row up front. image_id relies on Python-side (bioio)
-    // extension recognition that Groovy cannot replicate, so every later
-    // naming decision reads it from here rather than re-deriving it —
-    // including the no-op/non-preprocessing paths below, which never run
-    // through preprocessImage at all.
+    // Add an image_id (and placeholder prep_hash) to every row
+    // image_id relies on Python-side (bioio) extension recognition that Groovy cannot replicate
+    // So compute it here and carry it forward
     computeImageIds( file(params.img_dir) )
     normalized_img_dir = computeImageIds.out.csv
 
@@ -187,7 +184,8 @@ workflow {
         // Split the CSV into individual images, so we preprocessImage distributes over each source image
         normalized_img_dir.splitCsv( header: true, quote: '\"' )
             | map{ row ->
-                meta = row.subMap("height", "width", "num_slices", "channels")
+                // image_id is needed by preprocessImage's own output glob
+                meta = row.subMap("height", "width", "num_slices", "channels", "image_id")
                 [
                     meta,
                     file(row.img_path),
@@ -213,10 +211,7 @@ workflow {
                 | mix(prep_img_names)
                 | set { img_names }
             all_img_info
-                // normalized_img_dir already shares all_img_info's column
-                // schema (image_id/prep_hash/preprocess_params included),
-                // so this merge stays schema-consistent unlike mixing in
-                // the raw, unaugmented img_dir CSV directly.
+                // normalized_img_dir shares all_img_info's columns
                 | mix(normalized_img_dir)
                 | collectFile(name: "all_img_info.csv", keepHeader: true)
                 | set { all_img_info }
@@ -238,7 +233,8 @@ workflow {
     // To then distribute to the model
     img_ch = splitStacks.out.csv_file.splitCsv( header: true, quote: '\"' )
         | map{ row ->
-            meta = row.subMap("height", "width", "num_slices", "channels", "preprocess_params")
+            // Reminder: resolvedParamHash is unique per run, and prep_hash unique per preprocessing branch, and image_id obvs unique per image
+            meta = row.subMap("height", "width", "num_slices", "channels", "prep_hash")
             [
                 row.img_path,
                 meta,
@@ -269,15 +265,16 @@ workflow {
         params.output_mask_type.toLowerCase()
     ).mask
 
-    // Group all the outputs per image together to combine
+    // Group all the substacks per image+branch together to combine.
+    // mask_fname (image_id-based) is the canonical identity to group on
+    // (as it is image+preprocessing-specific)
     mask_out
     | groupTuple
-    | map{ img_name, meta, mask_fnames, output_dirs, mask_paths ->
+    | map{ mask_fname, meta, output_dirs, mask_paths ->
         [
-            img_name,
+            mask_fname,
             meta.first(),
             params.model,
-            mask_fnames.first(),
             output_dirs.first(),
             mask_paths,
         ]
