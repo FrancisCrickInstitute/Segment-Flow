@@ -13,6 +13,7 @@ dependencies:
   - pyyaml
   - tqdm
   - imagecodecs
+  - git
   - openssh
   - pip
   - pip:
