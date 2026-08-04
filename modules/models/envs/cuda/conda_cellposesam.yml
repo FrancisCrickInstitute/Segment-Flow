@@ -11,4 +11,4 @@ dependencies:
     - torchvision==0.26.0+cu126
     - numpy==1.26.4
     - cellpose>=4
-    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
+    - aiod_utils==0.1

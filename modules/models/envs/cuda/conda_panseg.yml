@@ -5,7 +5,8 @@ channels:
   # `defaults` of Anaconda is not accessible for many non-profit institutes such as EMBL.
   # - defaults
 dependencies:
+  - python=3.12
   - panseg
   - pip
   - pip:
-      - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
+      - aiod_utils==0.1

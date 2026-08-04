@@ -1,46 +1,41 @@
-from pathlib import Path
-from typing import Union
-import yaml
 import warnings
+from pathlib import Path
 
 import numpy as np
-from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
+import yaml
+from model_utils import get_device
+from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
 from tqdm.auto import tqdm
-
 from utils import (
-    save_masks,
     create_argparser_inference,
+    get_model_name_type,
     guess_rgb,
     load_img,
-    get_model_name_type,
+    save_masks,
 )
-from model_utils import get_device
 
 
 def run_sam(
     img: np.ndarray,
-    save_dir: Union[Path, str],
+    save_dir: Path | str,
     save_name: str,
-    fpath: Union[Path, str],
+    fpath: Path | str,
     model_type: str,
-    model_chkpt: Union[Path, str],
+    model_chkpt: Path | str,
     model_config: dict,
     idxs: list[int, ...],
     output_mask_type: str,
 ):
     # Handle extra finetuned/other models
-    if "MicroSAM" in model_type:
-        model_type = "vit_b"
-    elif model_type == "MedSAM":
-        model_type = "vit_b"
-    elif model_type == "default":
+    if "MicroSAM" in model_type or model_type == "MedSAM" or model_type == "default":
         model_type = "vit_b"
     # Just default to vit_b if not found
     try:
         sam = sam_model_registry[model_type](checkpoint=model_chkpt)
     except KeyError:
         warnings.warn(
-            f"Model type '{model_type}' not found in registry, defaulting to 'vit_b'."
+            f"Model type '{model_type}' not found in registry, defaulting to 'vit_b'.",
+            stacklevel=2,
         )
         model_type = "vit_b"
         sam = sam_model_registry[model_type](checkpoint=model_chkpt)
@@ -51,7 +46,8 @@ def run_sam(
     # SAM wants channels last if present (only single or RGB though!)
     if img.max() > 255:
         warnings.warn(
-            "Image values are greater than 255, converting to uint8. This may result in loss of information."
+            "Image values are greater than 255, converting to uint8. This may result in loss of information.",
+            stacklevel=2,
         )
         img = img.astype(np.uint8)
     # Extract the dimensions
@@ -164,7 +160,7 @@ if __name__ == "__main__":
     parser = create_argparser_inference()
     cli_args = parser.parse_args()
 
-    with open(cli_args.model_config, "r") as f:
+    with open(cli_args.model_config) as f:
         model_config = yaml.safe_load(f)
 
     img = load_img(
@@ -187,5 +183,7 @@ if __name__ == "__main__":
         model_chkpt=cli_args.model_chkpt,
         model_config=model_config,
         idxs=cli_args.idxs,
-        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
+        output_mask_type=cli_args.output_mask_type
+        if cli_args.output_mask_type != "auto"
+        else "instance",
     )

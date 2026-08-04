@@ -1,18 +1,18 @@
 import os
 from pathlib import Path
-import psutil
 
-from aiod_utils.preprocess import get_downsample_factor
-from aiod_utils.io import extract_idxs_from_fname, reduce_dtype
 import aiod_utils.rle as aiod_rle
 import dask.array as da
 import dask_image.ndmeasure
+import numpy as np
+import psutil
+import skimage.measure
+import tifffile
+from aiod_utils.io import extract_idxs_from_fname, reduce_dtype
+from aiod_utils.preprocess import get_downsample_factor
 from numba import jit, prange
 from numba.core import types
 from numba.typed import Dict
-import numpy as np
-import skimage.measure
-import tifffile
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
 
@@ -35,7 +35,7 @@ def combine_masks(
     """
     # Get the chunk size from the first file
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(masks[0])
-    chunk_size = (end_x - start_x, end_y - start_y, end_z - start_z)
+    _chunk_size = (end_x - start_x, end_y - start_y, end_z - start_z)
     # Check if there is XY tiling (at least one must be true for any given substack)
     xy_tiling = (
         start_x > 0 or end_x < image_size[1] or start_y > 0 or end_y < image_size[2]
@@ -121,10 +121,7 @@ def insert_mask(
     # Ensure labels are unique across a slice
     if xy_tiling:
         # Get the current maximum value across the relevant slices
-        if is_2d:
-            max_val = all_masks.max()
-        else:
-            max_val = all_masks[start_z:end_z, ...].max()
+        max_val = all_masks.max() if is_2d else all_masks[start_z:end_z, ...].max()
         # TODO: Handle the below, why is it commented out?
         # # Check if we need to upcast the array
         # if max_val + mask.max() > np.iinfo(all_masks.dtype).max:
@@ -257,7 +254,7 @@ def connect_sam(all_masks, iou_threshold):
                 int(next_labels.max() + 1), fill_value=0, dtype=np.uint16
             )
             # Iterate over the matches and check which ones sufficiently overlap
-            for iou, (curr_label, next_label) in zip(ious, box_matches):
+            for iou, (curr_label, next_label) in zip(ious, box_matches, strict=True):
                 # If threshold met, remap label
                 if iou >= iou_threshold:
                     mapping_arr[next_label] = curr_label
@@ -403,7 +400,11 @@ if __name__ == "__main__":
         metadata = {}
     if output_format == "tiff":
         # Resolve 'auto' using the mask type recorded in the individual patches
-        resolved_mask_type = mask_type_from_file if cli_args.output_mask_type == "auto" else cli_args.output_mask_type
+        resolved_mask_type = (
+            mask_type_from_file
+            if cli_args.output_mask_type == "auto"
+            else cli_args.output_mask_type
+        )
         # Convert binary masks to uint8 0/255 for clean display
         if resolved_mask_type == "binary":
             # Convert to binary uint8 with 0/255 values for clean display in downstream tools
@@ -412,7 +413,9 @@ if __name__ == "__main__":
         tifffile.imwrite(save_path, combined_masks, metadata=metadata, imagej=True)
     else:
         # Reuse mask_type from decoded patches; fall back to CLI value (skip if 'auto' and absent)
-        resolved_mask_type = mask_type_from_file or (cli_args.output_mask_type if cli_args.output_mask_type != "auto" else None)
+        resolved_mask_type = mask_type_from_file or (
+            cli_args.output_mask_type if cli_args.output_mask_type != "auto" else None
+        )
         encoded_masks = aiod_rle.encode(
             combined_masks,
             mask_type=resolved_mask_type,

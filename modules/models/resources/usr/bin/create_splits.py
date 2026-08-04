@@ -78,7 +78,7 @@ if __name__ == "__main__":
     new_csv = defaultdict(list)
 
     # Loop over every image file in the csv
-    for idx, row in img_df.iterrows():
+    for _idx, row in img_df.iterrows():
         img_path = Path(row["img_path"])
         # Extract the image shape from the row
         img_shape = Stack(
@@ -92,7 +92,7 @@ if __name__ == "__main__":
         if fetch_dtype:
             try:
                 img_dtype = str(load_image(img_path).dtype)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 img_dtype = "float32"  # conservative fallback
         else:
             img_dtype = (
