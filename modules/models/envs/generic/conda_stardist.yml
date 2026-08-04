@@ -4,8 +4,9 @@ channels:
 dependencies:
   - python=3.11
   - pyyaml
-  - tensorflow  # Conda selects GPU/CPU build based on CUDA availability
-  - stardist
   - pip
   - pip:
+    - tensorflow==2.19.1
+    - stardist==0.9.2
+    - numpy==1.26.4
     - aiod_utils==0.1
