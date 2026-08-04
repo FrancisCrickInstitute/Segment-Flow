@@ -21,7 +21,9 @@ def _find_stardist_model_dir(search_root: Path) -> Path:
             if candidate.parent.is_dir():
                 return candidate.parent
 
-    raise FileNotFoundError(f"Could not find extracted StarDist model files in {search_root}.")
+    raise FileNotFoundError(
+        f"Could not find extracted StarDist model files in {search_root}."
+    )
 
 
 def _extract_stardist_archive(archive_path: Path, model_type: str) -> Path:
@@ -40,7 +42,9 @@ def _extract_stardist_archive(archive_path: Path, model_type: str) -> Path:
     return _find_stardist_model_dir(extract_root)
 
 
-def _resolve_stardist_model_dir(model_chkpt: Path | str, model_type: str) -> Path | None:
+def _resolve_stardist_model_dir(
+    model_chkpt: Path | str, model_type: str
+) -> Path | None:
     """Resolve a local checkpoint input into the actual StarDist model directory."""
     if not model_chkpt:
         return None
@@ -131,7 +135,9 @@ def _infer_input_axes(channels: int, num_slices: int) -> str:
     return axis_lookup[(has_channels, has_z)]
 
 
-def _compact_loaded_image(img: np.ndarray, channels: int, num_slices: int) -> tuple[np.ndarray, str]:
+def _compact_loaded_image(
+    img: np.ndarray, channels: int, num_slices: int
+) -> tuple[np.ndarray, str]:
     input_axes = _infer_input_axes(channels, num_slices)
 
     if input_axes == "CZYX":
@@ -143,11 +149,15 @@ def _compact_loaded_image(img: np.ndarray, channels: int, num_slices: int) -> tu
     return img[0, 0, :, :], input_axes
 
 
-def _transpose_to_axes(img: np.ndarray, source_axes: str, target_axes: str) -> np.ndarray:
+def _transpose_to_axes(
+    img: np.ndarray, source_axes: str, target_axes: str
+) -> np.ndarray:
     if source_axes == target_axes:
         return img
     if sorted(source_axes) != sorted(target_axes):
-        raise ValueError(f"Cannot transpose from axes {source_axes} to incompatible axes {target_axes}.")
+        raise ValueError(
+            f"Cannot transpose from axes {source_axes} to incompatible axes {target_axes}."
+        )
     axis_order = [source_axes.index(axis) for axis in target_axes]
     return np.transpose(img, axes=axis_order)
 
@@ -167,7 +177,9 @@ def _select_channel(
     channel_axis = input_axes.index("C")
     num_channels = img.shape[channel_axis]
     if channel_idx < 0 or channel_idx >= num_channels:
-        raise ValueError(f"channel_idx={channel_idx} exceeds available channels={num_channels}.")
+        raise ValueError(
+            f"channel_idx={channel_idx} exceeds available channels={num_channels}."
+        )
 
     img = np.take(img, indices=channel_idx, axis=channel_axis)
     return img, input_axes.replace("C", "")
@@ -195,9 +207,13 @@ def _prepare_input_for_model(
                 f"Model axes {model_axes} has no channel axis, but channel_idx=-1 (original) "
                 f"would keep {prepared_axes}. Select a specific channel index (0 to N-1)."
             )
-        prepared_img, prepared_axes = _select_channel(prepared_img, prepared_axes, channel_idx)
+        prepared_img, prepared_axes = _select_channel(
+            prepared_img, prepared_axes, channel_idx
+        )
     elif "C" not in prepared_axes and "C" in model_axes:
-        raise ValueError(f"Model expects channel axis ({model_axes}) but input data axes are {input_axes}.")
+        raise ValueError(
+            f"Model expects channel axis ({model_axes}) but input data axes are {input_axes}."
+        )
 
     model_spatial_ndim = _spatial_ndim(model_axes)
     input_spatial_ndim = _spatial_ndim(prepared_axes)
@@ -214,7 +230,9 @@ def _prepare_input_for_model(
     if model_spatial_ndim == 2 and input_spatial_ndim == 3 and "Z" in prepared_axes:
         return prepared_img, prepared_axes, True
 
-    raise ValueError(f"Cannot use model axes {model_axes} with input data axes {prepared_axes}.")
+    raise ValueError(
+        f"Cannot use model axes {model_axes} with input data axes {prepared_axes}."
+    )
 
 
 def _predict_instances(
@@ -225,7 +243,11 @@ def _predict_instances(
     """Normalize the input image and run StarDist prediction."""
     normalize_pmin = config.get("normalize_pmin", 1)
     normalize_pmax = config.get("normalize_pmax", 99.8)
-    img_normalized = normalize(img, normalize_pmin, normalize_pmax) if config.get("normalize_img", True) else img
+    img_normalized = (
+        normalize(img, normalize_pmin, normalize_pmax)
+        if config.get("normalize_img", True)
+        else img
+    )
 
     prob_thresh = config.get("prob_thresh")
     nms_thresh = config.get("nms_thresh")
@@ -321,8 +343,12 @@ def run_stardist(
         channel_idx,
     )
 
-    channel_desc = "original (all channels)" if channel_idx == -1 else f"channel {channel_idx}"
-    print(f"Running inference on {channel_desc}; prepared axes: {prepared_axes}, shape: {prepared_img.shape}")
+    channel_desc = (
+        "original (all channels)" if channel_idx == -1 else f"channel {channel_idx}"
+    )
+    print(
+        f"Running inference on {channel_desc}; prepared axes: {prepared_axes}, shape: {prepared_img.shape}"
+    )
 
     if run_over_slices:
         print("Running 2D model slice-by-slice over Z axis.")
@@ -336,7 +362,9 @@ def run_stardist(
     else:
         labels = _predict_instances(prepared_img, model, config)
 
-    print(f"Segmentation complete. Labels shape: {labels.shape}, unique labels: {len(np.unique(labels))}")
+    print(
+        f"Segmentation complete. Labels shape: {labels.shape}, unique labels: {len(np.unique(labels))}"
+    )
 
     save_masks(save_dir, save_name, labels, idxs=idxs, mask_type=output_mask_type)
 
@@ -357,7 +385,9 @@ if __name__ == "__main__":
         dim_order="CZYX",
     )
 
-    print(f"Input data metadata: channels={cli_args.channels}, num_slices={cli_args.num_slices}")
+    print(
+        f"Input data metadata: channels={cli_args.channels}, num_slices={cli_args.num_slices}"
+    )
 
     run_stardist(
         save_dir=cli_args.output_dir,
@@ -370,5 +400,7 @@ if __name__ == "__main__":
         channels=cli_args.channels,
         num_slices=cli_args.num_slices,
         channel_idx=config.get("channel_idx", -1),
-        output_mask_type=cli_args.output_mask_type if cli_args.output_mask_type != "auto" else "instance",
+        output_mask_type=cli_args.output_mask_type
+        if cli_args.output_mask_type != "auto"
+        else "instance",
     )
