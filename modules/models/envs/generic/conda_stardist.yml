@@ -8,4 +8,4 @@ dependencies:
   - stardist
   - pip
   - pip:
-    - git+https://github.com/FrancisCrickInstitute/aiod_utils.git
+    - aiod_utils==0.1
