@@ -101,6 +101,7 @@ process setupModel {
     path "model_chkpt_meta.json",      emit: model_chkpt_meta
     path "model_config_meta.json",     emit: model_config_meta,     optional: true
     path "model_finetuning_meta.json", emit: model_finetuning_meta, optional: true
+    path "model_meta.json",            emit: model_meta
 
     script:
     def userConfigArg = user_config ? "--user-config \"${user_config}\"" : ""
@@ -126,11 +127,13 @@ process runModel {
     path model_chkpt
     val model_type
     val output_mask_type
+    val model_axes
 
     output:
     tuple val("${image_path.baseName}"), val(meta), val(mask_fname), val(mask_output_dir), path("${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
 
     script:
+    def modelAxesArg = model_axes ? "--model-axes \"${model_axes}\"" : ""
     """
     python ${moduleDir}/resources/usr/bin/run_${params.model}.py \
     --img-path ${image_path} \
@@ -142,7 +145,8 @@ process runModel {
     --idxs ${idxs.join(" ")} \
     --channels ${meta.channels} \
     --num-slices ${meta.num_slices} \
-    --output-mask-type ${output_mask_type}
+    --output-mask-type ${output_mask_type} \
+    ${modelAxesArg}
     """
 }
 

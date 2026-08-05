@@ -171,6 +171,11 @@ workflow {
         | map    { _label, file -> file }
         | first()
 
+    // Registry-resolved axes for selected model-version
+    model_axes_ch = setupModel.out.model_meta
+        | map { new groovy.json.JsonSlurper().parse(it).axes ?: '' }
+        | first()
+
     if ( params.preprocess ) {
         // Split the CSV into individual images, so we preprocessImage distributes over each source image
         channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
@@ -261,7 +266,8 @@ workflow {
         config_ch,
         chkpt_ch,
         params.model_type,
-        params.output_mask_type.toLowerCase()
+        params.output_mask_type.toLowerCase(),
+        model_axes_ch
     ).mask
 
     // Group all the outputs per image together to combine.
