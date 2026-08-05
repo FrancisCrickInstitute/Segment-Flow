@@ -27,7 +27,8 @@ def _find_stardist_model_dir(search_root: Path) -> Path:
 
 
 def _extract_stardist_archive(archive_path: Path, model_type: str) -> Path:
-    """Extract a StarDist archive into a stable cache directory and return the model directory."""
+    """Extract a StarDist archive into a cache directory and return the model directory."""
+    # TODO: Look to handle unzipping at setup to avoid per-substack unzipping
     extract_root = archive_path.parent / f"{model_type}_extracted"
     marker_path = extract_root / ".aiod_extracted"
 
@@ -73,7 +74,7 @@ def _load_stardist_model(model_type: str, model_chkpt: Path | str, model_axes: s
     Returns:
         Loaded StarDist model
     """
-    model_class = _get_model_class(model_axes)
+    model_class = StarDist3D if _spatial_ndim(model_axes) == 3 else StarDist2D
     model_dir = _resolve_stardist_model_dir(model_chkpt, model_type)
 
     if model_dir is None:
@@ -85,8 +86,54 @@ def _load_stardist_model(model_type: str, model_chkpt: Path | str, model_axes: s
     return model_class(None, name=model_dir.name, basedir=str(model_dir.parent))
 
 
-def _get_model_class(model_axes: str):
-    return StarDist3D if _spatial_ndim(model_axes) == 3 else StarDist2D
+def _spatial_ndim(axes: str) -> int:
+    return sum(axis != "C" for axis in axes)
+
+
+def _resolve_model_axes(raw: str | None) -> str:
+    """Validate the model axes piped in from the registry via setupModel."""
+    # TODO: Delete this func once we centralise model<->input validation into it's own process
+    if not raw:
+        raise ValueError(
+            "No model axes supplied via --model-axes. This should be resolved "
+            "from the registry model version's 'axes' field at the setupModel stage."
+        )
+    axes = raw.upper()
+    unsupported = set(axes) - set("CZYX")
+    if unsupported:
+        raise ValueError(
+            f"Unsupported model axes {axes!r}: cannot handle {sorted(unsupported)}."
+        )
+    return axes
+
+
+def _resolve_channel(
+    img: np.ndarray, model_axes: str, channels: int, channel_idx: int
+) -> tuple[np.ndarray, str]:
+    """Reduce the loaded CZYX image's channel axis to what the model needs.
+
+    Returns the (possibly channel-reduced) image and its current axis order:
+    'CZYX' if the model wants a channel axis, otherwise 'ZYX'.
+    """
+    if "C" in model_axes:
+        return img, "CZYX"
+    if channels > 1:
+        if channel_idx < 0 or channel_idx >= channels:
+            raise ValueError(
+                f"Image has {channels} channels but model axes {model_axes!r} have "
+                f"no channel axis. Select a channel index (0 to {channels - 1}), "
+                f"got {channel_idx}."
+            )
+        return img[channel_idx], "ZYX"
+    return img[0], "ZYX"
+
+
+def _transpose_to_axes(
+    img: np.ndarray, source_axes: str, target_axes: str
+) -> np.ndarray:
+    if source_axes == target_axes:
+        return img
+    return np.transpose(img, axes=[source_axes.index(a) for a in target_axes])
 
 
 def _get_prediction_n_tiles(model, img: np.ndarray, config: dict):
@@ -96,150 +143,12 @@ def _get_prediction_n_tiles(model, img: np.ndarray, config: dict):
         return tuple(n_tiles)
 
     if hasattr(model, "_guess_n_tiles"):
-        return model._guess_n_tiles(img)  # pylint: disable=protected-access
+        return model._guess_n_tiles(img)  # noqa: SLF001
 
     return None
 
 
-def _normalise_axes(axes: str | None) -> str | None:
-    if not isinstance(axes, str):
-        return None
-    axes = "".join(ch for ch in axes.upper() if ch.isalpha())
-    return axes or None
-
-
-def _get_model_axes(config: dict) -> str:
-    """Get the expected input axes for the selected model version."""
-    axes = _normalise_axes(config.get("axes"))
-    if axes is None:
-        raise ValueError(
-            "StarDist model axes are missing from the model config. Please provide 'axes' in the selected model version."
-        )
-    return axes
-
-
-def _spatial_ndim(axes: str) -> int:
-    return sum(axis != "C" for axis in axes)
-
-
-def _infer_input_axes(channels: int, num_slices: int) -> str:
-    has_channels = channels is not None and int(channels) > 1
-    has_z = num_slices is not None and int(num_slices) > 1
-
-    axis_lookup = {
-        (False, False): "YX",
-        (False, True): "ZYX",
-        (True, False): "CYX",
-        (True, True): "CZYX",
-    }
-    return axis_lookup[(has_channels, has_z)]
-
-
-def _compact_loaded_image(
-    img: np.ndarray, channels: int, num_slices: int
-) -> tuple[np.ndarray, str]:
-    input_axes = _infer_input_axes(channels, num_slices)
-
-    if input_axes == "CZYX":
-        return img, input_axes
-    if input_axes == "CYX":
-        return img[:, 0, :, :], input_axes
-    if input_axes == "ZYX":
-        return img[0, :, :, :], input_axes
-    return img[0, 0, :, :], input_axes
-
-
-def _transpose_to_axes(
-    img: np.ndarray, source_axes: str, target_axes: str
-) -> np.ndarray:
-    if source_axes == target_axes:
-        return img
-    if sorted(source_axes) != sorted(target_axes):
-        raise ValueError(
-            f"Cannot transpose from axes {source_axes} to incompatible axes {target_axes}."
-        )
-    axis_order = [source_axes.index(axis) for axis in target_axes]
-    return np.transpose(img, axes=axis_order)
-
-
-def _select_channel(
-    img: np.ndarray,
-    input_axes: str,
-    channel_idx: int,
-) -> tuple[np.ndarray, str]:
-    if "C" not in input_axes:
-        return img, input_axes
-
-    # -1 means use the original image as-is (no channel extraction)
-    if channel_idx == -1:
-        return img, input_axes
-
-    channel_axis = input_axes.index("C")
-    num_channels = img.shape[channel_axis]
-    if channel_idx < 0 or channel_idx >= num_channels:
-        raise ValueError(
-            f"channel_idx={channel_idx} exceeds available channels={num_channels}."
-        )
-
-    img = np.take(img, indices=channel_idx, axis=channel_axis)
-    return img, input_axes.replace("C", "")
-
-
-def _prepare_input_for_model(
-    img: np.ndarray,
-    input_axes: str,
-    model_axes: str,
-    channel_idx: int,
-) -> tuple[np.ndarray, str, bool]:
-    """Prepare image data to match the selected model axes.
-
-    Returns:
-        prepared_img: Input ready for direct prediction, or the full stack for slice-wise 2D.
-        prepared_axes: Axes of prepared_img.
-        run_over_slices: Whether a 2D model should be applied slice-by-slice over Z.
-    """
-    prepared_img = img
-    prepared_axes = input_axes
-
-    if "C" in prepared_axes and "C" not in model_axes:
-        if channel_idx == -1:
-            raise ValueError(
-                f"Model axes {model_axes} has no channel axis, but channel_idx=-1 (original) "
-                f"would keep {prepared_axes}. Select a specific channel index (0 to N-1)."
-            )
-        prepared_img, prepared_axes = _select_channel(
-            prepared_img, prepared_axes, channel_idx
-        )
-    elif "C" not in prepared_axes and "C" in model_axes:
-        raise ValueError(
-            f"Model expects channel axis ({model_axes}) but input data axes are {input_axes}."
-        )
-
-    model_spatial_ndim = _spatial_ndim(model_axes)
-    input_spatial_ndim = _spatial_ndim(prepared_axes)
-
-    if input_spatial_ndim < model_spatial_ndim:
-        raise ValueError(
-            f"Model expects {model_axes} input, but received lower-dimensional data with axes {prepared_axes}."
-        )
-
-    if input_spatial_ndim == model_spatial_ndim:
-        prepared_img = _transpose_to_axes(prepared_img, prepared_axes, model_axes)
-        return prepared_img, model_axes, False
-
-    if model_spatial_ndim == 2 and input_spatial_ndim == 3 and "Z" in prepared_axes:
-        return prepared_img, prepared_axes, True
-
-    raise ValueError(
-        f"Cannot use model axes {model_axes} with input data axes {prepared_axes}."
-    )
-
-
-def _predict_instances(
-    img: np.ndarray,
-    model,
-    config: dict,
-) -> np.ndarray:
+def _predict_instances(img: np.ndarray, model, config: dict) -> np.ndarray:
     """Normalize the input image and run StarDist prediction."""
     normalize_pmin = config.get("normalize_pmin", 1)
     normalize_pmax = config.get("normalize_pmax", 99.8)
@@ -249,51 +158,14 @@ def _predict_instances(
         else img
     )
 
-    prob_thresh = config.get("prob_thresh")
-    nms_thresh = config.get("nms_thresh")
-    n_tiles = _get_prediction_n_tiles(model, img_normalized, config)
-    scale = config.get("scale")
-
     labels, _ = model.predict_instances(
         img_normalized,
-        prob_thresh=prob_thresh,
-        nms_thresh=nms_thresh,
-        n_tiles=n_tiles,
-        scale=scale,
+        prob_thresh=config.get("prob_thresh"),
+        nms_thresh=config.get("nms_thresh"),
+        n_tiles=_get_prediction_n_tiles(model, img_normalized, config),
+        scale=config.get("scale"),
     )
     return labels
-
-
-def _run_stardist_2d_stack(
-    img_stack: np.ndarray,
-    stack_axes: str,
-    model,
-    config: dict,
-    model_axes: str,
-) -> np.ndarray:
-    """Run 2D StarDist prediction on each slice of a 3D stack.
-
-    Args:
-        img_stack: Image stack with a Z axis and optional channel axis
-        model: StarDist2D model
-        config: Configuration dictionary containing model parameters
-
-    Returns:
-        3D label image (ZYX)
-    """
-    z_axis = stack_axes.index("Z")
-    slice_axes = stack_axes.replace("Z", "")
-    num_slices = img_stack.shape[z_axis]
-
-    print(f"Running 2D model on {num_slices} slices...")
-    all_labels = []
-
-    for z_idx in range(num_slices):
-        img_slice = np.take(img_stack, indices=z_idx, axis=z_axis)
-        img_slice = _transpose_to_axes(img_slice, slice_axes, model_axes)
-        all_labels.append(_predict_instances(img_slice, model, config))
-
-    return np.stack(all_labels, axis=0)
 
 
 def run_stardist(
@@ -303,6 +175,7 @@ def run_stardist(
     img: np.ndarray,
     model_type: str,
     model_chkpt: Path | str,
+    model_axes: str,
     config: dict,
     channels: int,
     num_slices: int,
@@ -315,52 +188,58 @@ def run_stardist(
         save_dir: Directory to save the output masks
         save_name: Base name for saved files
         idxs: Slice indices being processed
-        img: Input image array (shape varies based on input, see below)
+        img: Input image array, loaded as CZYX
         model_type: Model type/version to use
-        model_chkpt: Path to model checkpoint directory
+        model_chkpt: Path to model checkpoint directory or zip archive
+        model_axes: Axes the model expects (e.g. 'YX', 'ZYX', 'YXC'), resolved
+            from the registry at the setupModel stage
         config: Configuration dictionary containing model parameters
-        channels: Number of image channels in the source data
-        num_slices: Number of Z slices in the source data
-        channel_idx: Channel index to use when channel selection is required
+        channels: Number of channels in the source image
+        num_slices: Number of Z slices in the source image
+        channel_idx: Channel to select when the model has no channel axis (-1 = none)
         output_mask_type: Mask type to save ('binary', 'instance')
     """
-    print(f"Channel index for inference: {channel_idx}")
     save_dir = Path(save_dir)
-    model_axes = _get_model_axes(config)
-
-    print(f"Running StarDist with model axes {model_axes}...")
     print(f"Loaded image shape (CZYX): {img.shape}")
 
+    if "Z" in model_axes and num_slices <= 1:
+        # TODO: Delete this part once we centralise model<->input validation into it's own process
+        raise ValueError(
+            f"Model expects {model_axes} (3D) input, but the image has only 1 Z slice."
+        )
+
     model = _load_stardist_model(model_type, model_chkpt, model_axes)
-    print(f"Model loaded: {model_type}")
-    compact_img, input_axes = _compact_loaded_image(img, channels, num_slices)
-    print(f"Detected input data axes: {input_axes}; compact shape: {compact_img.shape}")
+    print(f"Model loaded: {model_type}; expects axes {model_axes}")
 
-    prepared_img, prepared_axes, run_over_slices = _prepare_input_for_model(
-        compact_img,
-        input_axes,
-        model_axes,
-        channel_idx,
-    )
+    img, axes = _resolve_channel(img, model_axes, channels, channel_idx)
 
-    channel_desc = (
-        "original (all channels)" if channel_idx == -1 else f"channel {channel_idx}"
-    )
-    print(
-        f"Running inference on {channel_desc}; prepared axes: {prepared_axes}, shape: {prepared_img.shape}"
-    )
+    # Flag for (spatial) 2D model with (spatial) 3D data
+    run_over_slices = "Z" not in model_axes and num_slices > 1
 
     if run_over_slices:
-        print("Running 2D model slice-by-slice over Z axis.")
-        labels = _run_stardist_2d_stack(
-            prepared_img,
-            prepared_axes,
-            model,
-            config,
-            model_axes,
+        z_axis = axes.index("Z")
+        slice_axes = axes.replace("Z", "")
+        print(f"Running 2D model slice-by-slice over {img.shape[z_axis]} Z slices...")
+        labels = np.stack(
+            [
+                _predict_instances(
+                    _transpose_to_axes(
+                        np.take(img, indices=z_idx, axis=z_axis), slice_axes, model_axes
+                    ),
+                    model,
+                    config,
+                )
+                for z_idx in range(img.shape[z_axis])
+            ],
+            axis=0,
         )
     else:
-        labels = _predict_instances(prepared_img, model, config)
+        # Remove placeholder Z for (spatial) 2D data
+        if "Z" not in model_axes:
+            img = np.take(img, indices=0, axis=axes.index("Z"))
+            axes = axes.replace("Z", "")
+        img = _transpose_to_axes(img, axes, model_axes)
+        labels = _predict_instances(img, model, config)
 
     print(
         f"Segmentation complete. Labels shape: {labels.shape}, unique labels: {len(np.unique(labels))}"
@@ -376,7 +255,10 @@ if __name__ == "__main__":
     with open(cli_args.model_config) as f:
         config = yaml.safe_load(f)
 
-    # Load image and apply preprocessing if specified
+    model_axes = _resolve_model_axes(cli_args.model_axes)
+
+    # Load as CZYX, like every other model script; reshaped in run_stardist() to
+    # match model_axes.
     img = load_img(
         fpath=cli_args.img_path,
         idxs=cli_args.idxs,
@@ -396,6 +278,7 @@ if __name__ == "__main__":
         img=img,
         model_type=cli_args.model_type,
         model_chkpt=cli_args.model_chkpt,
+        model_axes=model_axes,
         config=config,
         channels=cli_args.channels,
         num_slices=cli_args.num_slices,
