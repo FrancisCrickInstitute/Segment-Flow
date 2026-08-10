@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from aiod_utils.io import get_image_id, load_image_data, save_image
+from aiod_utils.io import load_image_data, save_image
 from aiod_utils.preprocess import (
     get_params_str,
     hash_params_str,
@@ -16,8 +16,7 @@ from aiod_utils.preprocess import (
 from utils import DEFAULT_DIM_ORDER as DIM_ORDER
 
 
-def construct_fname(img_path, params_str):
-    image_id = get_image_id(img_path)
+def construct_fname(image_id, params_str):
     param_hash = hash_params_str(params_str)
     # image_id + a short hash of the preprocessing params (not the raw
     # string) keeps names short and stops them accumulating a fresh
@@ -25,8 +24,8 @@ def construct_fname(img_path, params_str):
     return Path(f"{image_id}_{param_hash}.ome.zarr")
 
 
-def save_preprocessed_image(img_path, params_str, prep_image, save_dims):
-    fname = construct_fname(img_path, params_str)
+def save_preprocessed_image(image_id, params_str, prep_image, save_dims):
+    fname = construct_fname(image_id, params_str)
     save_image(prep_image, fname, dim_order=save_dims)
     return fname
 
@@ -74,27 +73,21 @@ if __name__ == "__main__":
     # Loop over each set and preprocess
     # Derive the dim_order that matches the squeezed data
     save_dims = "".join(d for i, d in enumerate(DIM_ORDER) if i not in squeezed_axes)
-    # Stable identity for the source image, independent of preprocessing branch
-    image_id = get_image_id(args.img_path)
+    # Retrieve image_id for naming
+    image_id = df_img["image_id"].iloc[0]
     for i, preprocess_dict in enumerate(preprocess_methods):
         prep_image = run_preprocess(image, methods=preprocess_dict, parse=False)
         params_str = get_params_str(preprocess_dict, to_save=True)
         # Get the new filename, identified by a short hash of the params
         fname = save_preprocessed_image(
-            img_path=args.img_path,
+            image_id=image_id,
             params_str=params_str,
             prep_image=prep_image,
             save_dims=save_dims,
         )
         # Update the dataframe with the new image path, ensuring full path given
         df_new.loc[i, "img_path"] = fname
-        # image_id/prep_hash travel onward as plain fields so downstream
-        # naming (getMaskName) never has to re-derive identity from a
-        # filename, or recompute a hash that must stay bit-for-bit
-        # consistent with what aiod_napari independently predicts.
-        # prep_hash also lets combine_stacks.py recover this branch's full
-        # preprocessing config later by matching it back against
-        # params.preprocess, rather than regexing it out of a filename.
+        # Embed image_id/prep_hash to use throughout for branching etc.
         df_new.loc[i, "image_id"] = image_id
         df_new.loc[i, "prep_hash"] = hash_params_str(params_str)
         # Update shape info in the dataframe if downsampled/modified
