@@ -115,15 +115,14 @@ log.info """\
          """.stripIndent()
 
 
-// Mirrors aiod_utils.io.get_mask_name() - keep both in sync if this changes.
-// Deliberately opaque (no task/model/model_type): resolvedParamHash already
-// covers them for uniqueness, and they're visible in the relevant model dir
+// NOTE: Mirrors aiod_utils.io.get_mask_name() - keep both in sync if this changes.
+// resolvedParamHash encodes all relevant params to ensure uniqueness
 def getMaskName(image_id, prep_hash, resolvedParamHash) {
     def prep_suffix = prep_hash ? "_${prep_hash}" : ""
     return "${image_id}${prep_suffix}_masks_${resolvedParamHash}"
 }
 
-// NOTE: Name this workflow when finetuning is implemented for multiple workflows
+// TODO: Name this workflow when finetuning is implemented for multiple workflows
 workflow {
     // Dynamically discover available models by scanning for run_<model>.py files
     def modelScriptsDir = file("${workflow.projectDir}/modules/models/resources/usr/bin")
@@ -141,18 +140,12 @@ workflow {
     )
 
     // Parse each registry metadata JSON into a (name, location, type) tuple and
-    // call downloadArtifact once per artifact. Each call has a single mandatory
-    // output, so storeDir's cache check is always unambiguous. The optional
-    // channels from setupModel act as natural gates: if a model has no config,
-    // setupModel.out.model_config_meta emits nothing and downloadArtifact is
-    // never scheduled for it.
+    // call downloadArtifact once per artifact (if present)
     def parseMeta = { label, meta_file ->
         def m = new groovy.json.JsonSlurper().parse(meta_file)
         tuple(label, m.name, m.location, m.type)
     }
 
-    // Merge all artifact metadata into one channel so downloadArtifact is only
-    // called once — DSL2 does not allow reusing a process in the same workflow.
     // The label ('checkpoint', 'config', 'finetuning') is carried through as a
     // val so we can filter the mixed output channel downstream.
     downloadArtifact(

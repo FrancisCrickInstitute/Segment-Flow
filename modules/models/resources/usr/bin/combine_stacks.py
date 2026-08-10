@@ -429,9 +429,9 @@ if __name__ == "__main__":
     output_format = cli_args.output_format.lower()
     save_path = f"{cli_args.mask_fname}_all.{output_format}"
     # Get downsample factor for metadata if used.
-    # NOTE: Our Napari plugin uses this as an identifier to rescale for visualization.
+    # NOTE: Our Napari plugin uses this as an identifier to rescale for visualization
     # Recover this branch's preprocessing set from the run's full config by
-    # matching prep_hash, rather than regexing out of the hashed mask fname
+    # matching prep_hash
     preprocess_methods = get_preprocess_methods(
         cli_args.preprocess_config, cli_args.prep_hash
     )

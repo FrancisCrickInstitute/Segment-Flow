@@ -1,6 +1,6 @@
 process computeImageIds {
     // Adds a stable image_id (plus a placeholder prep_hash) to every row of
-    // the image CSV before any preprocessing branching.
+    // the image CSV before any preprocessing branching
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
     memory { 500.MB * task.attempt as MemoryUnit }
     time { 5.m * task.attempt }
@@ -30,8 +30,7 @@ process preprocessImage {
     path img_csv
 
     output:
-    // preprocess_image.py names both outputs by image_id (bioio-based
-    // extension stripping)
+    // preprocess_image.py names both outputs by image_id
     path "${meta.image_id}.csv", emit: img_csv
     path "${meta.image_id}_*.ome.zarr", emit: prep_imgs
 
@@ -78,14 +77,13 @@ process splitStacks {
 }
 
 process downloadArtifact {
-    // storeDir is the external model cache. Nextflow checks whether the output
+    // storeDir is the central AIoD cache. Nextflow checks whether the output
     // file already exists there before deciding to run this process:
     //   - Cache hit:  execution is skipped; the existing file is symlinked into
-    //                 the task work directory (reversing the usual publishDir flow).
+    //                 the task work directory
     //   - Cache miss: the script runs and the result is persisted to the store.
-    //
     // One process call per artifact means each has a single mandatory output, so
-    // storeDir's cache check is always unambiguous — no optional outputs needed.
+    // storeDir's cache check is always unambiguous (no optional outputs)
     conda "${moduleDir}/envs/conda_setup_model.yml"
     storeDir params.model_chkpt_dir
 
@@ -107,11 +105,7 @@ process downloadArtifact {
 process setupModel {
     // Queries the AIoD registry and writes one JSON metadata file per artifact
     // (checkpoint always present; config and finetuning only when the model has
-    // them). No downloading occurs here — that is handled by downloadArtifact.
-    // The optional outputs here are correct and safe: storeDir is not used on
-    // this process, so Nextflow never skips execution based on output existence.
-    // An absent config/finetuning simply means the script didn't write that file,
-    // and the optional channel emits nothing — which is the intended behaviour.
+    // them, i.e. nothing is emitted)
     conda "${moduleDir}/envs/conda_setup_model.yml"
 
     input:
