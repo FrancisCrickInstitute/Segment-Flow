@@ -33,6 +33,8 @@ process preprocessImage {
     // preprocess_image.py names both outputs by image_id
     path "${meta.image_id}.csv", emit: img_csv
     path "${meta.image_id}_*.ome.zarr", emit: prep_imgs
+    // Log prep hashes and associated sets
+    path "preprocess_hashes.txt", emit: hash_legend
 
     script:
     """

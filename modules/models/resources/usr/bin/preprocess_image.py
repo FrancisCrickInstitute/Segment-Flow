@@ -75,9 +75,12 @@ if __name__ == "__main__":
     save_dims = "".join(d for i, d in enumerate(DIM_ORDER) if i not in squeezed_axes)
     # Retrieve image_id for naming
     image_id = df_img["image_id"].iloc[0]
+    # Container to store the hash with the preprocessing params for logging
+    legend_lines = []
     for i, preprocess_dict in enumerate(preprocess_methods):
         prep_image = run_preprocess(image, methods=preprocess_dict, parse=False)
         params_str = get_params_str(preprocess_dict, to_save=True)
+        prep_hash = hash_params_str(params_str)
         # Get the new filename, identified by a short hash of the params
         fname = save_preprocessed_image(
             image_id=image_id,
@@ -89,7 +92,10 @@ if __name__ == "__main__":
         df_new.loc[i, "img_path"] = fname
         # Embed image_id/prep_hash to use throughout for branching etc.
         df_new.loc[i, "image_id"] = image_id
-        df_new.loc[i, "prep_hash"] = hash_params_str(params_str)
+        df_new.loc[i, "prep_hash"] = prep_hash
+        legend_lines.append(
+            f"[{prep_hash}] {get_params_str(preprocess_dict, to_save=False)}"
+        )
         # Update shape info in the dataframe if downsampled/modified
         if image.shape != prep_image.shape:
             # Re-insert the singleton axes that were squeezed out to restore CZYX identity.
@@ -107,3 +113,7 @@ if __name__ == "__main__":
             df_new.loc[i, "width"] = new_width
     # Save the new dataframe, matching the img_csv glob in modules/models/main.nf
     df_new.to_csv(f"{image_id}.csv", index=False)
+    # Write the hashes to a file so we can log it with Nextflow instead of printing
+    # NOTE: I thought logging with Nxf would avoid stdout eating, ensures
+    # it's in the nextflow.log and not reliant on debug=true
+    Path("preprocess_hashes.txt").write_text("\n".join(legend_lines) + "\n")

@@ -197,6 +197,11 @@ workflow {
         preprocessImage.out.img_csv
             | collectFile(name: "all_img_info.csv", keepHeader: true)
             | set { all_img_info }
+        // Grab the hashes and associated prep sets and log for info
+        preprocessImage.out.hash_legend
+            | first()
+            | map { it.text }
+            | subscribe { legend -> log.info "\nPreprocessing hash legend for this run:\n${legend}" }
         // Check for presence of any no-op sets & integrate if so
         if ( params.preprocess.any { it instanceof List && it.isEmpty() } ) {
             normalized_img_dir.splitCsv( header: true, quote: '\"' )
