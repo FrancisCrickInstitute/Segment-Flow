@@ -1,0 +1,34 @@
+# Trigger: push to main that touches profiles/**
+# Needs CROSS_REPO_PAT configured
+#   Fine-grained PAT with Contents+PRs read/write on aiod_napari
+
+name: Notify downstream of profiles change
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "profiles/**"
+
+jobs:
+  notify-downstream:
+    runs-on: ubuntu-latest
+    strategy:
+      # A dispatch failure to one repo does not cancel the others
+      fail-fast: false
+      matrix:
+        repo:
+          - FrancisCrickInstitute/aiod_napari
+
+    steps:
+      - name: Dispatch profiles-updated event to ${{ matrix.repo }}
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_PAT }}
+          REPO: ${{ matrix.repo }}
+        run: |
+          gh api \
+            --method POST \
+            repos/${REPO}/dispatches \
+            --field event_type=profiles-updated \
+            --field client_payload[source_repo]="${GITHUB_REPOSITORY}" \
+            --field client_payload[source_ref]="${GITHUB_SHA}"
