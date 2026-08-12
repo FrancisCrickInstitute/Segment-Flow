@@ -111,36 +111,25 @@ if __name__ == "__main__":
     with open(cli_args.model_config) as f:
         config = yaml.safe_load(f)
 
+    # Determine input layout based on image shape
+    # Since load_img always returns CZYX format, we need to handle the layout accordingly
+    if cli_args.num_slices > 1:
+        # 3D data
+        # Squeeze channel dimension for single channel 3D data
+        input_layout = "ZYX" if cli_args.channels == 1 else "CZYX"
+    else:
+        # 2D data
+        # Squeeze both channel and z dimensions for single channel 2D data
+        input_layout = "YX" if cli_args.channels == 1 else "CYX"
+
     # Load image and apply preprocessing if specified
     img = load_img(
         fpath=cli_args.img_path,
         idxs=cli_args.idxs,
         channels=cli_args.channels,
         num_slices=cli_args.num_slices,
-        dim_order="CZYX",
+        dim_order=input_layout,
     )
-
-    # Determine input layout based on image shape
-    # Since load_img always returns CZYX format, we need to handle the layout accordingly
-    if cli_args.num_slices > 1:
-        # 3D data
-        if cli_args.channels == 1:
-            # Squeeze channel dimension for single channel 3D data
-            img = img[0]  # Remove the channel dimension
-            input_layout = "ZYX"
-        else:
-            # Multi-channel 3D data
-            input_layout = "CZYX"
-    else:
-        # 2D data
-        if cli_args.channels == 1:
-            # Squeeze both channel and z dimensions for single channel 2D data
-            img = img[0, 0]  # Remove channel and z dimensions
-            input_layout = "YX"
-        else:
-            # Multi-channel 2D data
-            img = img[:, 0, :, :]  # Remove z dimension but keep channels
-            input_layout = "CYX"
 
     config["input_layout"] = input_layout
 

@@ -6,22 +6,22 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import skimage.io
-from aiod_utils.io import load_image_data
+from aiod_utils.io import load_image_data, save_image
 from aiod_utils.preprocess import get_params_str, load_methods, run_preprocess
+from utils import DEFAULT_DIM_ORDER as DIM_ORDER
 
 
 def construct_fname(img_path, preprocess_params):
     suffix = get_params_str(preprocess_params, to_save=True)
-    img_path = Path(img_path)
-    return f"{img_path.stem}_{suffix}{img_path.suffix}"
+    # Preserve full original filename (including extension) to avoid
+    # Nextflow simpleName stripping dots in param values (e.g. clipLimit=3.0).
+    # Always output as OME-Zarr for intermediates.
+    return Path(f"{Path(img_path).name}_{suffix}.ome.zarr")
 
 
-def save_preprocessed_image(img_path, preprocess_params, prep_image):
+def save_preprocessed_image(img_path, preprocess_params, prep_image, save_dims):
     fname = construct_fname(img_path, preprocess_params)
-    # Save the image
-    # TODO: Switch over to bioio when fully sorted, standardising to OME-TIFF internally within Segment-Flow
-    skimage.io.imsave(fname, prep_image)
+    save_image(prep_image, fname, dim_order=save_dims)
     return fname
 
 
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # TODO: Switch to return_dask, map over blocks, and check output as described at top
     # Load with explicit CZYX ordering so axis identity is preserved for all image types,
     # including RGB images where the S (samples) dimension is mapped to C, giving (C, Z, H, W).
-    image_4d = load_image_data(args.img_path, dim_order="CZYX")
+    image_4d = load_image_data(args.img_path, dim_order=DIM_ORDER)
     # Record which axes are singleton before squeezing so we can reconstruct CZYX afterwards
     squeezed_axes = [i for i, s in enumerate(image_4d.shape) if s == 1]
     image = image_4d.squeeze()
@@ -61,6 +61,8 @@ if __name__ == "__main__":
     # Create a new dataframe to store the new images, repeating rows per preprocessing set
     df_new = pd.concat([df_img.copy()] * len(preprocess_methods), ignore_index=True)
     # Loop over each set and preprocess
+    # Derive the dim_order that matches the squeezed data
+    save_dims = "".join(d for i, d in enumerate(DIM_ORDER) if i not in squeezed_axes)
     for i, preprocess_dict in enumerate(preprocess_methods):
         prep_image = run_preprocess(image, methods=preprocess_dict, parse=False)
         # Get the new filename with embedded preprocessing params
@@ -68,6 +70,7 @@ if __name__ == "__main__":
             img_path=args.img_path,
             preprocess_params=preprocess_dict,
             prep_image=prep_image,
+            save_dims=save_dims,
         )
         # Update the dataframe with the new image path, ensuring full path given
         df_new.loc[i, "img_path"] = fname
@@ -87,4 +90,4 @@ if __name__ == "__main__":
             df_new.loc[i, "height"] = new_height
             df_new.loc[i, "width"] = new_width
     # Save the new dataframe
-    df_new.to_csv(f"{Path(args.img_path).stem}.csv", index=False)
+    df_new.to_csv(f"{Path(args.img_path).name}.csv", index=False)

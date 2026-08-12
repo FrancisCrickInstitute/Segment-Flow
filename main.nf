@@ -117,7 +117,7 @@ log.info """\
 
 // Function to get the name of the mask file given the image and model-version-task
 def getMaskName(img_file, resolvedParamHash) {
-    return "${img_file.baseName}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}-${resolvedParamHash}"
+    return "${img_file.name}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}-${resolvedParamHash}"
 }
 
 // NOTE: Name this workflow when finetuning is implemented for multiple workflows
