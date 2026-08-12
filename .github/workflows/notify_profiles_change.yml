@@ -1,4 +1,4 @@
-# Trigger: push to main that touches profiles/**
+# Trigger: push to master that touches profiles/**
 # Needs CROSS_REPO_PAT configured
 #   Fine-grained PAT with Contents+PRs read/write on aiod_napari
 
@@ -6,7 +6,7 @@ name: Notify downstream of profiles change
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - "profiles/**"
 
