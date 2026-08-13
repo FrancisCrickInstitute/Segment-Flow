@@ -1,11 +1,25 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl=2
 
+// Concatenate rather than interpolate this into another stripIndent()'d block:
+// its flush-left lines would reset that block's computed indent.
+def banner() {
+    """\
+    ════════════════════════════════════════════════════
+                  █████╗ ██╗        ██████╗
+                 ██╔══██╗██║        ██╔══██╗
+                 ███████║██║ █████╗ ██║  ██║
+                 ██╔══██║██║██╔══██╗██║  ██║
+                 ██║  ██║██║╚█████╔╝██████╔╝
+                 ╚═╝  ╚═╝╚═╝ ╚════╝ ╚═════╝
+
+                   S E G M E N T - F L O W
+    ════════════════════════════════════════════════════
+    """.stripIndent()
+}
+
 def helpMessage() {
-    log.info """\
-    ==============================================
-       S E G M E N T - F L O W  P I P E L I N E
-    ==============================================
+    log.info banner() + """\
 
     Usage:
         nextflow run FrancisCrickInstitute/Segment-Flow [options]
@@ -20,17 +34,17 @@ def helpMessage() {
         --help                  Show this message and exit
         --model_config  PATH    Path to model config file
         --param_hash    STR     Hash of model config
-        --root_dir      PATH    Root cache directory  [default: ${params.root_dir}]
-        --output_format STR     'rle' or 'tiff'       [default: ${params.output_format}]
+        --root_dir      PATH    Root cache directory            [default: ${params.root_dir}]
+        --output_format STR     'rle' or 'tiff'                 [default: ${params.output_format}]
         --output_mask_type STR  'auto','binary','instance'      [default: ${params.output_mask_type}]
         --preprocess    LIST    Preprocessing params (see docs) [default: ${params.preprocess}]
-        --postprocess   BOOL    Run postprocessing    [default: ${params.postprocess}]
+        --postprocess   BOOL    Run postprocessing              [default: ${params.postprocess}]
 
     Profiles:
         local, crick, crick_dev, rosalind
 
     Docs: ${workflow.manifest.docsUrl}
-    ==============================================
+    ════════════════════════════════════════════════════
     """.stripIndent()
 }
 
@@ -48,7 +62,7 @@ def validateParams(params) {
     if ( !params.task      ) errors << "Missing required parameter: --task"
 
     // Type/existence checks
-    if ( params.img_dir && !file(params.img_dir).exists() ) 
+    if ( params.img_dir && !file(params.img_dir).exists() )
         errors << "img_dir does not exist: ${params.img_dir}"
 
     // Check output mask format is custom .rle or .tiff format
@@ -94,11 +108,8 @@ def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
 // Could consider https://stackoverflow.com/a/71529563 for auto-printing
 
-log.info """\
-         ====================================================
-                        AI ONDEMAND PIPELINE
-                        ${log_timestamp}
-         ====================================================
+log.info banner() + """\
+         Started         : ${log_timestamp}
          Model name      : ${params.model}
          Model variant   : ${params.model_type}
          Task            : ${params.task}
@@ -111,7 +122,7 @@ log.info """\
          Profile         : ${workflow.profile}
          ---
          Full Command    : ${workflow.commandLine}
-         ====================================================
+         ════════════════════════════════════════════════════
          """.stripIndent()
 
 
