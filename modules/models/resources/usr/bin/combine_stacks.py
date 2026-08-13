@@ -18,6 +18,7 @@ from numba.core import types
 from numba.typed import Dict
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
+import zarr
 
 # Number of z-slices materialised at a time when reading/encoding the combined volume.
 # aiod_rle.encode makes three transient full-size copies of whatever it is handed
@@ -587,66 +588,70 @@ if __name__ == "__main__":
         metadata = {"downsample_factor": downsample_factor}
     else:
         metadata = {}
-    try:
-        if output_format == "tiff":
-            # Resolve 'auto' using the mask type recorded in the individual patches
-            resolved_mask_type = (
-                mask_type_from_file
-                if cli_args.output_mask_type == "auto"
-                else cli_args.output_mask_type
-            )
-            # Convert binary masks to uint8 0/255 for clean display
-            if resolved_mask_type == "binary":
-                # Convert to binary uint8 with 0/255 values for clean display in downstream tools
-                out_dtype = np.uint8
+    if output_format == "tiff":
+        # Resolve 'auto' using the mask type recorded in the individual patches
+        resolved_mask_type = (
+            mask_type_from_file
+            if cli_args.output_mask_type == "auto"
+            else cli_args.output_mask_type
+        )
+        # Convert binary masks to uint8 0/255 for clean display
+        if resolved_mask_type == "binary":
+            # Convert to binary uint8 with 0/255 values for clean display in downstream tools
+            combined_masks = (combined_masks > 0) * np.uint8(255)
+        # metadata dict is serialised as JSON into the TIFF ImageDescription tag
+        tifffile.imwrite(
+            save_path, combined_masks, metadata=metadata, imagej=True
+        )  # can we tifffile imwrite from a zarr store?
+    else:
+        # Reuse mask_type from decoded patches; fall back to CLI value (skip if 'auto' and absent)
+        resolved_mask_type = mask_type_from_file or (
+            cli_args.output_mask_type if cli_args.output_mask_type != "auto" else None
+        )
+        # here we want to iterate and pass in each chunk (z slice)
 
-                def _to_display(block):
-                    return (block > 0) * np.uint8(255)
+        zarr_combined_masks = zarr.open(
+            "combined_stack.zarr",
+            mode="w",
+            shape=combined_masks.shape,
+            chunks=(
+                combined_masks.shape[0],
+                1,
+                1,
+            ),  # can we consistently get Z? What if 2D?e
+            dtype=combined_masks.dtype,
+        )
+        zarr_combined_masks = combined_masks
 
-            else:
-                # NOTE: The dense implementation ran reduce_dtype before writing, so pick
-                # the same narrowest dtype here rather than inheriting the store's uint16.
-                # A TIFF needs one dtype up front, hence the streaming max first.
-                out_dtype = check_dtype(
-                    combined_masks, max_val=global_max(combined_masks)
-                )
+        rle_combined_masks = []
+        for i in range(combined_masks.shape[0]):
+            slice = zarr_combined_masks[i]
+            rle_slice = aiod_rle.encode(slice)
+            rle_combined_masks += rle_slice
 
-                def _to_display(block):
-                    return block.astype(out_dtype, copy=False)
+        # metadata = rle_combined_masks[0][2]
+        metadata = {"metadata": {"mask_type": "binary"}}
 
-            # metadata dict is serialised as JSON into the TIFF ImageDescription tag
-            # NOTE: Written page-by-page from an iterator so the volume is never resident
-            tifffile.imwrite(
-                save_path,
-                iter_pages(combined_masks, transform=_to_display),
-                shape=combined_masks.shape,
-                dtype=out_dtype,
-                metadata=metadata,
-                imagej=True,
-            )
-        else:
-            # Reuse mask_type from decoded patches; fall back to CLI value (skip if 'auto' and absent)
-            resolved_mask_type = mask_type_from_file or (
-                cli_args.output_mask_type
-                if cli_args.output_mask_type != "auto"
-                else None
-            )
-            # Must be resolved once for the whole volume before slab-wise encoding, so
-            # that every slab is encoded as the same type
-            resolved_mask_type = resolve_mask_type(combined_masks, resolved_mask_type)
-            encoded_masks = encode_streaming(
-                combined_masks,
-                mask_type=resolved_mask_type,
-                metadata=metadata,
-            )
-            aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
-        mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
-        print(f"Memory used after saving: {mem_used:.2f} GB")
-        del combined_masks
-        # Remove the (symlinked) individual masks now that they are combined
-        for mask_path in cli_args.masks:
-            (Path(cli_args.output_dir) / mask_path).unlink()
-    finally:
-        # Remove the scratch stores; they are pure intermediates
-        for store in (combine_store, labelled_store):
-            shutil.rmtree(store, ignore_errors=True)
+        rle_combined_masks = [
+            item for item in rle_combined_masks if "counts" in item
+        ]  # will counts always be there?
+
+        rle_combined_masks.append(metadata)  # is this reliable?
+        rle_combined_masks.insert(0, {"size": combined_masks.shape})
+
+        # --- OLD METHOD ---
+        # encoded_masks = aiod_rle.encode(
+        #     combined_masks,
+        #     mask_type=resolved_mask_type,
+        #     metadata=metadata,
+        # )
+
+        # Free up memory (though too late at this point)
+        # aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
+
+        aiod_rle.save_encoding(rle=rle_combined_masks, fpath=save_path)
+
+    del combined_masks
+    # Remove the (symlinked) individual masks now that they are combined
+    for mask_path in cli_args.masks:
+        (Path(cli_args.output_dir) / mask_path).unlink()
