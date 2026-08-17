@@ -34,6 +34,14 @@ def write_meta(fname: str, name: str, location: str, loc_type: str) -> None:
     print(f"Written metadata for '{name}' -> {fname}")
 
 
+def write_model_meta(fname: str, axes: str | None) -> None:
+    """Write model-version metadata for runModel to consume"""
+    # NOTE: Will try using this for model properties, not parameters, starting
+    # what the model-version accepts as input (axes)
+    with open(fname, "w") as f:
+        json.dump({"axes": axes}, f)
+
+
 def check_access(location: str, loc_type: str) -> bool:
     if loc_type == "file":
         return os.access(location, os.F_OK | os.R_OK)
@@ -86,6 +94,10 @@ def main(
         ) from e
     # Use the slug for all filesystem/metadata names to avoid spaces
     model_version_slug = versions[model_version].slug
+
+    # Emit the version's declared axes (if any) for runModel to consume
+    # TODO: Expand this into function that the registry provides, not just axes
+    write_model_meta("model_meta.json", versions[model_version].axes)
 
     # Environment check: at least one location must be accessible
     accessible_entry = next(
