@@ -49,7 +49,7 @@ process splitStacks {
     def cap = (params.model_max_substack instanceof Map ? params.model_max_substack[params.model] : null) \
         ?: params.max_substack
     def scale = (params.substack_scale ?: 1.0) as double
-    // null on an axis = uncapped (depth-only tuning); scale only the integer caps
+    // null on an axis = uncapped; scale only the integer caps
     def scaled_cap = cap.collect { it == null ? 'null' : Math.max(1, (it * scale) as int) }
     def cap_arg = "--max-substack ${scaled_cap.join(' ')}"
     """
