@@ -42,15 +42,24 @@ process splitStacks {
     num_substacks = params.num_substacks.replace(",", " ")
     overlap = params.overlap.replace(",", " ")
     def mem_arg = (params.containsKey('memory_per_job') && params.memory_per_job) \
-        ? "--memory-per-job ${(params.memory_per_job as nextflow.util.MemoryUnit).toBytes()}" \
+        ? "--memory-per-job ${(params.memory_per_job as MemoryUnit).toBytes()}" \
         : ""
+    // Resolve the per-model compute cap (falling back to the global default), then apply the
+    // per-deployment scale so weaker/stronger GPUs can tune all caps with one param.
+    def cap = (params.model_max_substack instanceof Map ? params.model_max_substack[params.model] : null) \
+        ?: params.max_substack
+    def scale = (params.substack_scale ?: 1.0) as double
+    // null on an axis = uncapped; scale only the integer caps
+    def scaled_cap = cap.collect { it == null ? 'null' : Math.max(1, (it * scale) as int) }
+    def cap_arg = "--max-substack ${scaled_cap.join(' ')}"
     """
     python ${moduleDir}/resources/usr/bin/create_splits.py \
     --img-csv ${csv_path} \
     --output-csv split_${csv_path} \
     --num-substacks $num_substacks \
     --overlap $overlap \
-    $mem_arg
+    $mem_arg \
+    $cap_arg
     """
 }
 

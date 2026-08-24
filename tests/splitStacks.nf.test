@@ -4,27 +4,31 @@ nextflow_process {
     process "splitStacks"
 
     // ---------------------------------------------------------------------------
-    // Smoke test: verify that splitStacks passes memory_per_job through to
-    // create_splits.py and produces the expected number of substacks.
+    // Substack sizing is bounded by BOTH a memory budget (memory_per_job) AND a
+    // per-model compute cap (max_substack / model_max_substack, scaled by
+    // substack_scale). create_splits.py takes the element-wise min of the two.
     //
-    // Test image: 2000 × 400 × 100, float32, 1 channel -> 2.56GB
-    // memory_per_job: 100 MB → compute_max_substack_size gives ~(1252, 250, 62)
-    //   → calc_num_stacks gives 2×2×2 = 8 substacks (1 header + 8 data rows)
+    // The first two tests isolate the memory path by setting an effectively
+    // infinite compute cap; the rest exercise the compute cap and its scaling.
     //
     // To run locally (requires Nextflow + conda env):
     //   nf-test test tests/splitStacks.nf.test --profile local
-    //
-    // To run on the cluster (pre-merge CI):
+    // On the cluster (pre-merge CI):
     //   nf-test test tests/splitStacks.nf.test --profile crick
     // ---------------------------------------------------------------------------
 
-    test("8 substacks for 100 MB memory_per_job on 2000x400x100 float32 image") {
+    test("memory path: 8 substacks for 100 MB memory_per_job on 2000x400x100 float32 image") {
 
         when {
             params {
-                num_substacks   = "auto,auto,auto"
-                overlap         = "0.0,0.0,0.0"
-                memory_per_job  = "100.MB"
+                num_substacks      = "auto,auto,auto"
+                overlap            = "0.0,0.0,0.0"
+                memory_per_job     = "100.MB"
+                // Use a model with no per-model cap so the cap is the default [5000,5000,50]
+                // (== old MAX_SUBSTACK_SIZE) — non-interfering here, so this isolates the memory path.
+                model              = "panseg"
+                max_substack       = [5000, 5000, 50]
+                substack_scale     = 1.0
                 root_dir = "."
             }
             process {
@@ -37,29 +41,173 @@ nextflow_process {
 
         then {
             assert process.success
+            def rows = path(process.out.csv_file.get(0)).readLines()
+            assert rows.size() - 1 == 8
+        }
+    }
 
+    test("memory path: succeeds without memory_per_job (falls back to MAX_SUBSTACK_SIZE)") {
+
+        when {
+            params {
+                num_substacks      = "auto,auto,auto"
+                overlap            = "0.0,0.0,0.0"
+                memory_per_job     = null // Explicitly unset to test fallback
+                model              = "panseg" // no per-model cap → default [5000,5000,50]
+                max_substack       = [5000, 5000, 50]
+                substack_scale     = 1.0
+                root_dir = "."
+            }
+            process {
+                """
+                input[0] = file("${projectDir}/tests/assets/test_splits_input.csv")
+                input[1] = file("${projectDir}/tests/assets/dummy_chkpt")
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def rows = path(process.out.csv_file[0]).readLines()
+            // MAX_SUBSTACK_SIZE (5000×5000×50) on 2000×400×100 → split on depth → 2 rows
+            assert rows.size() - 1 == 2
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Regression guard (PR #19): a spatially-small, many-slice image fits the
+    // memory budget whole, so a memory-only cap yields ONE giant per-slice job.
+    // The per-model compute cap must restore depth chunking → many wide jobs.
+    // 866×1166×1600, cap [4096,4096,8]: H/W untiled, depth 1600/8 = 200 substacks.
+    // ---------------------------------------------------------------------------
+
+    test("compute cap restores depth chunking on many-slice image (regression #19)") {
+
+        when {
+            params {
+                num_substacks      = "auto,auto,auto"
+                overlap            = "0.0,0.0,0.0"
+                memory_per_job     = "50.GB"
+                model              = "sam2"
+                model_max_substack = [sam2: [4096, 4096, 8]]
+                max_substack       = [5000, 5000, 50]
+                substack_scale     = 1.0
+                root_dir = "."
+            }
+            process {
+                """
+                input[0] = file("${projectDir}/tests/assets/test_splits_regression.csv")
+                input[1] = file("${projectDir}/tests/assets/dummy_chkpt")
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def rows = path(process.out.csv_file.get(0)).readLines()
+            assert rows.size() - 1 == 200
+            // Depth-only chunking: height/width are not tiled (single 0..866 / 0..1166 span).
+            def header = rows[0].split(",") as List
+            def hi = header.indexOf("start_h"); def wi = header.indexOf("start_w")
+            def starts_h = rows[1..-1].collect { it.split(",")[hi] }.toUnique()
+            def starts_w = rows[1..-1].collect { it.split(",")[wi] }.toUnique()
+            assert starts_h == ["0"]
+            assert starts_w == ["0"]
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // substack_scale is the single per-deployment scaler: on a weaker GPU it shrinks
+    // every cap. Halving the depth-8 cap → depth 4 → 1600/4 = 400 substacks.
+    // ---------------------------------------------------------------------------
+
+    test("substack_scale shrinks caps for weaker GPUs") {
+
+        when {
+            params {
+                num_substacks      = "auto,auto,auto"
+                overlap            = "0.0,0.0,0.0"
+                memory_per_job     = "50.GB"
+                model              = "sam2"
+                model_max_substack = [sam2: [4096, 4096, 8]]
+                max_substack       = [5000, 5000, 50]
+                substack_scale     = 0.5
+                root_dir = "."
+            }
+            process {
+                """
+                input[0] = file("${projectDir}/tests/assets/test_splits_regression.csv")
+                input[1] = file("${projectDir}/tests/assets/dummy_chkpt")
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def rows = path(process.out.csv_file.get(0)).readLines()
+            assert rows.size() - 1 == 400
+        }
+    }
+
+    // ---------------------------------------------------------------------------
+    // Memory cap still binds for spatially-huge images even with a generous depth
+    // cap: 8000×8000×10 @ 1 GB tiles on H/W (and depth) → 2×2×2 = 8 substacks.
+    // ---------------------------------------------------------------------------
+
+    test("memory cap still tiles spatially-huge images") {
+
+        when {
+            params {
+                num_substacks      = "auto,auto,auto"
+                overlap            = "0.0,0.0,0.0"
+                memory_per_job     = "1.GB"
+                model              = "cellpose"
+                model_max_substack = [:]
+                max_substack       = [5000, 5000, 50]
+                substack_scale     = 1.0
+                root_dir = "."
+            }
+            process {
+                """
+                input[0] = file("${projectDir}/tests/assets/test_splits_hugespatial.csv")
+                input[1] = file("${projectDir}/tests/assets/dummy_chkpt")
+                """
+            }
+        }
+
+        then {
+            assert process.success
             def rows = path(process.out.csv_file.get(0)).readLines()
             assert rows.size() - 1 == 8
         }
     }
 
     // ---------------------------------------------------------------------------
-    // Fallback test: when memory_per_job is not set, MAX_SUBSTACK_SIZE is used
-    // and the pipeline still succeeds.
+    // Compute cap + memory must not compound into a gross voxel under-estimate.
+    // A spatially-large, many-slice image (8000×8000×1600, 50 GB) is memory-bound
+    // at full depth, so a naive element-wise min shrinks H/W isotropically (assuming
+    // full depth) AND then clips depth → needless H/W tiling (2×2×200 = 800 tiny jobs).
+    // Applying the compute cap first: 8000×8000×8 fits 50 GB easily, so H/W stay whole
+    // and we get depth-only chunking → 1×1×200 = 200 substacks.
     // ---------------------------------------------------------------------------
 
-    test("succeeds without memory_per_job (falls back to MAX_SUBSTACK_SIZE)") {
+    test("null H/W cap keeps H/W whole, depth-only chunking (no voxel under-estimate)") {
 
         when {
             params {
-                num_substacks = "auto,auto,auto"
-                overlap       = "0.0,0.0,0.0"
-                memory_per_job = null // Explicitly unset to test fallback
+                num_substacks      = "auto,auto,auto"
+                overlap            = "0.0,0.0,0.0"
+                memory_per_job     = "50.GB"
+                model              = "sam2"
+                // null H/W = uncapped (defer to memory); cap depth only — the intended pattern.
+                model_max_substack = [sam2: [null, null, 8]]
+                max_substack       = [5000, 5000, 50]
+                substack_scale     = 1.0
                 root_dir = "."
             }
             process {
                 """
-                input[0] = file("${projectDir}/tests/assets/test_splits_input.csv")
+                input[0] = file("${projectDir}/tests/assets/test_splits_bigvolume.csv")
                 input[1] = file("${projectDir}/tests/assets/dummy_chkpt")
                 """
             }
@@ -67,11 +215,13 @@ nextflow_process {
 
         then {
             assert process.success
-
-            def rows = path(process.out.csv_file[0]).readLines()
-            // With MAX_SUBSTACK_SIZE (5000×5000×50), this image (2000×400×100)
-            // split along depth dimension → 2 rows
-            assert rows.size() - 1 == 2 // subtract header
+            def rows = path(process.out.csv_file.get(0)).readLines()
+            assert rows.size() - 1 == 200
+            // Depth-only: H/W not tiled despite the image being memory-bound at full depth.
+            def header = rows[0].split(",") as List
+            def hi = header.indexOf("start_h"); def wi = header.indexOf("start_w")
+            assert rows[1..-1].collect { it.split(",")[hi] }.toUnique() == ["0"]
+            assert rows[1..-1].collect { it.split(",")[wi] }.toUnique() == ["0"]
         }
     }
 }
