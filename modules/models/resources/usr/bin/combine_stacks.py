@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 import aiod_utils.rle as aiod_rle
 import dask.array as da
@@ -318,7 +317,6 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--mask-fname", required=True, help="Mask save filename")
-    parser.add_argument("--output-dir", required=True, help="Mask output directory")
     parser.add_argument(
         "--masks",
         required=True,
@@ -471,6 +469,3 @@ if __name__ == "__main__":
         # Free up memory (though too late at this point)
         aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
     del combined_masks
-    # Remove the (symlinked) individual masks now that they are combined
-    for mask_path in cli_args.masks:
-        (Path(cli_args.output_dir) / mask_path).unlink()

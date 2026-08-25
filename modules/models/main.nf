@@ -202,7 +202,6 @@ process combineStacks {
     echo '${groovy.json.JsonOutput.toJson(params.preprocess)}' > preprocess_config.json
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
-    --output-dir "${params.mask_output_dir}" \
     --masks ${masks} \
     --model ${model} \
     --image-size ${meta.num_slices} ${meta.height} ${meta.width} \

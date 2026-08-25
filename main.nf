@@ -103,6 +103,11 @@ def mask_output_dir     = "${model_dir}/${params.model_type}_masks"
 params.model_chkpt_dir  = model_chkpt_dir  // needed by storeDir in modules
 params.mask_output_dir  = mask_output_dir  // needed by publishDir in modules
 
+// Per-substack masks published for the Napari watcher, cleared once combined.
+// Populated as masks are grouped and consumed in onComplete - a task cannot do
+// this itself, as the cache need not be visible (or writable) inside its container.
+published_substacks = [].asSynchronized()
+
 // Import processes from model modules
 include { setupModel; downloadArtifact; computeImageIds; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
 
@@ -294,6 +299,7 @@ workflow {
     }
     | groupTuple()
     | map{ mask_fname, meta, mask_paths ->
+        mask_paths.each { published_substacks << it.name }
         [
             mask_fname,
             meta.first(),
@@ -310,6 +316,12 @@ workflow {
 workflow.onComplete {
     def end_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
     if ( workflow.success ) {
+        // Only on success, so a failed run's substacks are left for inspection
+        published_substacks.each { name ->
+            java.nio.file.Files.deleteIfExists(
+                java.nio.file.Paths.get( params.mask_output_dir, name )
+            )
+        }
         log.info """\
                  ======================================================================
                  AIoD finished SUCCESSFULLY at ${end_timestamp} after $workflow.duration
