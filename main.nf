@@ -99,7 +99,9 @@ def root_dir            = params.root_dir
 def cache_dir           = "${root_dir}/aiod_cache"
 def model_dir           = "${cache_dir}/${params.model}"
 def model_chkpt_dir     = "${model_dir}/checkpoints"
+def mask_output_dir     = "${model_dir}/${params.model_type}_masks"
 params.model_chkpt_dir  = model_chkpt_dir  // needed by storeDir in modules
+params.mask_output_dir  = mask_output_dir  // needed by publishDir in modules
 
 // Import processes from model modules
 include { setupModel; downloadArtifact; computeImageIds; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
@@ -270,14 +272,10 @@ workflow {
         | groupTuple()
         | map { mask_fname, ones -> tuple( mask_fname, ones.size() ) }
 
-    // Create the name for the mask output directory
-    mask_output_dir = "${model_dir}/${params.model_type}_masks"
-
     // TODO: Should be delegated to a workflow in the models module?
     // Select appropriate model
     mask_out = runModel (
         img_ch,
-        mask_output_dir,
         config_ch,
         chkpt_ch,
         params.model_type,
@@ -291,16 +289,15 @@ workflow {
     // emitting those dataset masks when those are done
     mask_out
     | combine( substack_counts, by: 0 )
-    | map{ mask_fname, meta, output_dir, mask_path, n_substacks ->
-        tuple( groupKey(mask_fname, n_substacks), meta, output_dir, mask_path )
+    | map{ mask_fname, meta, mask_path, n_substacks ->
+        tuple( groupKey(mask_fname, n_substacks), meta, mask_path )
     }
     | groupTuple()
-    | map{ mask_fname, meta, output_dirs, mask_paths ->
+    | map{ mask_fname, meta, mask_paths ->
         [
             mask_fname,
             meta.first(),
             params.model,
-            output_dirs.first(),
             mask_paths,
         ]
     }

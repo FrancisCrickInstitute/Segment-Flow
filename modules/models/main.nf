@@ -145,11 +145,10 @@ process runModel {
     label 'gpu_process'
     conda "${moduleDir}/envs/${task.ext.condaDir}/conda_${params.model}.yml"
     // Symlink to where AIoD Napari plugin file watcher is looking
-    publishDir "$mask_output_dir"
+    publishDir params.mask_output_dir
 
     input:
     tuple val(img_path_key), val(meta), val(mask_fname), val(idxs), path(image_path)
-    val mask_output_dir
     path model_config
     path model_chkpt
     val model_type
@@ -157,7 +156,7 @@ process runModel {
 
     output:
     // Output mask_fname to uniquely group on image + preprocesing branch
-    tuple val(mask_fname), val(meta), val(mask_output_dir), path("${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
+    tuple val(mask_fname), val(meta), path("${mask_fname}_x${idxs[0]}-${idxs[1]}_y${idxs[2]}-${idxs[3]}_z${idxs[4]}-${idxs[5]}.rle"), emit: mask
 
     script:
     """
@@ -181,10 +180,10 @@ process combineStacks {
     memory { (Math.max((5.GB).toBytes(), masks*.size().sum() * 10000) * task.attempt) as MemoryUnit }
     // Give more base time if postprocessing
     time { params.postprocess ? 45.m * Math.pow(2, task.attempt) : 10.min * Math.pow(2, task.attempt) }
-    publishDir "$mask_output_dir", mode: 'copy'
+    publishDir params.mask_output_dir, mode: 'copy'
 
     input:
-    tuple val(mask_fname), val(meta), val(model), val(mask_output_dir), path(masks, arity: '1..*')
+    tuple val(mask_fname), val(meta), val(model), path(masks, arity: '1..*')
     val postprocess
     val output_format
     val output_mask_type
@@ -203,7 +202,7 @@ process combineStacks {
     echo '${groovy.json.JsonOutput.toJson(params.preprocess)}' > preprocess_config.json
     python ${moduleDir}/resources/usr/bin/combine_stacks.py \
     --mask-fname "${mask_fname}" \
-    --output-dir "${mask_output_dir}" \
+    --output-dir "${params.mask_output_dir}" \
     --masks ${masks} \
     --model ${model} \
     --image-size ${meta.num_slices} ${meta.height} ${meta.width} \
