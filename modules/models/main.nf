@@ -148,9 +148,14 @@ process runModel {
 
 process combineStacks {
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
-    // Add a minimum amount of memory, otherwise scale as a multiple of the input mask size
-    // NOTE: Masks are RLE-compressed, so multiply by buffer (10) then by average compression factor (1000)
-    memory { (Math.max((5.GB).toBytes(), masks*.size().sum() * 10000) * task.attempt) as MemoryUnit }
+    // Use the same flat per-job budget as every other process rather than a bespoke formula.
+    // The combined mask lives in a Zarr store and is encoded in z-slabs, so peak memory is
+    // bounded by one decoded substack and no longer scales with the total volume. Measured
+    // on EMPIAR-12627 (3598x3944x4455, 63.2 Gvoxel): Slurm MaxRSS 24.4 GB, down from 253.5 GB
+    // before the fix -- comfortably inside the 50.GB crick default.
+    // NOTE: memory_per_job also sizes the substacks in create_splits.py, which is the right
+    // coupling here: a bigger substack budget is exactly what makes this process need more.
+    memory { params.memory_per_job * task.attempt }
     // Give more base time if postprocessing
     time { params.postprocess ? 45.m * Math.pow(2, task.attempt) : 10.min * Math.pow(2, task.attempt) }
     publishDir "$mask_output_dir", mode: 'copy'
@@ -179,6 +184,7 @@ process combineStacks {
     --iou-threshold ${params.iou_threshold} \
     --output-format ${output_format} \
     --output-mask-type ${output_mask_type} \
+    --slab-size ${params.slab_size} \
     ${postprocess}
     """
 }

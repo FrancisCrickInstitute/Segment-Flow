@@ -9,6 +9,7 @@ dependencies:
   - scikit-image
   - dask
   - dask-image
+  - zarr
   - psutil
   - numba
   - tqdm
