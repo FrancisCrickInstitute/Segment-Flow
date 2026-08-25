@@ -12,7 +12,6 @@ DEFAULT_DIM_ORDER = "CZYX"
 
 
 def save_masks(
-    save_dir,
     save_name,
     masks,
     idxs: list[int, ...],
@@ -21,7 +20,6 @@ def save_masks(
 ):
     if metadata is None:
         metadata = {}
-    save_dir.mkdir(parents=True, exist_ok=True)
     # Extract the start and end indices in each dim
     start_x, end_x, start_y, end_y, start_z, end_z = idxs
     # Define path with all the indices
@@ -47,7 +45,6 @@ def create_argparser_inference():
 
     parser.add_argument("--img-path", required=True, help="Path to image")
     parser.add_argument("--mask-fname", required=True, help="Mask save filename")
-    parser.add_argument("--output-dir", required=True, help="Mask output directory")
     parser.add_argument("--model-chkpt", required=True, help="Path to model checkpoint")
     parser.add_argument(
         "--idxs",

@@ -8,7 +8,6 @@ from utils import create_argparser_inference, get_model_name_type, load_img, sav
 
 
 def run_cellpose(
-    save_dir: Path | str,
     save_name: str,
     idxs: list[int, ...],
     config: dict,
@@ -39,7 +38,7 @@ def run_cellpose(
         max_size_fraction=config["max_size_fraction"],
     )
 
-    save_masks(Path(save_dir), save_name, masks, idxs=idxs, mask_type=output_mask_type)
+    save_masks(save_name, masks, idxs=idxs, mask_type=output_mask_type)
 
 
 if __name__ == "__main__":
@@ -80,7 +79,6 @@ if __name__ == "__main__":
     device = get_device(model_type=get_model_name_type(cli_args.model_type))
 
     run_cellpose(
-        save_dir=cli_args.output_dir,
         save_name=cli_args.mask_fname,
         idxs=cli_args.idxs,
         config=config,

@@ -46,7 +46,6 @@ if __name__ == "__main__":
     labelled_stack = skimage.measure.label(preds > 0.5)
     # Save the stack
     save_masks(
-        save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
         masks=labelled_stack,
         idxs=cli_args.idxs,

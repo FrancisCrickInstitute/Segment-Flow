@@ -40,7 +40,6 @@ BASE_CONFIGS = {
 
 def run_sam2(
     img: np.ndarray,
-    save_dir: Path | str,
     save_name: str,
     model_type: str,
     model_chkpt: Path | str,
@@ -90,7 +89,7 @@ def run_sam2(
             raise ValueError("Cannot handle a stack of multi-channel images")
     else:
         raise ValueError("Can only handle an image, or stack of images!")
-    save_masks(save_dir, save_name, all_masks, idxs=idxs, mask_type=output_mask_type)
+    save_masks(save_name, all_masks, idxs=idxs, mask_type=output_mask_type)
     return img, all_masks
 
 
@@ -203,7 +202,6 @@ if __name__ == "__main__":
 
     img, masks = run_sam2(
         img=img,
-        save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
         model_type=cli_args.model_type,
         model_chkpt=cli_args.model_chkpt,

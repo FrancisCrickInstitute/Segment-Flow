@@ -17,7 +17,6 @@ from utils import (
 
 def run_sam(
     img: np.ndarray,
-    save_dir: Path | str,
     save_name: str,
     fpath: Path | str,
     model_type: str,
@@ -72,7 +71,7 @@ def run_sam(
             raise ValueError("Cannot handle a stack of multi-channel images")
     else:
         raise ValueError("Can only handle an image, or stack of images!")
-    save_masks(save_dir, save_name, all_masks, idxs=idxs, mask_type=output_mask_type)
+    save_masks(save_name, all_masks, idxs=idxs, mask_type=output_mask_type)
     pbar.close()
     return img, all_masks
 
@@ -176,7 +175,6 @@ if __name__ == "__main__":
 
     img, masks = run_sam(
         img=img,
-        save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
         fpath=cli_args.img_path,
         model_type=cli_args.model_type,

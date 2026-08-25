@@ -1,6 +1,5 @@
 import contextlib
 import platform
-from pathlib import Path
 
 import numpy as np
 import skimage
@@ -409,7 +408,6 @@ if __name__ == "__main__":
         )
     # Save the stack
     save_masks(
-        save_dir=Path(cli_args.output_dir),
         save_name=cli_args.mask_fname,
         masks=pan_seg,
         idxs=cli_args.idxs,

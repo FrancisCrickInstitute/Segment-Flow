@@ -1,4 +1,3 @@
-from pathlib import Path
 
 import yaml
 from cellpose import models
@@ -7,7 +6,6 @@ from utils import create_argparser_inference, get_model_name_type, load_img, sav
 
 
 def run_cellpose(
-    save_dir: Path | str,
     save_name: str,
     idxs: list[int, ...],
     config: dict,
@@ -30,7 +28,7 @@ def run_cellpose(
         min_size=config["min_size"],
     )
 
-    save_masks(Path(save_dir), save_name, masks, idxs=idxs, mask_type=output_mask_type)
+    save_masks(save_name, masks, idxs=idxs, mask_type=output_mask_type)
 
 
 if __name__ == "__main__":
@@ -78,7 +76,6 @@ if __name__ == "__main__":
     )
 
     run_cellpose(
-        save_dir=cli_args.output_dir,
         save_name=cli_args.mask_fname,
         idxs=cli_args.idxs,
         config=config,

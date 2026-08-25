@@ -1,4 +1,3 @@
-from pathlib import Path
 
 import numpy as np
 import yaml
@@ -7,7 +6,6 @@ from utils import create_argparser_inference, get_model_name_type, load_img, sav
 
 
 def run_panseg(
-    save_dir: Path | str,
     save_name: str,
     idxs: list[int, ...],
     img: np.ndarray,
@@ -17,7 +15,6 @@ def run_panseg(
     """Run PanSeg pipeline: prediction -> watershed -> GASP.
 
     Args:
-        save_dir: Directory to save the output masks
         save_name: Base name for saved files
         idxs: Slice indices being processed
         img: Input image array
@@ -99,9 +96,7 @@ def run_panseg(
     )
 
     # Save the final segmentation
-    save_masks(
-        Path(save_dir), save_name, segmentation, idxs=idxs, mask_type=output_mask_type
-    )
+    save_masks(save_name, segmentation, idxs=idxs, mask_type=output_mask_type)
 
 
 if __name__ == "__main__":
@@ -134,7 +129,6 @@ if __name__ == "__main__":
     config["input_layout"] = input_layout
 
     run_panseg(
-        save_dir=cli_args.output_dir,
         save_name=cli_args.mask_fname,
         idxs=cli_args.idxs,
         img=img,
