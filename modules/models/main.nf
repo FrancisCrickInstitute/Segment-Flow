@@ -168,13 +168,20 @@ process combineStacks {
 
     output:
     path("${mask_fname}_all.${output_format}")
+    path("${mask_fname}_memray.bin"), optional: true, emit: memray_trace
 
     script:
     def postprocess = postprocess ? "--postprocess" : ""
     overlap = params.overlap.replace(",", " ")
+    // `memray run` invokes the target script with Python itself, so it takes the
+    // script path directly -- prefixing it with `python` makes memray treat the
+    // literal string "python" as the (nonexistent) script to profile.
+    def run_cmd = params.profile_memory \
+        ? "memray run -o ${mask_fname}_memray.bin ${moduleDir}/resources/usr/bin/combine_stacks.py" \
+        : "python ${moduleDir}/resources/usr/bin/combine_stacks.py"
     """
     echo ${task.memory}
-    python ${moduleDir}/resources/usr/bin/combine_stacks.py \
+    ${run_cmd} \
     --mask-fname "${mask_fname}" \
     --output-dir "${mask_output_dir}" \
     --masks ${masks} \

@@ -1,0 +1,242 @@
+[33mNextflow 26.04.6 is available - Please consider updating your version to it(B[m
+
+ N E X T F L O W   ~  version 24.04.1
+
+WARN: Invalid config manifest attribute `contributors`
+WARN: Invalid config manifest attribute `docsUrl`
+Launching `./main.nf` [amazing_bohr] DSL2 - revision: ea58611262
+
+WARN: Invalid config manifest attribute `contributors`
+WARN: Invalid config manifest attribute `docsUrl`
+════════════════════════════════════════════════════
+              █████╗ ██╗        ██████╗
+             ██╔══██╗██║        ██╔══██╗
+             ███████║██║ █████╗ ██║  ██║
+             ██╔══██║██║██╔══██╗██║  ██║
+             ██║  ██║██║╚█████╔╝██████╔╝
+             ╚═╝  ╚═╝╚═╝ ╚════╝ ╚═════╝
+
+               S E G M E N T - F L O W
+════════════════════════════════════════════════════
+Started         : 2026-08-26 15:03:20
+Model name      : empanada
+Model variant   : mitonet_v1
+Task            : mito
+Model config    : null
+Config Hash     : eb121ffb
+Image filepaths : /nemo/stp/ddt/working/ahmedn/aiod-312/small_image.csv
+---
+Cache directory : /camp/home/ahmedn/.nextflow/aiod/aiod_cache/empanada
+Work directory  : /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work
+Profile         : crick
+---
+Full Command    : nextflow run . --img_dir /nemo/stp/ddt/working/ahmedn/aiod-312/small_image.csv --model empanada --model_type mitonet_v1 --task mito --num_substacks 1,1,2 -profile crick --profile_memory true -c ../overrides.config
+════════════════════════════════════════════════════
+
+[-        ] setupModel -
+
+[-        ] setupModel       -
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+
+[-        ] setupModel       | 0 of 1
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+
+executor >  slurm (1)
+[8e/b3cefd] setupModel       | 0 of 1
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+
+executor >  slurm (1)
+[8e/b3cefd] setupModel       | 0 of 1
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+
+executor >  slurm (1)
+[8e/b3cefd] setupModel       | 1 of 1 ✔
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/8e/b3cefd0d84daf9fece033032f380f9/mitonet_v1_mito_config.yml
+
+
+executor >  slurm (1)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[-        ] splitStacks          | 0 of 1
+[-        ] runModel             -
+[-        ] combineStacks        -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/8e/b3cefd0d84daf9fece033032f380f9/mitonet_v1_mito_config.yml
+
+
+executor >  slurm (2)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 0 of 1
+[-        ] runModel             -
+[-        ] combineStacks        -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/8e/b3cefd0d84daf9fece033032f380f9/mitonet_v1_mito_config.yml
+
+
+executor >  slurm (2)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 0 of 1
+[-        ] runModel             -
+[-        ] combineStacks        -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/8e/b3cefd0d84daf9fece033032f380f9/mitonet_v1_mito_config.yml
+
+
+executor >  slurm (2)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 1 of 1 ✔
+[-        ] runModel             -
+[-        ] combineStacks        -
+
+
+
+
+
+executor >  slurm (3)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 1 of 1 ✔
+[29/2c9d88] runModel (1)         | 0 of 2
+[-        ] combineStacks        -
+
+
+
+
+
+executor >  slurm (4)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 1 of 1 ✔
+[e3/7f7a76] runModel (2)         | 0 of 2
+[-        ] combineStacks        -
+
+executor >  slurm (4)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 1 of 1 ✔
+[e3/7f7a76] runModel (2)         | 0 of 2
+[-        ] combineStacks        -
+
+executor >  slurm (4)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 1 of 1 ✔
+[e3/7f7a76] runModel (2)         | 0 of 2
+[-        ] combineStacks        -
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+
+executor >  slurm (4)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 1 of 1 ✔
+[e3/7f7a76] runModel (2)         | 2 of 2 ✔
+[-        ] combineStacks        | 0 of 1
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+
+executor >  slurm (5)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 1 of 1 ✔
+[e3/7f7a76] runModel (2)         | 2 of 2 ✔
+[e4/c49124] combineStacks (1)    | 0 of 1
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+
+executor >  slurm (5)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 1 of 1 ✔
+[e3/7f7a76] runModel (2)         | 2 of 2 ✔
+[e4/c49124] combineStacks (1)    | 0 of 1
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+
+executor >  slurm (5)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 1 of 1 ✔
+[e3/7f7a76] runModel (2)         | 2 of 2 ✔
+[e4/c49124] combineStacks (1)    | 1 of 1 ✔
+50 GB
+Writing profile results into AIOD-312_masks_mito-empanada-mitonet_v1-eb121ffb_memray.bin
+Memory used before loading stack: 0.22 GB
+Memory used after loading stack: 0.23 GB
+Combined masks shape: (106, 1750, 1484)
+Memory used in combination: 0.23 GB
+Memory used after saving: 0.49 GB
+[memray] Successfully generated profile results.
+
+You can now generate reports from the stored allocation records.
+Some example commands to generate reports:
+
+/camp/home/ahmedn/working/ahmedn/combine_conda-5cb53ec844dd96275b6c671912da047b/bin/python -m memray flamegraph AIOD-312_masks_mito-empanada-mitonet_v1-eb121ffb_memray.bin
+
+
+
+
+
+
+executor >  slurm (5)
+[8e/b3cefd] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[43/e36532] splitStacks          | 1 of 1 ✔
+[e3/7f7a76] runModel (2)         | 2 of 2 ✔
+[e4/c49124] combineStacks (1)    | 1 of 1 ✔
+50 GB
+Writing profile results into AIOD-312_masks_mito-empanada-mitonet_v1-eb121ffb_memray.bin
+Memory used before loading stack: 0.22 GB
+Memory used after loading stack: 0.23 GB
+Combined masks shape: (106, 1750, 1484)
+Memory used in combination: 0.23 GB
+Memory used after saving: 0.49 GB
+[memray] Successfully generated profile results.
+
+You can now generate reports from the stored allocation records.
+Some example commands to generate reports:
+
+/camp/home/ahmedn/working/ahmedn/combine_conda-5cb53ec844dd96275b6c671912da047b/bin/python -m memray flamegraph AIOD-312_masks_mito-empanada-mitonet_v1-eb121ffb_memray.bin
+
+======================================================================
+AIoD finished SUCCESSFULLY at 2026-08-26 15:10:30 after 7m 13s
+======================================================================
+
+Completed at: 26-Aug-2026 15:10:30
+Duration    : 7m 13s
+CPU hours   : 0.2
+Succeeded   : 5
+
+

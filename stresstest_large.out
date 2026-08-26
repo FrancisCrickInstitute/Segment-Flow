@@ -1,0 +1,577 @@
+[33mNextflow 26.04.6 is available - Please consider updating your version to it(B[m
+
+ N E X T F L O W   ~  version 24.04.1
+
+WARN: Invalid config manifest attribute `contributors`
+WARN: Invalid config manifest attribute `docsUrl`
+Launching `./main.nf` [hungry_snyder] DSL2 - revision: ea58611262
+
+WARN: Invalid config manifest attribute `contributors`
+WARN: Invalid config manifest attribute `docsUrl`
+════════════════════════════════════════════════════
+              █████╗ ██╗        ██████╗
+             ██╔══██╗██║        ██╔══██╗
+             ███████║██║ █████╗ ██║  ██║
+             ██╔══██║██║██╔══██╗██║  ██║
+             ██║  ██║██║╚█████╔╝██████╔╝
+             ╚═╝  ╚═╝╚═╝ ╚════╝ ╚═════╝
+
+               S E G M E N T - F L O W
+════════════════════════════════════════════════════
+Started         : 2026-08-26 15:17:25
+Model name      : empanada
+Model variant   : mitonet_v1
+Task            : mito
+Model config    : null
+Config Hash     : 71cd9669
+Image filepaths : /nemo/stp/ddt/working/ahmedn/aiod-312/all_img_paths.csv
+---
+Cache directory : /camp/home/ahmedn/.nextflow/aiod/aiod_cache/empanada
+Work directory  : /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work
+Profile         : crick
+---
+Full Command    : nextflow run . --img_dir /nemo/stp/ddt/working/ahmedn/aiod-312/all_img_paths.csv --model empanada --model_type mitonet_v1 --task mito -profile crick --profile_memory true -c ../overrides.config
+════════════════════════════════════════════════════
+
+[-        ] setupModel       -
+[-        ] downloadArtifact -
+
+[-        ] setupModel       -
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+
+[-        ] setupModel       | 0 of 1
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+
+executor >  slurm (1)
+[ab/75f97a] setupModel       | 0 of 1
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+
+executor >  slurm (1)
+[ab/75f97a] setupModel       | 0 of 1
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+
+executor >  slurm (1)
+[ab/75f97a] setupModel       | 0 of 1 ✔
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/ab/75f97a7f547976db74283d89447dec/mitonet_v1_mito_config.yml
+
+
+executor >  slurm (1)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (1) | 1 of 1, stored: 1
+[-        ] splitStacks          -
+[-        ] runModel             -
+[-        ] combineStacks        -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/ab/75f97a7f547976db74283d89447dec/mitonet_v1_mito_config.yml
+
+
+executor >  slurm (1)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[-        ] splitStacks          | 0 of 1
+[-        ] runModel             -
+[-        ] combineStacks        -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/ab/75f97a7f547976db74283d89447dec/mitonet_v1_mito_config.yml
+
+
+executor >  slurm (2)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 0 of 1
+[-        ] runModel             -
+[-        ] combineStacks        -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/ab/75f97a7f547976db74283d89447dec/mitonet_v1_mito_config.yml
+
+
+executor >  slurm (2)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 0 of 1
+[-        ] runModel             -
+[-        ] combineStacks        -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/ab/75f97a7f547976db74283d89447dec/mitonet_v1_mito_config.yml
+
+
+executor >  slurm (2)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[-        ] runModel             -
+[-        ] combineStacks        -
+
+
+
+
+
+executor >  slurm (3)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[66/96b8cf] runModel (1)         | 0 of 8
+[-        ] combineStacks        -
+
+
+
+
+
+executor >  slurm (6)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[3b/27afed] runModel (4)         | 0 of 8
+[-        ] combineStacks        -
+
+executor >  slurm (10)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[ec/55fa32] runModel (6)         | 0 of 8
+[-        ] combineStacks        -
+
+executor >  slurm (10)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[ec/55fa32] runModel (6)         | 0 of 8
+[-        ] combineStacks        -
+
+executor >  slurm (10)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[ec/55fa32] runModel (6)         | 0 of 8
+[-        ] combineStacks        -
+
+executor >  slurm (11)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[b3/97821f] runModel (1)         | 2 of 10, failed: 2, retries: 2
+[-        ] combineStacks        -
+[66/96b8cf] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (1)
+[4e/0c07ab] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (1)
+
+executor >  slurm (12)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[bf/d64a31] runModel (3)         | 2 of 10, failed: 2, retries: 2
+[-        ] combineStacks        -
+[66/96b8cf] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (1)
+[4e/0c07ab] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (1)
+
+executor >  slurm (13)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[4d/4822e1] runModel (2)         | 3 of 11, failed: 3, retries: 3
+[-        ] combineStacks        -
+[66/96b8cf] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (1)
+[4e/0c07ab] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (1)
+[a7/bf3f8d] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (1)
+
+executor >  slurm (14)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[97/0d7716] runModel (4)         | 5 of 13, failed: 5, retries: 5
+[-        ] combineStacks        -
+[3b/27afed] NOTE: Process `runModel (4)` terminated with an error exit status (137) -- Execution is retried (1)
+[b7/f17024] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (1)
+
+
+
+
+executor >  slurm (15)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[4a/f3f6f1] runModel (5)         | 5 of 13, failed: 5, retries: 5
+[-        ] combineStacks        -
+[3b/27afed] NOTE: Process `runModel (4)` terminated with an error exit status (137) -- Execution is retried (1)
+[b7/f17024] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (1)
+
+
+
+
+executor >  slurm (15)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[36/f3ab03] runModel (7)         | 6 of 13, failed: 6, retries: 6
+[-        ] combineStacks        -
+[3b/27afed] NOTE: Process `runModel (4)` terminated with an error exit status (137) -- Execution is retried (1)
+[b7/f17024] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (1)
+[36/f3ab03] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (1)
+
+executor >  slurm (16)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[1d/b2edb8] runModel (7)         | 6 of 14, failed: 6, retries: 6
+[-        ] combineStacks        -
+[3b/27afed] NOTE: Process `runModel (4)` terminated with an error exit status (137) -- Execution is retried (1)
+[b7/f17024] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (1)
+[36/f3ab03] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (1)
+
+executor >  slurm (16)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[1d/b2edb8] runModel (7)         | 6 of 14, failed: 6, retries: 6
+[-        ] combineStacks        -
+
+
+
+
+executor >  slurm (16)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[1d/b2edb8] runModel (7)         | 6 of 14, failed: 6, retries: 6
+[-        ] combineStacks        -
+
+
+
+
+executor >  slurm (16)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[ec/55fa32] runModel (6)         | 8 of 16, failed: 8, retries: 8
+[-        ] combineStacks        -
+[c1/de80c8] NOTE: Process `runModel (8)` terminated with an error exit status (137) -- Execution is retried (1)
+[ec/55fa32] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (1)
+
+executor >  slurm (18)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[f9/0794c5] runModel (6)         | 8 of 16, failed: 8, retries: 8
+[-        ] combineStacks        -
+[c1/de80c8] NOTE: Process `runModel (8)` terminated with an error exit status (137) -- Execution is retried (1)
+[ec/55fa32] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (1)
+
+executor >  slurm (18)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[f9/0794c5] runModel (6)         | 8 of 16, failed: 8, retries: 8
+[-        ] combineStacks        -
+[c1/de80c8] NOTE: Process `runModel (8)` terminated with an error exit status (137) -- Execution is retried (1)
+[ec/55fa32] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (1)
+
+executor >  slurm (19)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[f8/2f9c3e] runModel (1)         | 9 of 17, failed: 9, retries: 9
+[-        ] combineStacks        -
+[c1/de80c8] NOTE: Process `runModel (8)` terminated with an error exit status (137) -- Execution is retried (1)
+[ec/55fa32] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (1)
+[b3/97821f] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (2)
+
+executor >  slurm (19)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[f8/2f9c3e] runModel (1)         | 9 of 17, failed: 9, retries: 9
+[-        ] combineStacks        -
+[c1/de80c8] NOTE: Process `runModel (8)` terminated with an error exit status (137) -- Execution is retried (1)
+[ec/55fa32] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (1)
+[b3/97821f] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (2)
+
+executor >  slurm (20)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[f9/192ad7] runModel (2)         | 10 of 18, failed: 10, retries: 10
+[-        ] combineStacks        -
+[4d/4822e1] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (2)
+
+
+
+
+executor >  slurm (21)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[51/5b09eb] runModel (3)         | 13 of 21, failed: 13, retries: 13
+[-        ] combineStacks        -
+[4d/4822e1] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (2)
+[bf/d64a31] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (2)
+[4a/f3f6f1] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (2)
+[1d/b2edb8] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (2)
+
+executor >  slurm (23)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[de/17eb66] runModel (5)         | 13 of 21, failed: 13, retries: 13
+[-        ] combineStacks        -
+[4d/4822e1] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (2)
+[bf/d64a31] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (2)
+[4a/f3f6f1] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (2)
+[1d/b2edb8] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (2)
+
+executor >  slurm (24)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[d0/186ed8] runModel (4)         | 14 of 22, failed: 14, retries: 14
+[-        ] combineStacks        -
+[4d/4822e1] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (2)
+[bf/d64a31] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (2)
+[4a/f3f6f1] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (2)
+[1d/b2edb8] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (2)
+[97/0d7716] NOTE: Process `runModel (4)` terminated with an error exit status (137) -- Execution is retried (2)
+
+executor >  slurm (25)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[88/d90a1d] runModel (8)         | 15 of 23, failed: 15, retries: 15
+[-        ] combineStacks        -
+[4d/4822e1] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (2)
+[bf/d64a31] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (2)
+[4a/f3f6f1] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (2)
+[1d/b2edb8] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (2)
+[97/0d7716] NOTE: Process `runModel (4)` terminated with an error exit status (137) -- Execution is retried (2)
+[b7/ff5ba3] NOTE: Process `runModel (8)` terminated with an error exit status (137) -- Execution is retried (2)
+
+executor >  slurm (25)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[88/d90a1d] runModel (8)         | 15 of 23, failed: 15, retries: 15
+[-        ] combineStacks        -
+[b7/ff5ba3] NOTE: Process `runModel (8)` terminated with an error exit status (137) -- Execution is retried (2)
+
+
+
+
+
+
+executor >  slurm (25)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[f9/0794c5] runModel (6)         | 16 of 24, failed: 16, retries: 16
+[-        ] combineStacks        -
+[f9/0794c5] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (2)
+
+
+
+
+
+
+executor >  slurm (26)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[46/a1a8d8] runModel (6)         | 16 of 24, failed: 16, retries: 16
+[-        ] combineStacks        -
+[f9/0794c5] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (2)
+
+
+executor >  slurm (26)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[f9/192ad7] runModel (2)         | 18 of 26, failed: 18, retries: 18
+[-        ] combineStacks        -
+[f9/0794c5] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (2)
+[f8/2f9c3e] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (3)
+[f9/192ad7] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (3)
+
+executor >  slurm (28)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[fd/f0d1b0] runModel (2)         | 21 of 29, failed: 21, retries: 21
+[-        ] combineStacks        -
+[f9/0794c5] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (2)
+[f8/2f9c3e] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (3)
+[f9/192ad7] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (3)
+[51/5b09eb] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (3)
+[26/3b934a] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (3)
+[de/17eb66] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (3)
+
+executor >  slurm (31)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[12/f7af73] runModel (5)         | 21 of 29, failed: 21, retries: 21
+[-        ] combineStacks        -
+[f9/0794c5] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (2)
+[f8/2f9c3e] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (3)
+[f9/192ad7] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (3)
+[51/5b09eb] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (3)
+[26/3b934a] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (3)
+[de/17eb66] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (3)
+
+executor >  slurm (31)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[12/f7af73] runModel (5)         | 21 of 29, failed: 21, retries: 21
+[-        ] combineStacks        -
+[f8/2f9c3e] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (3)
+[f9/192ad7] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (3)
+[51/5b09eb] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (3)
+[26/3b934a] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (3)
+[de/17eb66] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (3)
+
+
+executor >  slurm (31)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[88/d90a1d] runModel (8)         | 23 of 31, failed: 23, retries: 23
+[-        ] combineStacks        -
+[f8/2f9c3e] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (3)
+[f9/192ad7] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (3)
+[51/5b09eb] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (3)
+[26/3b934a] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (3)
+[de/17eb66] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (3)
+[d0/186ed8] NOTE: Process `runModel (4)` terminated with an error exit status (137) -- Execution is retried (3)
+[88/d90a1d] NOTE: Process `runModel (8)` terminated with an error exit status (137) -- Execution is retried (3)
+
+executor >  slurm (33)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[db/3dc6e0] runModel (8)         | 23 of 31, failed: 23, retries: 23
+[-        ] combineStacks        -
+[f8/2f9c3e] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (3)
+[f9/192ad7] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (3)
+[51/5b09eb] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (3)
+[26/3b934a] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (3)
+[de/17eb66] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (3)
+[d0/186ed8] NOTE: Process `runModel (4)` terminated with an error exit status (137) -- Execution is retried (3)
+[88/d90a1d] NOTE: Process `runModel (8)` terminated with an error exit status (137) -- Execution is retried (3)
+
+executor >  slurm (33)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[db/3dc6e0] runModel (8)         | 23 of 31, failed: 23, retries: 23
+[-        ] combineStacks        -
+[f8/2f9c3e] NOTE: Process `runModel (1)` terminated with an error exit status (137) -- Execution is retried (3)
+[f9/192ad7] NOTE: Process `runModel (2)` terminated with an error exit status (137) -- Execution is retried (3)
+[51/5b09eb] NOTE: Process `runModel (3)` terminated with an error exit status (137) -- Execution is retried (3)
+[26/3b934a] NOTE: Process `runModel (7)` terminated with an error exit status (137) -- Execution is retried (3)
+[de/17eb66] NOTE: Process `runModel (5)` terminated with an error exit status (137) -- Execution is retried (3)
+[d0/186ed8] NOTE: Process `runModel (4)` terminated with an error exit status (137) -- Execution is retried (3)
+[88/d90a1d] NOTE: Process `runModel (8)` terminated with an error exit status (137) -- Execution is retried (3)
+
+executor >  slurm (34)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[d9/32cb09] runModel (6)         | 24 of 32, failed: 24, retries: 24
+[-        ] combineStacks        -
+[46/a1a8d8] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (3)
+
+
+
+
+
+
+
+ERROR ~ Error executing process > 'runModel (3)'
+
+Caused by:
+  Process `runModel (3)` terminated with an error exit status (137)
+
+
+Command executed:
+
+  python /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/./modules/models/resources/usr/bin/run_empanada.py     --img-path Cell1-Stack02_819_3598_cor_TM1corb_cr.tif     --mask-fname "Cell1-Stack02_819_3598_cor_TM1corb_cr_masks_mito-empanada-mitonet_v1-71cd9669"     --output-dir "/camp/home/ahmedn/.nextflow/aiod/aiod_cache/empanada/mitonet_v1_masks"     --model-chkpt mitonet_v1_mito.pth     --model-type "mitonet_v1"     --model-config mitonet_v1_mito_config.yml     --idxs 2227 4455 0 1972 0 1799     --channels 1     --num-slices 3598     --output-mask-type auto
+
+Command exit status:
+  137
+
+Command output:
+  (empty)
+
+Command error:
+  .command.sh: line 2: 1788576 Killed                  python /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/./modules/models/resources/usr/bin/run_empanada.py --img-path Cell1-Stack02_819_3598_cor_TM1corb_cr.tif --mask-fname "Cell1-Stack02_819_3598_cor_TM1corb_cr_masks_mito-empanada-mitonet_v1-71cd9669" --output-dir "/camp/home/ahmedn/.nextflow/aiod/aiod_cache/empanada/mitonet_v1_masks" --model-chkpt mitonet_v1_mito.pth --model-type "mitonet_v1" --model-config mitonet_v1_mito_config.yml --idxs 2227 4455 0 1972 0 1799 --channels 1 --num-slices 3598 --output-mask-type auto
+
+Work dir:
+  /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/3d/2dcdc97ca919587de75428d6071b4b
+
+Tip: you can replicate the issue by changing to the process work dir and entering the command `bash .command.run`
+
+ -- Check '.nextflow.log' file for details
+======================================================================
+AIoD finished WITH ERRORS at 2026-08-26 15:27:46 after 10m 24s
+======================================================================
+
+WARN: Killing running tasks (5)
+
+executor >  slurm (34)
+[ab/75f97a] setupModel           | 1 of 1 ✔
+[skipped  ] downloadArtifact (2) | 2 of 2, stored: 2 ✔
+[25/c22ec9] splitStacks          | 1 of 1 ✔
+[d9/32cb09] runModel (6)         | 27 of 27, failed: 27, retries: 24
+[-        ] combineStacks        -
+ERROR: AIoD stopped with the following message: /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/3d/2dcdc97ca919587de75428d6071b4b/.command.sh: line 2: 1788576 Killed                  python /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/./modules/models/resources/usr/bin/run_empanada.py --img-path Cell1-Stack02_819_3598_cor_TM1corb_cr.tif --mask-fname "Cell1-Stack02_819_3598_cor_TM1corb_cr_masks_mito-empanada-mitonet_v1-71cd9669" --output-dir "/camp/home/ahmedn/.nextflow/aiod/aiod_cache/empanada/mitonet_v1_masks" --model-chkpt mitonet_v1_mito.pth --model-type "mitonet_v1" --model-config mitonet_v1_mito_config.yml --idxs 2227 4455 0 1972 0 1799 --channels 1 --num-slices 3598 --output-mask-type auto
+[46/a1a8d8] NOTE: Process `runModel (6)` terminated with an error exit status (137) -- Execution is retried (3)
+ERROR ~ Error executing process > 'runModel (3)'
+
+Caused by:
+  Process `runModel (3)` terminated with an error exit status (137)
+
+
+Command executed:
+
+  python /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/./modules/models/resources/usr/bin/run_empanada.py     --img-path Cell1-Stack02_819_3598_cor_TM1corb_cr.tif     --mask-fname "Cell1-Stack02_819_3598_cor_TM1corb_cr_masks_mito-empanada-mitonet_v1-71cd9669"     --output-dir "/camp/home/ahmedn/.nextflow/aiod/aiod_cache/empanada/mitonet_v1_masks"     --model-chkpt mitonet_v1_mito.pth     --model-type "mitonet_v1"     --model-config mitonet_v1_mito_config.yml     --idxs 2227 4455 0 1972 0 1799     --channels 1     --num-slices 3598     --output-mask-type auto
+
+Command exit status:
+  137
+
+Command output:
+  (empty)
+
+Command error:
+  .command.sh: line 2: 1788576 Killed                  python /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/./modules/models/resources/usr/bin/run_empanada.py --img-path Cell1-Stack02_819_3598_cor_TM1corb_cr.tif --mask-fname "Cell1-Stack02_819_3598_cor_TM1corb_cr_masks_mito-empanada-mitonet_v1-71cd9669" --output-dir "/camp/home/ahmedn/.nextflow/aiod/aiod_cache/empanada/mitonet_v1_masks" --model-chkpt mitonet_v1_mito.pth --model-type "mitonet_v1" --model-config mitonet_v1_mito_config.yml --idxs 2227 4455 0 1972 0 1799 --channels 1 --num-slices 3598 --output-mask-type auto
+
+Work dir:
+  /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/3d/2dcdc97ca919587de75428d6071b4b
+
+Tip: you can replicate the issue by changing to the process work dir and entering the command `bash .command.run`
+
+ -- Check '.nextflow.log' file for details
+
+
+
+
+
+
+
