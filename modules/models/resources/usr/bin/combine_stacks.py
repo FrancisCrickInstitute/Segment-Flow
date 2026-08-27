@@ -21,8 +21,7 @@ from tqdm import tqdm
 
 # Default number of slices read/written at a time for the Zarr-backed combined-mask
 # store, so a max/page scan never materialises more than this many slices. Overridable
-# via --slab-size. TODO: still not memory/shape-aware (see compute_max_substack_size) --
-# this just exposes the existing fixed default as a knob rather than deriving it.
+# via --slab-size. TODO: calculate a reasonable size based on memory and shape similar to compute_max_substack_size
 SLAB_SIZE = 64
 
 
@@ -57,10 +56,7 @@ def iter_slabs(arr, slab=SLAB_SIZE):
 
 def iter_pages(arr, transform=None, slab=SLAB_SIZE):
     """Yield individual 2D pages, reading in slabs so a Zarr store isn't hit per-slice."""
-    # Q - Can't find clear justified evidence in docs to have to iterate over 2D pages TODO: test if its possible to skip this!
-    for block in iter_slabs(
-        arr, slab
-    ):  # why do we need to iterate again here why can't we just use iter_slabs?
+    for block in iter_slabs(arr, slab):
         if transform is not None:
             block = transform(block)
         if block.ndim == 2:
@@ -70,12 +66,7 @@ def iter_pages(arr, transform=None, slab=SLAB_SIZE):
 
 
 def write_blocks(store, block, origin, add=False, slab=SLAB_SIZE):
-    """Write `block` into `store` at `origin`, a z-slab at a time.
-
-    Writing a whole substack in a single __setitem__ leaves many chunks in flight inside
-    zarr at once; going a slab at a time bounds that (measured 3-5x lower peak). `add=True`
-    accumulates rather than overwrites, for the overlap > 0 path.
-    """
+    """Write `block` into `store` at `origin`, a z-slab at a time."""
     if len(origin) == 2:
         y0, x0 = origin
         sl = (
@@ -96,7 +87,8 @@ def write_blocks(store, block, origin, add=False, slab=SLAB_SIZE):
 
 
 def slab_max(arr, start=0, end=None, slab=SLAB_SIZE):
-    """Max over arr[start:end] along the leading axis, read in slabs so the range is
+    """
+    Max over arr[start:end] along the leading axis, read in slabs so the range is
     never fully materialised. `end=None` covers the whole array.
     """
     if end is None:
@@ -111,13 +103,7 @@ def slab_max(arr, start=0, end=None, slab=SLAB_SIZE):
 
 
 def resolve_mask_type(masks, mask_type, slab_size=SLAB_SIZE):
-    """Resolve the mask type once for the whole volume, without materialising it.
-
-    Must be resolved once, not per slab: inferring independently per slab could
-    classify a sparse slab as "binary" and a busy one as "instance". Scanning slabs
-    and stopping as soon as a third distinct value appears also avoids the full-volume
-    np.unique that aiod_rle.check_mask_type would do.
-    """
+    """Resolve the mask type once for the whole volume, without materialising it."""
     if mask_type is not None:
         return mask_type
     if masks.dtype == bool:
@@ -130,13 +116,13 @@ def resolve_mask_type(masks, mask_type, slab_size=SLAB_SIZE):
     return "binary"
 
 
-def encode_slicewise(masks, mask_type, metadata):
+def encode_slicewise(masks, mask_type, metadata, slab_size=SLAB_SIZE):
     """Per-slice equivalent of aiod_rle.encode(masks, mask_type, metadata).
 
-    Each slice's encoding depends only on that slice's own pixels, so encoding one at a
-    time and concatenating reproduces the same output element for element, while
-    holding only one slice in RAM. `masks` can be numpy, Zarr, or anything indexable
-    by [i] that returns a 2D array.
+    TODO (future iteration): this accumulates every slice's runs in one list and copies
+    it per slice via [:-1]. Left as-is because the encoded form is small relative to the
+    volume, but it could stream to disk or fan the slices out over a process pool if the
+    encode ever shows up in a profile.
     """
     if mask_type is None:
         raise ValueError("mask_type must be resolved before slice-wise encode")
@@ -145,30 +131,19 @@ def encode_slicewise(masks, mask_type, metadata):
             np.asarray(masks), mask_type=mask_type, metadata=metadata
         )
     out = []
-    for i in range(masks.shape[0]):
+    for page in iter_pages(masks, slab=slab_size):
         # Each call appends its own trailing metadata dict, which is dropped here and
         # re-added exactly once at the end.
         out.extend(
-            aiod_rle.encode(
-                np.asarray(masks[i]), mask_type=mask_type, metadata=dict(metadata)
-            )[:-1]
+            aiod_rle.encode(page, mask_type=mask_type, metadata=dict(metadata))[:-1]
         )
     out.append({"metadata": {**metadata, "mask_type": mask_type}})
     return out
 
 
-def rechunk_slicewise(arr, store_path):
-    """Rewrite a Zarr-backed volume with one z-slice per chunk.
-
-    Earlier stages chunk for write efficiency (several z-slices per chunk); reading
-    that one slice at a time for the final encode would decompress the same chunk
-    repeatedly. A separate output store is required because a Zarr array's chunk shape
-    is fixed at creation, and dask would otherwise be reading from and writing to the
-    same store at once.
-    """
-    out = _open_store(store_path, arr.shape, arr.dtype, chunks=(1, *arr.shape[1:]))
-    da.to_zarr(da.from_zarr(arr), out)
-    return out
+def _peek_mask_type(mask_path):
+    """Read the mask type from a patch's trailing metadata, without decoding it."""
+    return aiod_rle.load_encoding(mask_path)[-1].get("metadata", {}).get("mask_type")
 
 
 def combine_masks(
@@ -184,19 +159,16 @@ def combine_masks(
     If overlap is 0, masks are simply inserted at their substack indices. If overlap
     is >0, overlapping regions are summed.
 
-    Written into a chunked, compressed Zarr store at `store_path` rather than a dense
-    in-RAM array, so peak memory is bounded by one decoded substack, not the whole
-    volume.
-
     Returns:
         tuple[zarr.Array, str | None]: Combined mask store and mask type ("binary",
         "instance", or None).
+
+    TODO (future iteration): with overlap == 0 and no postprocessing, the inputs and the
+    output are both per-slice RLE, so tiles could be merged in RLE space without ever
+    materialising a dense voxel.
     """
-    # Chunk the store to one substack's box (order matches the array: z, y, x), so each
-    # write below (insert_mask, write_blocks) lands as whole chunks rather than a
-    # partial-chunk read-modify-write.
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(masks[0])
-    chunk_shape = (end_z - start_z, end_y - start_y, end_x - start_x)
+    chunk_shape = (min(slab_size, end_z - start_z), end_y - start_y, end_x - start_x)
     xy_tiling = (
         start_x > 0 or end_x < image_size[1] or start_y > 0 or end_y < image_size[2]
     )
@@ -205,47 +177,41 @@ def combine_masks(
         is_2d = True
     else:
         is_2d = False
-    all_masks = _open_store(store_path, image_size, np.uint16, chunks=chunk_shape)
     overlap = [float(val) for val in overlap]
+    is_overlap = sum(overlap) != 0.0
+    # Peeked before the store is opened so a binary volume can use a 1-byte dtype
+    # Label offsetting is pointless for binary masks encode re-binarises anyway
+    is_binary = _peek_mask_type(masks[0]) == "binary"
+    # overlap > 0 sums into the store, so bool would clip the vote count
+    dtype = np.bool_ if is_binary and not is_overlap else np.uint16
+    relabel = xy_tiling and not is_binary
+    all_masks = _open_store(store_path, image_size, dtype, chunks=chunk_shape)
     mask_types_seen = set()
+    # (start_z, end_z, max_label) per substack inserted so far; see insert_mask.
+    label_ranges = []
 
-    if sum(overlap) == 0.0:
-        for mask_path in masks:
-            idxs = extract_idxs_from_fname(mask_path)
-            encoding = aiod_rle.load_encoding(mask_path)
-            mask, metadata = aiod_rle.decode(encoding)
-            current_mask_type = metadata.get("metadata", {}).get("mask_type")
-            if current_mask_type is not None:
-                mask_types_seen.add(current_mask_type)
-            # Cast boolean to allow addition
-            if mask.dtype == bool:
-                mask = mask.astype(np.uint8)
-            all_masks = insert_mask(
-                all_masks=all_masks,
-                mask=mask,
-                idxs=idxs,
-                xy_tiling=xy_tiling,
-                is_overlap=False,
-                is_2d=is_2d,
-                slab_size=slab_size,
-            )
-    # TODO: Extract this, and handle binary/labelled masks properly, with specified vote mechanism
-    else:
-        for mask_path in masks:
-            start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
-                mask_path
-            )
-            encoding = aiod_rle.load_encoding(mask_path)
-            mask, metadata = aiod_rle.decode(encoding)
-            current_mask_type = metadata.get("metadata", {}).get("mask_type")
-            if current_mask_type is not None:
-                mask_types_seen.add(current_mask_type)
-            # Cast boolean to allow addition
-            if mask.dtype == bool:
-                mask = mask.astype(np.uint8)
-            # Read-modify-write a slab at a time; only the substack is resident
-            origin = (start_y, start_x) if is_2d else (start_z, start_y, start_x)
-            write_blocks(all_masks, mask, origin, add=True, slab=slab_size)
+    # TODO: for overlap > 0, handle binary/labelled masks properly with a specified vote
+    # mechanism rather than a plain sum.
+    for mask_path in masks:
+        idxs = extract_idxs_from_fname(mask_path)
+        # TODO: Perslab decoding?
+        mask, metadata = aiod_rle.decode(aiod_rle.load_encoding(mask_path))
+        current_mask_type = metadata.get("metadata", {}).get("mask_type")
+        if current_mask_type is not None:
+            mask_types_seen.add(current_mask_type)
+        # Cast boolean to allow addition
+        if mask.dtype == bool and all_masks.dtype != bool:
+            mask = mask.astype(np.uint8)
+        all_masks = insert_mask(
+            all_masks=all_masks,
+            mask=mask,
+            idxs=idxs,
+            relabel=relabel,
+            is_2d=is_2d,
+            add=is_overlap,
+            slab_size=slab_size,
+            label_ranges=label_ranges,
+        )
 
     if len(mask_types_seen) > 1:
         raise ValueError(
@@ -254,8 +220,6 @@ def combine_masks(
         )
     mask_type = mask_types_seen.pop() if mask_types_seen else None
 
-    # No eager reduce_dtype here: the store is already compressed, and aiod_rle.encode
-    # reduces each slab as it goes.
     return all_masks, mask_type
 
 
@@ -263,31 +227,40 @@ def insert_mask(
     all_masks,
     mask,
     idxs: tuple[int, int, int, int, int, int],
-    xy_tiling: bool,
-    is_overlap: bool,
+    relabel: bool,
     is_2d: bool,
+    add: bool = False,
     slab_size: int = SLAB_SIZE,
+    label_ranges: list[tuple[int, int, int]] | None = None,
 ):
     start_x, end_x, start_y, end_y, start_z, end_z = idxs
     # Ensure labels are unique across a slice
-    if xy_tiling:
-        # Max across the relevant slices (the whole store for a 2D volume), read in
-        # slabs so the store is never fully materialised
-        max_val = (
-            slab_max(all_masks, slab=slab_size)
-            if is_2d
-            else slab_max(all_masks, start_z, end_z, slab=slab_size)
+    if relabel:
+        # Max label already placed where this substack lands (anywhere in the store for a
+        # 2D volume), taken from what we have written rather than read back with slab_max:
+        # the store holds nothing but these substacks, so the max over intersecting
+        # records is the same answer, and reading it back dominated large volumes.
+        if label_ranges is None:
+            label_ranges = []
+        max_val = max(
+            (m for z0, z1, m in label_ranges if is_2d or (z0 < end_z and start_z < z1)),
+            default=0,
         )
-        # TODO: Handle the below, why is it commented out?
+        # TODO: Handle the below, why is it commented out? (`mask_max` below now makes
+        # the overflow check free -- no second pass over the substack needed.)
         # # Check if we need to upcast the array
         # if max_val + mask.max() > np.iinfo(all_masks.dtype).max:
         #     all_masks = all_masks.astype(np.uint32, copy=False)
+        mask_max = int(mask.max()) if mask.size else 0
         # Add a constant to all non-zero values to ensure uniqueness
         # NOTE: Equivalent to `mask[mask > 0] += max_val` but writes in place via `where`,
         # avoiding the fancy-index gather/scatter pair (one fewer substack-sized temporary)
         np.add(mask, max_val, out=mask, where=mask > 0)
+        # Empty substack -> mask_max is 0 and nothing was offset, so this records the
+        # incoming max unchanged, which is still a correct bound for the range.
+        label_ranges.append((start_z, end_z, max_val + mask_max))
     origin = (start_y, start_x) if is_2d else (start_z, start_y, start_x)
-    write_blocks(all_masks, mask, origin, slab=slab_size)
+    write_blocks(all_masks, mask, origin, add=add, slab=slab_size)
     return all_masks
 
 
@@ -519,15 +492,14 @@ if __name__ == "__main__":
     cli_args = parser.parse_args()
     if cli_args.slab_size < 1:
         raise ValueError(f"--slab-size must be >= 1, got {cli_args.slab_size}")
-    # Resolved once here, then passed explicitly to every slab-based call below --
-    # simpler and less surprising than having each helper re-check a module global.
     slab_size = cli_args.slab_size
 
     _log_mem("before loading stack")
-    scratch = tempfile.TemporaryDirectory(dir=".")
+    # use /tmp in the node that the combine stacks process is running on if available for faster I/O
+    scratch = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR") or ".")
+    print(f"Scratch stores in: {scratch.name}")
     combine_store = Path(scratch.name) / "all_masks.zarr"
     labelled_store = Path(scratch.name) / "all_masks_labelled.zarr"
-    encode_store = Path(scratch.name) / "all_masks_encode.zarr"
 
     # Combine the masks
     if len(cli_args.masks) > 1:
@@ -558,6 +530,7 @@ if __name__ == "__main__":
                     np.asarray(combined_masks), iou_threshold=cli_args.iou_threshold
                 )
         else:
+            # Q - shouldn't we also have a guard againt combined_masks.ndim > 2?
             combined_masks, _num_holes = connect_components(
                 combined_masks, store_path=labelled_store
             )
@@ -599,7 +572,6 @@ if __name__ == "__main__":
                     return (block > 0) * np.uint8(255)
 
             else:
-                # Q - how does this even work?
                 # Pick the narrowest dtype that fits (a TIFF needs one dtype up front,
                 # hence the streaming max rather than a full-volume np.max)
                 out_dtype = check_dtype(
@@ -628,20 +600,18 @@ if __name__ == "__main__":
             )
             resolved_mask_type = resolve_mask_type(
                 combined_masks, resolved_mask_type, slab_size=slab_size
-            )  # Q - why do we need to do this?
-            # Rechunk Zarr-backed volumes to one slice per chunk before the per-slice
-            # encode below (see rechunk_slicewise). Dense numpy volumes are already
-            # fully resident, so there's nothing to rechunk.
-            if not isinstance(combined_masks, np.ndarray) and combined_masks.ndim > 2:
-                combined_masks = rechunk_slicewise(combined_masks, encode_store)
+            )
             encoded_masks = encode_slicewise(
                 combined_masks, mask_type=resolved_mask_type, metadata=metadata
             )
             aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
         _log_mem("after saving")
-        # Remove the (symlinked) individual masks now that they are combined
+        # Remove the (symlinked) individual masks now that they are combined.
+        # missing_ok because Nextflow does not re-publish a cached task's outputs on
+        # -resume: once this has run, the published masks are gone for good, and a
+        # re-run of this task would otherwise die here after doing all the work.
         for mask_path in cli_args.masks:
-            (Path(cli_args.output_dir) / mask_path).unlink()
+            (Path(cli_args.output_dir) / mask_path).unlink(missing_ok=True)
     finally:
         # Remove the scratch stores; they are pure intermediates
         scratch.cleanup()

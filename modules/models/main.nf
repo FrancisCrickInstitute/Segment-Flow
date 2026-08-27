@@ -176,8 +176,12 @@ process combineStacks {
     // `memray run` invokes the target script with Python itself, so it takes the
     // script path directly -- prefixing it with `python` makes memray treat the
     // literal string "python" as the (nonexistent) script to profile.
+    // --force because memray refuses to overwrite an existing .bin: on -resume Nextflow
+    // re-runs a failed task in its original hash directory, and a .bin stranded there by
+    // a previous attempt (SIGKILL skips the task's own cleanup) otherwise kills the new
+    // attempt in seconds with "Could not create output file: File exists".
     def run_cmd = params.profile_memory \
-        ? "memray run -o ${mask_fname}_memray.bin ${moduleDir}/resources/usr/bin/combine_stacks.py" \
+        ? "memray run --force -o ${mask_fname}_memray.bin ${moduleDir}/resources/usr/bin/combine_stacks.py" \
         : "python ${moduleDir}/resources/usr/bin/combine_stacks.py"
     """
     echo ${task.memory}

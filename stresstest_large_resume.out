@@ -1,0 +1,285 @@
+[33mNextflow 26.04.6 is available - Please consider updating your version to it(B[m
+
+ N E X T F L O W   ~  version 24.04.1
+
+WARN: Invalid config manifest attribute `contributors`
+WARN: Invalid config manifest attribute `docsUrl`
+Launching `./main.nf` [romantic_poincare] DSL2 - revision: ea58611262
+
+WARN: Invalid config manifest attribute `contributors`
+WARN: Invalid config manifest attribute `docsUrl`
+════════════════════════════════════════════════════
+              █████╗ ██╗        ██████╗
+             ██╔══██╗██║        ██╔══██╗
+             ███████║██║ █████╗ ██║  ██║
+             ██╔══██║██║██╔══██╗██║  ██║
+             ██║  ██║██║╚█████╔╝██████╔╝
+             ╚═╝  ╚═╝╚═╝ ╚════╝ ╚═════╝
+
+               S E G M E N T - F L O W
+════════════════════════════════════════════════════
+Started         : 2026-08-27 14:52:36
+Model name      : empanada
+Model variant   : mitonet_v1
+Task            : mito
+Model config    : null
+Config Hash     : 71cd9669
+Image filepaths : /nemo/stp/ddt/working/ahmedn/aiod-312/all_img_paths.csv
+---
+Cache directory : /camp/home/ahmedn/.nextflow/aiod/aiod_cache/empanada
+Work directory  : /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work
+Profile         : crick
+---
+Full Command    : nextflow run . --img_dir /nemo/stp/ddt/working/ahmedn/aiod-312/all_img_paths.csv --model empanada --model_type mitonet_v1 --task mito -profile crick --profile_memory true -c ../overrides.config -resume 06f0a510-ec14-40c2-aa0b-f2bc928a1c1c
+════════════════════════════════════════════════════
+
+[-        ] setupModel -
+
+[-        ] setupModel       -
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+
+[-        ] setupModel       -
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+
+[a2/b29ee4] setupModel       | 1 of 1, cached: 1
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+
+[a2/b29ee4] setupModel       | 1 of 1, cached: 1 ✔
+[-        ] downloadArtifact -
+[-        ] splitStacks      -
+[-        ] runModel         -
+[-        ] combineStacks    -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/a2/b29ee4bc480ec32e6797647a2f3249/mitonet_v1_mito_config.yml
+
+
+[a2/b29ee4] setupModel           | 1 of 1, cached: 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[cd/ccbaae] splitStacks          | 1 of 1, cached: 1 ✔
+[-        ] runModel             -
+[-        ] combineStacks        -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/a2/b29ee4bc480ec32e6797647a2f3249/mitonet_v1_mito_config.yml
+
+
+[a2/b29ee4] setupModel           | 1 of 1, cached: 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[cd/ccbaae] splitStacks          | 1 of 1, cached: 1 ✔
+[8f/58be54] runModel (3)         | 4 of 4, cached: 4
+[-        ] combineStacks        -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/a2/b29ee4bc480ec32e6797647a2f3249/mitonet_v1_mito_config.yml
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+
+[a2/b29ee4] setupModel           | 1 of 1, cached: 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[cd/ccbaae] splitStacks          | 1 of 1, cached: 1 ✔
+[ad/fea5bb] runModel (8)         | 8 of 8, cached: 8 ✔
+[-        ] combineStacks        -
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/a2/b29ee4bc480ec32e6797647a2f3249/mitonet_v1_mito_config.yml
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+
+[a2/b29ee4] setupModel           | 1 of 1, cached: 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[cd/ccbaae] splitStacks          | 1 of 1, cached: 1 ✔
+[ad/fea5bb] runModel (8)         | 8 of 8, cached: 8 ✔
+[-        ] combineStacks        | 0 of 1
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/a2/b29ee4bc480ec32e6797647a2f3249/mitonet_v1_mito_config.yml
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+
+executor >  slurm (1)
+[a2/b29ee4] setupModel           | 1 of 1, cached: 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[cd/ccbaae] splitStacks          | 1 of 1, cached: 1 ✔
+[ad/fea5bb] runModel (8)         | 8 of 8, cached: 8 ✔
+[8e/c904c9] combineStacks (1)    | 0 of 1
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/a2/b29ee4bc480ec32e6797647a2f3249/mitonet_v1_mito_config.yml
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+
+executor >  slurm (1)
+[a2/b29ee4] setupModel           | 1 of 1, cached: 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[cd/ccbaae] splitStacks          | 1 of 1, cached: 1 ✔
+[ad/fea5bb] runModel (8)         | 8 of 8, cached: 8 ✔
+[8e/c904c9] combineStacks (1)    | 0 of 1
+Written metadata for 'mitonet_v1_mito.pth' -> model_chkpt_meta.json
+Written metadata for 'mitonet_v1_mito_config.yml' -> model_config_meta.json
+Generated default config from registry params -> /nemo/stp/ddt/working/ahmedn/aiod-312/Segment-Flow/work/a2/b29ee4bc480ec32e6797647a2f3249/mitonet_v1_mito_config.yml
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+Using device: cuda for model type: empanada_mitonet_v1
+
+
+executor >  slurm (1)
+[a2/b29ee4] setupModel           | 1 of 1, cached: 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[cd/ccbaae] splitStacks          | 1 of 1, cached: 1 ✔
+[ad/fea5bb] runModel (8)         | 8 of 8, cached: 8 ✔
+[8e/c904c9] combineStacks (1)    | 1 of 1 ✔
+50 GB
+Writing profile results into Cell1-Stack02_819_3598_cor_TM1corb_cr_masks_mito-empanada-mitonet_v1-71cd9669_memray.bin
+Memory used before loading stack: 0.22 GB
+Scratch stores in: /tmp/slurm_53605777/tmp7pjo0u3y
+Memory used after loading stack: 0.28 GB
+Combined masks shape: (3598, 3944, 4455)
+Memory used in combination: 0.28 GB
+Memory used after saving: 0.48 GB
+[memray] Successfully generated profile results.
+
+You can now generate reports from the stored allocation records.
+Some example commands to generate reports:
+
+/camp/home/ahmedn/working/ahmedn/combine_conda-5cb53ec844dd96275b6c671912da047b/bin/python -m memray flamegraph Cell1-Stack02_819_3598_cor_TM1corb_cr_masks_mito-empanada-mitonet_v1-71cd9669_memray.bin
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+executor >  slurm (1)
+[a2/b29ee4] setupModel           | 1 of 1, cached: 1 ✔
+[skipped  ] downloadArtifact (1) | 2 of 2, stored: 2 ✔
+[cd/ccbaae] splitStacks          | 1 of 1, cached: 1 ✔
+[ad/fea5bb] runModel (8)         | 8 of 8, cached: 8 ✔
+[8e/c904c9] combineStacks (1)    | 1 of 1 ✔
+50 GB
+Writing profile results into Cell1-Stack02_819_3598_cor_TM1corb_cr_masks_mito-empanada-mitonet_v1-71cd9669_memray.bin
+Memory used before loading stack: 0.22 GB
+Scratch stores in: /tmp/slurm_53605777/tmp7pjo0u3y
+Memory used after loading stack: 0.28 GB
+Combined masks shape: (3598, 3944, 4455)
+Memory used in combination: 0.28 GB
+Memory used after saving: 0.48 GB
+[memray] Successfully generated profile results.
+
+You can now generate reports from the stored allocation records.
+Some example commands to generate reports:
+
+/camp/home/ahmedn/working/ahmedn/combine_conda-5cb53ec844dd96275b6c671912da047b/bin/python -m memray flamegraph Cell1-Stack02_819_3598_cor_TM1corb_cr_masks_mito-empanada-mitonet_v1-71cd9669_memray.bin
+
+======================================================================
+AIoD finished SUCCESSFULLY at 2026-08-27 15:22:01 after 29m 28s
+======================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Completed at: 27-Aug-2026 15:22:01
+Duration    : 29m 28s
+CPU hours   : 3.8 (48.8% cached)
+Succeeded   : 1
+Cached      : 10
+
+

@@ -74,7 +74,9 @@ def test_encode_slicewise_from_zarr_store(tmp_path, name):
     """A Zarr-backed volume encodes identically to the equivalent numpy array."""
     vol, mask_type = VOLUMES[name]
     expected = aiod_rle.encode(vol.copy(), mask_type=mask_type, metadata={})
-    store = cs._open_store(tmp_path / f"{name}.zarr", vol.shape, vol.dtype, chunks=vol.shape)
+    store = cs._open_store(
+        tmp_path / f"{name}.zarr", vol.shape, vol.dtype, chunks=vol.shape
+    )
     store[:] = vol
     got = cs.encode_slicewise(store, mask_type=mask_type, metadata={})
     assert got == expected
@@ -104,22 +106,6 @@ def test_encode_slicewise_rejects_unresolved_mask_type():
     """Refuses to guess: per-slice inference could mix types within one file."""
     with pytest.raises(ValueError, match="must be resolved"):
         cs.encode_slicewise(_binary((5, 7, 9)), mask_type=None, metadata={})
-
-
-@pytest.mark.parametrize("name", list(VOLUMES))
-def test_rechunk_slicewise_preserves_data(tmp_path, name):
-    """Rechunking to one z-slice per chunk doesn't change the array's contents."""
-    vol, _ = VOLUMES[name]
-    if vol.ndim != 3:
-        pytest.skip("rechunk_slicewise is only used for 3D stores")
-    store = cs._open_store(
-        tmp_path / f"{name}_src.zarr", vol.shape, vol.dtype, chunks=vol.shape
-    )
-    store[:] = vol
-    out = cs.rechunk_slicewise(store, tmp_path / f"{name}_out.zarr")
-    assert out.shape == vol.shape
-    assert out.chunks == (1, *vol.shape[1:])
-    assert np.array_equal(np.asarray(out), vol)
 
 
 @pytest.mark.parametrize(
@@ -186,14 +172,9 @@ def test_iter_slabs_covers_array_exactly(tmp_path):
     vol = _instance((70, 6, 7), 20)
     store = cs._open_store(tmp_path / "s.zarr", vol.shape, np.uint16, chunks=vol.shape)
     store[:] = vol
-    seen = [(z0, z1) for z0, z1, _ in cs.iter_slabs(store, slab=16)]
-    assert seen[0][0] == 0
-    assert seen[-1][1] == vol.shape[0]
-    # Pairwise over consecutive slabs, so the second sequence is shorter by one
-    assert all(a[1] == b[0] for a, b in zip(seen, seen[1:], strict=False))
-    assert np.array_equal(
-        np.concatenate([b for _, _, b in cs.iter_slabs(store, slab=16)]), vol
-    )
+    blocks = list(cs.iter_slabs(store, slab=16))
+    assert [b.shape[0] for b in blocks] == [16, 16, 16, 16, 6]
+    assert np.array_equal(np.concatenate(blocks), vol)
 
 
 def test_open_store_clamps_chunks_to_shape(tmp_path):
@@ -209,6 +190,99 @@ def test_open_store_clamps_chunks_to_shape(tmp_path):
     assert all(c <= s for c, s in zip(store2d.chunks, store2d.shape, strict=True))
 
 
+def _patch_one_substack(monkeypatch, mask, mask_type):
+    """Stand in for a single substack file covering a quarter tile of a 2x larger volume."""
+    nz, ny, nx = mask.shape
+    monkeypatch.setattr(cs, "extract_idxs_from_fname", lambda _: (0, nx, 0, ny, 0, nz))
+    monkeypatch.setattr(
+        cs.aiod_rle, "load_encoding", lambda _: [{"metadata": {"mask_type": mask_type}}]
+    )
+    monkeypatch.setattr(
+        cs.aiod_rle,
+        "decode",
+        lambda _: (mask, {"metadata": {"mask_type": mask_type}}),
+    )
+
+
+def test_combine_masks_chunks_to_one_write_region(tmp_path, monkeypatch):
+    """Chunked to what one write_blocks call covers, so writes and the slab reads in
+    encode_slicewise are both whole-chunk and no rechunk pass is needed."""
+    _patch_one_substack(monkeypatch, np.zeros((100, 12, 16), np.uint16), "instance")
+    store, _ = cs.combine_masks(
+        ["a.rle"],
+        overlap=[0.0, 0.0, 0.0],
+        image_size=(200, 24, 32),
+        model="empanada",
+        store_path=tmp_path / "cm.zarr",
+        slab_size=8,
+    )
+    assert store.chunks == (8, 12, 16)
+
+
+def test_combine_masks_binary_uses_bool_store_and_skips_relabel(tmp_path, monkeypatch):
+    """Binary masks get a 1-byte store and no label offsetting -- encode re-binarises,
+    so offsetting per x/y tile is two full passes over the substack thrown away."""
+    mask = np.ones((10, 12, 16), bool)
+    _patch_one_substack(monkeypatch, mask, "binary")
+    store, mask_type = cs.combine_masks(
+        ["a.rle"],
+        overlap=[0.0, 0.0, 0.0],
+        image_size=(20, 24, 32),
+        model="empanada",
+        store_path=tmp_path / "b.zarr",
+        slab_size=8,
+    )
+    assert store.dtype == bool
+    assert mask_type == "binary"
+    # Untouched by any offset: still 0/1, not 0/k
+    assert set(np.unique(np.asarray(store))) == {False, True}
+
+
+def test_combine_masks_instance_uses_uint16_store(tmp_path, monkeypatch):
+    _patch_one_substack(monkeypatch, _instance((10, 12, 16), 5), "instance")
+    store, mask_type = cs.combine_masks(
+        ["a.rle"],
+        overlap=[0.0, 0.0, 0.0],
+        image_size=(20, 24, 32),
+        model="empanada",
+        store_path=tmp_path / "i.zarr",
+        slab_size=8,
+    )
+    assert store.dtype == np.uint16
+    assert mask_type == "instance"
+
+
+def test_combine_masks_binary_with_overlap_stays_summable(tmp_path, monkeypatch):
+    """overlap > 0 sums overlapping regions, so a bool store would clip the vote count."""
+    _patch_one_substack(monkeypatch, np.ones((10, 12, 16), bool), "binary")
+    store, _ = cs.combine_masks(
+        ["a.rle", "b.rle"],
+        overlap=[0.1, 0.1, 0.1],
+        image_size=(20, 24, 32),
+        model="empanada",
+        store_path=tmp_path / "bo.zarr",
+        slab_size=8,
+    )
+    assert store.dtype == np.uint16
+    # Both stubs land on the same tile, so the shared region accumulates to 2
+    assert int(np.asarray(store).max()) == 2
+
+
+def test_encode_slicewise_matches_encode_across_chunkings(tmp_path):
+    """Reading via slabs must give byte-identical output whatever the store chunking --
+    that independence is what lets combine_masks pick chunks for write efficiency."""
+    vol, mask_type = VOLUMES["instance"]
+    expected = aiod_rle.encode(vol.copy(), mask_type=mask_type, metadata={})
+    for i, chunks in enumerate([(1, *vol.shape[1:]), (7, 5, 6), vol.shape]):
+        store = cs._open_store(tmp_path / f"ck{i}.zarr", vol.shape, vol.dtype, chunks)
+        store[:] = vol
+        for slab in (1, 5, 64):
+            got = cs.encode_slicewise(
+                store, mask_type=mask_type, metadata={}, slab_size=slab
+            )
+            assert got == expected, f"chunks={chunks} slab={slab}"
+
+
 def test_zarr_store_is_compressed(tmp_path):
     """Sanity check that mask data actually compresses; the fix relies on it."""
     vol = _binary((64, 256, 256), 0.02, seed=1)
@@ -222,27 +296,104 @@ def test_zarr_store_is_compressed(tmp_path):
     )
 
 
+def test_insert_mask_offset_matches_store_readback(tmp_path):
+    """insert_mask tracks the max label in `label_ranges` instead of re-reading the
+    store. The offset it applies must equal what slab_max would have read back over the
+    substack's z-range, for every tile of a 2x2x2 layout -- tiles sharing a z-range see
+    each other's labels, tiles in a different z-range do not.
+    """
+    shape = (20, 8, 8)
+    store = cs._open_store(tmp_path / "lr.zarr", shape, np.uint16, chunks=(5, 4, 4))
+    label_ranges = []
+    for start_z, end_z in ((0, 10), (10, 20)):
+        for start_y, end_y in ((0, 4), (4, 8)):
+            for start_x, end_x in ((0, 4), (4, 8)):
+                # What the old readback would have returned, taken before we write
+                expected_offset = cs.slab_max(store, start_z, end_z)
+                mask = _instance((end_z - start_z, 4, 4), 5)
+                before = mask.copy()
+                cs.insert_mask(
+                    all_masks=store,
+                    mask=mask,
+                    idxs=(start_x, end_x, start_y, end_y, start_z, end_z),
+                    relabel=True,
+                    is_2d=False,
+                    label_ranges=label_ranges,
+                )
+                written = np.asarray(store[start_z:end_z, start_y:end_y, start_x:end_x])
+                assert np.array_equal(
+                    written, np.where(before > 0, before + expected_offset, 0)
+                )
+
+
+def test_insert_mask_offset_matches_store_readback_2d(tmp_path):
+    """For a 2D volume the offset covers the whole store, not a z-range."""
+    store = cs._open_store(tmp_path / "lr2.zarr", (8, 8), np.uint16, chunks=(4, 4))
+    label_ranges = []
+    for start_y, end_y in ((0, 4), (4, 8)):
+        for start_x, end_x in ((0, 4), (4, 8)):
+            expected_offset = cs.slab_max(store)
+            mask = _instance((4, 4), 5)
+            before = mask.copy()
+            cs.insert_mask(
+                all_masks=store,
+                mask=mask,
+                idxs=(start_x, end_x, start_y, end_y, 0, 1),
+                relabel=True,
+                is_2d=True,
+                label_ranges=label_ranges,
+            )
+            written = np.asarray(store[start_y:end_y, start_x:end_x])
+            assert np.array_equal(
+                written, np.where(before > 0, before + expected_offset, 0)
+            )
+
+
+def test_insert_mask_empty_substack_does_not_consume_labels(tmp_path):
+    """An all-zero substack offsets nothing, so it must not advance the running max."""
+    shape = (10, 4, 8)
+    store = cs._open_store(tmp_path / "lre.zarr", shape, np.uint16, chunks=(5, 4, 4))
+    label_ranges = []
+    cs.insert_mask(
+        all_masks=store,
+        mask=np.zeros((10, 4, 4), np.uint16),
+        idxs=(0, 4, 0, 4, 0, 10),
+        relabel=True,
+        is_2d=False,
+        label_ranges=label_ranges,
+    )
+    mask = _instance((10, 4, 4), 5)
+    before = mask.copy()
+    cs.insert_mask(
+        all_masks=store,
+        mask=mask,
+        idxs=(4, 8, 0, 4, 0, 10),
+        relabel=True,
+        is_2d=False,
+        label_ranges=label_ranges,
+    )
+    assert np.array_equal(np.asarray(store[:, :, 4:8]), before)
+
+
 def test_insert_mask_forwards_slab_size(tmp_path, monkeypatch):
     """--slab-size is resolved once in __main__ and passed down explicitly as a plain
-    argument (slab_size on combine_masks/insert_mask, slab on write_blocks/slab_max) --
-    not via a mutable module global. This checks insert_mask actually forwards the
-    value it's given to both of its own slab-based calls, rather than silently falling
-    back to the SLAB_SIZE default.
+    argument (slab_size on combine_masks/insert_mask, slab on write_blocks) -- not via a
+    mutable module global. This checks insert_mask actually forwards the value it's
+    given, rather than silently falling back to the SLAB_SIZE default.
     """
     shape = (10, 5, 5)
     store = cs._open_store(tmp_path / "sm.zarr", shape, np.uint16, chunks=shape)
     seen_slabs = []
-    real_slab_max, real_write_blocks = cs.slab_max, cs.write_blocks
-
-    def spy_slab_max(*args, **kwargs):
-        seen_slabs.append(kwargs.get("slab"))
-        return real_slab_max(*args, **kwargs)
+    real_write_blocks = cs.write_blocks
 
     def spy_write_blocks(*args, **kwargs):
         seen_slabs.append(kwargs.get("slab"))
         return real_write_blocks(*args, **kwargs)
 
-    monkeypatch.setattr(cs, "slab_max", spy_slab_max)
+    def fail_slab_max(*args, **kwargs):
+        raise AssertionError("insert_mask must not read the store back to find the max")
+
+    monkeypatch.setattr(cs, "slab_max", fail_slab_max)
     monkeypatch.setattr(cs, "write_blocks", spy_write_blocks)
 
     mask = _instance((5, 5, 5), 3)
@@ -250,12 +401,12 @@ def test_insert_mask_forwards_slab_size(tmp_path, monkeypatch):
         all_masks=store,
         mask=mask,
         idxs=(0, 5, 0, 5, 0, 5),
-        xy_tiling=True,
-        is_overlap=False,
+        relabel=True,
         is_2d=False,
         slab_size=7,
+        label_ranges=[],
     )
-    assert seen_slabs == [7, 7]  # one slab_max call, one write_blocks call, both slab=7
+    assert seen_slabs == [7]  # one write_blocks call, slab=7
 
 
 def test_insert_mask_and_write_blocks_default_to_slab_size_constant(tmp_path):
@@ -268,8 +419,7 @@ def test_insert_mask_and_write_blocks_default_to_slab_size_constant(tmp_path):
         all_masks=store,
         mask=mask.copy(),
         idxs=(0, 5, 0, 5, 0, 5),
-        xy_tiling=False,
-        is_overlap=False,
+        relabel=False,
         is_2d=False,
     )
     assert np.array_equal(np.asarray(result[:]), mask)
