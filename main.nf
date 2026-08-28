@@ -108,6 +108,29 @@ def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
 // Could consider https://stackoverflow.com/a/71529563 for auto-printing
 
+// Null commitId means a local checkout was run directly, rather than Nextflow
+// resolving a git repository name, so there is no revision to report or pin.
+def revisionLabel() {
+    if ( !workflow.commitId ) return "local checkout"
+    return "${workflow.revision} (${workflow.commitId.take(7)})"
+}
+
+// An unpinned run resolves to the tip of the default branch, which moves as the
+// pipeline develops; only a release tag gives the same code on the next run.
+def checkRevision() {
+    if ( !workflow.commitId ) return
+    if ( workflow.revision ==~ /^v?\d+\.\d+.*/ ) return
+
+    log.warn """\
+        Running '${workflow.revision}' (${workflow.commitId.take(7)}), which is not a release tag.
+        This revision can change between runs, and its model environments may pin
+        unreleased aiod_utils/aiod_registry versions.
+        For a reproducible run, pin a tag:
+            nextflow run ${workflow.manifest.name} -r <tag> [options]
+        Tags: ${workflow.manifest.homePage}/tags
+        """.stripIndent()
+}
+
 log.info banner() + """\
          Started         : ${log_timestamp}
          Model name      : ${params.model}
@@ -120,10 +143,14 @@ log.info banner() + """\
          Cache directory : ${model_dir}
          Work directory  : ${workDir}
          Profile         : ${workflow.profile}
+         Version         : ${workflow.manifest.version}
+         Revision        : ${revisionLabel()}
          ---
          Full Command    : ${workflow.commandLine}
          ════════════════════════════════════════════════════
          """.stripIndent()
+
+checkRevision()
 
 
 // NOTE: Mirrors aiod_utils.io.get_mask_name() - keep both in sync if this changes.
@@ -245,7 +272,7 @@ workflow {
     img_ch = split_csv_rows
         | map{ row ->
             // Reminder: resolvedParamHash is unique per run, and prep_hash unique per preprocessing branch, and image_id obvs unique per image
-            meta = row.subMap("height", "width", "num_slices", "channels", "prep_hash")
+            meta = row.subMap("height", "width", "num_slices", "channels", "image_id", "prep_hash")
             [
                 row.img_path,
                 meta,
@@ -306,7 +333,7 @@ workflow {
     }
     | set { mask_ch }
 
-    combineStacks( mask_ch, params.postprocess, params.output_format.toLowerCase(), params.output_mask_type.toLowerCase() )
+    combineStacks( mask_ch, params.postprocess, params.output_format.toLowerCase(), params.output_mask_type.toLowerCase(), resolvedParamHash )
 }
 
 // Useful output upon completion, one way or another

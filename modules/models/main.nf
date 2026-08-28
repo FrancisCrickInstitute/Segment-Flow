@@ -189,6 +189,7 @@ process combineStacks {
     val postprocess
     val output_format
     val output_mask_type
+    val param_hash
 
     output:
     path("${mask_fname}_all.${output_format}")
@@ -214,6 +215,8 @@ process combineStacks {
     --output-mask-type ${output_mask_type} \
     --preprocess-config preprocess_config.json \
     --prep-hash "${meta.prep_hash ?: ""}" \
+    --image-id "${meta.image_id}" \
+    --param-hash "${param_hash}" \
     ${postprocess}
     """
 }
