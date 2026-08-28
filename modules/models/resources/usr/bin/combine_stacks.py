@@ -1,6 +1,8 @@
 import os
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
+from time import perf_counter
 
 import aiod_utils.rle as aiod_rle
 import dask
@@ -23,6 +25,19 @@ from tqdm import tqdm
 # store, so a max/page scan never materialises more than this many slices. Overridable
 # via --slab-size. TODO: calculate a reasonable size based on memory and shape similar to compute_max_substack_size
 SLAB_SIZE = 64
+# Y/X extent of a store chunk. Deliberately well below the frame size: chunks spanning
+# the full frame are hundreds of MB each (a (64, 1972, 2227) chunk is 281 MB at 1 byte),
+# so every partial-chunk write becomes a read-decompress-merge-recompress-write of that
+# much data. 64x256x256 intermediates in single-digit MB.
+# See write_blocks for the separate, and larger, cost of misaligning writes to this grid.
+XY_CHUNK = 256
+
+# EXPERIMENT: keep the Zarr stores in RAM (uncompressed MemoryStore) instead of on local
+# scratch, to see how much of the cost is disk I/O + compression rather than the chunked
+# access pattern itself. Set COMBINE_STACKS_STORE=ram to enable. NOTE: this holds the
+# whole volume uncompressed in RAM (63 GB for a 3598x3944x4455 bool volume), so it needs
+# a memory limit to match -- it OOM-killed at 50 GB on exactly that volume.
+IN_RAM = os.environ.get("COMBINE_STACKS_STORE", "disk").lower() == "ram"
 
 
 def _log_mem(label: str):
@@ -31,13 +46,66 @@ def _log_mem(label: str):
     print(f"Memory used {label}: {mem_used:.2f} GB")
 
 
+# Wall seconds per phase, accumulated across calls so the per-substack decode/insert
+# steps in combine_masks sum into one figure each. See print_phase_report.
+_PHASE_TIMES: dict[str, float] = {}
+
+
+@contextmanager
+def phase(label: str):
+    """Accumulate wall time spent inside the block under `label`."""
+    start = perf_counter()
+    try:
+        yield
+    finally:
+        _PHASE_TIMES[label] = _PHASE_TIMES.get(label, 0.0) + perf_counter() - start
+
+
+def print_phase_report(total_s: float):
+    """Print where the wall clock went, phase by phase.
+
+    Read the *ratios*, not the totals. This process shares `ncpu` nodes with other jobs
+    and the work is memory-bandwidth-bound, so stall cycles from a busy neighbour are
+    charged to it: identical code on the same node has measured 18m05s and 25m47s
+    (slurm 53651624 vs 53629410). End-to-end wall clock therefore cannot resolve
+    anything smaller than about a 1.5x change, but the split between phases still
+    tells you which one a change moved.
+
+    A large "(unaccounted)" row means real work is happening outside every `phase`
+    block, and the split above it is not the whole picture.
+    """
+    if not _PHASE_TIMES:
+        return
+    rows = sorted(_PHASE_TIMES.items(), key=lambda kv: -kv[1])
+    rows.append(("(unaccounted)", total_s - sum(_PHASE_TIMES.values())))
+    rows.append(("TOTAL", total_s))
+    width = max(len(name) for name, _ in rows)
+    print("\n--- combine_stacks phase timings ---")
+    for name, secs in rows:
+        pct = 100.0 * secs / total_s if total_s > 0 else 0.0
+        print(f"  {name:<{width}}  {secs:8.1f}s  {secs / 60:6.2f}m  {pct:5.1f}%")
+
+
 def _open_store(path, shape, dtype, chunks):
-    """Create a chunked, compressed Zarr array on local scratch to hold a mask volume."""
+    """Create a chunked Zarr array to hold a mask volume.
+
+    On local scratch by default; in RAM (uncompressed) when IN_RAM, which trades the
+    memory saving away to isolate the cost of disk I/O and compression.
+    """
     shape = tuple(int(s) for s in shape)
     # Never chunk larger than the array itself
     chunks = tuple(min(c, s) for c, s in zip(chunks[-len(shape) :], shape, strict=True))
-    return zarr.open_array(
-        store=str(path), mode="w", shape=shape, chunks=chunks, dtype=dtype
+    store = zarr.storage.MemoryStore() if IN_RAM else str(path)
+    # create_array (not open_array) so `compressors` is accepted
+    return zarr.create_array(
+        store=store,
+        shape=shape,
+        chunks=chunks,
+        dtype=dtype,
+        overwrite=True,
+        # No compression in RAM: nothing to save space for, and the codec round-trip is
+        # part of what we're measuring
+        compressors=None if IN_RAM else "auto",
     )
 
 
@@ -66,7 +134,17 @@ def iter_pages(arr, transform=None, slab=SLAB_SIZE):
 
 
 def write_blocks(store, block, origin, add=False, slab=SLAB_SIZE):
-    """Write `block` into `store` at `origin`, a z-slab at a time."""
+    """Write `block` into `store` at `origin`, a z-slab at a time.
+
+    Slab boundaries are snapped to the store's chunk grid in *global* z rather than
+    counted from the block's own origin. Substack z bounds are not multiples of the
+    chunk depth in general (e.g. a substack starting at z=1799 with 64-deep chunks is
+    offset by 7), so counting from the origin makes every single write straddle two
+    chunk layers -- turning each one into a read-decompress-merge-recompress-write of
+    both. Snapping leaves only the one genuinely straddling chunk layer partial.
+    Measured on a (128, 1972, 2227) bool block into 64x256x256 chunks: 1.82 s aligned
+    vs 3.59 s at a 7-slice offset.
+    """
     if len(origin) == 2:
         y0, x0 = origin
         sl = (
@@ -80,10 +158,19 @@ def write_blocks(store, block, origin, add=False, slab=SLAB_SIZE):
     z0, y0, x0 = origin
     ys = slice(y0, y0 + block.shape[1])
     xs = slice(x0, x0 + block.shape[2])
-    for k in range(0, block.shape[0], slab):
-        k1 = min(k + slab, block.shape[0])
+    # Fall back to the slab size for a plain numpy target, which has no chunk grid
+    store_chunks = getattr(store, "chunks", None)
+    chunk_z = store_chunks[0] if store_chunks else slab
+    k = 0
+    while k < block.shape[0]:
+        # End at whichever comes first: a full slab, the next chunk boundary, or the
+        # end of the block. `next_boundary` is strictly greater than z0 + k, so k1 > k
+        # always and the loop cannot stall.
+        next_boundary = ((z0 + k) // chunk_z + 1) * chunk_z
+        k1 = min(k + slab, next_boundary - z0, block.shape[0])
         sl = (slice(z0 + k, z0 + k1), ys, xs)
         store[sl] = (store[sl] + block[k:k1]) if add else block[k:k1]
+        k = k1
 
 
 def slab_max(arr, start=0, end=None, slab=SLAB_SIZE):
@@ -117,13 +204,7 @@ def resolve_mask_type(masks, mask_type, slab_size=SLAB_SIZE):
 
 
 def encode_slicewise(masks, mask_type, metadata, slab_size=SLAB_SIZE):
-    """Per-slice equivalent of aiod_rle.encode(masks, mask_type, metadata).
-
-    TODO (future iteration): this accumulates every slice's runs in one list and copies
-    it per slice via [:-1]. Left as-is because the encoded form is small relative to the
-    volume, but it could stream to disk or fan the slices out over a process pool if the
-    encode ever shows up in a profile.
-    """
+    """Per-slice equivalent of aiod_rle.encode(masks, mask_type, metadata)."""
     if mask_type is None:
         raise ValueError("mask_type must be resolved before slice-wise encode")
     if masks.ndim == 2:
@@ -168,7 +249,11 @@ def combine_masks(
     materialising a dense voxel.
     """
     start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(masks[0])
-    chunk_shape = (min(slab_size, end_z - start_z), end_y - start_y, end_x - start_x)
+    # Chunk z to the slab size so a slab read maps onto one chunk layer, but keep y/x
+    # small regardless of the substack extent -- see XY_CHUNK
+    # NOTE: when you want to write you read decompress merge recompress and write this introduces a lot of I/O.
+    # SLAB_SIZE is the I/O transaction size a 1:1 mapping of chunk z and slab_size is ideal but chunk z being too big creates the slow I/0
+    chunk_shape = (min(slab_size, end_z - start_z), XY_CHUNK, XY_CHUNK)
     xy_tiling = (
         start_x > 0 or end_x < image_size[1] or start_y > 0 or end_y < image_size[2]
     )
@@ -191,27 +276,29 @@ def combine_masks(
     label_ranges = []
 
     # TODO: for overlap > 0, handle binary/labelled masks properly with a specified vote
-    # mechanism rather than a plain sum.
+    # mechanism rather than summing the overlap
     for mask_path in masks:
         idxs = extract_idxs_from_fname(mask_path)
         # TODO: Perslab decoding?
-        mask, metadata = aiod_rle.decode(aiod_rle.load_encoding(mask_path))
+        with phase("decode substacks"):
+            mask, metadata = aiod_rle.decode(aiod_rle.load_encoding(mask_path))
+            # Cast boolean to allow addition
+            if mask.dtype == bool and all_masks.dtype != bool:
+                mask = mask.astype(np.uint8)
         current_mask_type = metadata.get("metadata", {}).get("mask_type")
         if current_mask_type is not None:
             mask_types_seen.add(current_mask_type)
-        # Cast boolean to allow addition
-        if mask.dtype == bool and all_masks.dtype != bool:
-            mask = mask.astype(np.uint8)
-        all_masks = insert_mask(
-            all_masks=all_masks,
-            mask=mask,
-            idxs=idxs,
-            relabel=relabel,
-            is_2d=is_2d,
-            add=is_overlap,
-            slab_size=slab_size,
-            label_ranges=label_ranges,
-        )
+        with phase("insert into store"):
+            all_masks = insert_mask(
+                all_masks=all_masks,
+                mask=mask,
+                idxs=idxs,
+                relabel=relabel,
+                is_2d=is_2d,
+                add=is_overlap,
+                slab_size=slab_size,
+                label_ranges=label_ranges,
+            )
 
     if len(mask_types_seen) > 1:
         raise ValueError(
@@ -494,9 +581,11 @@ if __name__ == "__main__":
         raise ValueError(f"--slab-size must be >= 1, got {cli_args.slab_size}")
     slab_size = cli_args.slab_size
 
+    run_start = perf_counter()
     _log_mem("before loading stack")
     # use /tmp in the node that the combine stacks process is running on if available for faster I/O
     scratch = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR") or ".")
+    print(f"Store backend: {'RAM (uncompressed MemoryStore)' if IN_RAM else 'disk'}")
     print(f"Scratch stores in: {scratch.name}")
     combine_store = Path(scratch.name) / "all_masks.zarr"
     labelled_store = Path(scratch.name) / "all_masks_labelled.zarr"
@@ -513,9 +602,10 @@ if __name__ == "__main__":
         )
         _log_mem("after loading stack")
     else:
-        combined_masks = aiod_rle.load_encoding(cli_args.masks[0])
-        # NOTE: Extract metadata later from preprocess params
-        combined_masks, decoded_metadata = aiod_rle.decode(combined_masks)
+        with phase("decode substacks"):
+            combined_masks = aiod_rle.load_encoding(cli_args.masks[0])
+            # NOTE: Extract metadata later from preprocess params
+            combined_masks, decoded_metadata = aiod_rle.decode(combined_masks)
         # Extract mask_type from metadata to avoid expensive check_mask_type() later
         mask_type_from_file = decoded_metadata.get("metadata", {}).get("mask_type")
     print(f"Combined masks shape: {combined_masks.shape}")
@@ -526,14 +616,17 @@ if __name__ == "__main__":
             if combined_masks.ndim > 2:
                 # NOTE: connect_sam remains dense -- relabel_sequential needs the whole
                 # volume in memory, and SAM volumes are small enough for that to be fine.
-                combined_masks = connect_sam(
-                    np.asarray(combined_masks), iou_threshold=cli_args.iou_threshold
-                )
+                with phase("postprocess (connect_sam)"):
+                    combined_masks = connect_sam(
+                        np.asarray(combined_masks),
+                        iou_threshold=cli_args.iou_threshold,
+                    )
         else:
             # Q - shouldn't we also have a guard againt combined_masks.ndim > 2?
-            combined_masks, _num_holes = connect_components(
-                combined_masks, store_path=labelled_store
-            )
+            with phase("postprocess (connect_components)"):
+                combined_masks, _num_holes = connect_components(
+                    combined_masks, store_path=labelled_store
+                )
     # combined_masks is a plain np.ndarray only in the single-substack path above
     # (aiod_rle.decode returns numpy directly, so combine_masks() is never called); the
     # multi-substack Zarr path reduces dtype and squeezes itself (slab_max/resolve_mask_type
@@ -574,23 +667,27 @@ if __name__ == "__main__":
             else:
                 # Pick the narrowest dtype that fits (a TIFF needs one dtype up front,
                 # hence the streaming max rather than a full-volume np.max)
-                out_dtype = check_dtype(
-                    combined_masks, max_val=slab_max(combined_masks, slab=slab_size)
-                )
+                with phase("scan for output dtype"):
+                    out_dtype = check_dtype(
+                        combined_masks, max_val=slab_max(combined_masks, slab=slab_size)
+                    )
 
                 def _to_display(block):
                     return block.astype(out_dtype, copy=False)
 
             # metadata is serialised as JSON into the TIFF ImageDescription tag
             # pages are written from a generator function so the volume is never resident
-            tifffile.imwrite(
-                save_path,
-                iter_pages(combined_masks, transform=_to_display, slab=slab_size),
-                shape=combined_masks.shape,
-                dtype=out_dtype,
-                metadata=metadata,
-                imagej=True,
-            )
+            # Read, transform, encode and write are fused inside imwrite's page
+            # generator, so they cannot be split further without restructuring it
+            with phase("read + encode + save (tiff)"):
+                tifffile.imwrite(
+                    save_path,
+                    iter_pages(combined_masks, transform=_to_display, slab=slab_size),
+                    shape=combined_masks.shape,
+                    dtype=out_dtype,
+                    metadata=metadata,
+                    imagej=True,
+                )
         else:
             # Reuse mask_type from decoded patches; fall back to CLI value (skip if 'auto' and absent)
             resolved_mask_type = mask_type_from_file or (
@@ -598,13 +695,20 @@ if __name__ == "__main__":
                 if cli_args.output_mask_type != "auto"
                 else None
             )
-            resolved_mask_type = resolve_mask_type(
-                combined_masks, resolved_mask_type, slab_size=slab_size
-            )
-            encoded_masks = encode_slicewise(
-                combined_masks, mask_type=resolved_mask_type, metadata=metadata
-            )
-            aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
+            # Returns immediately when the type is already known, so a non-trivial
+            # figure here means the patches carried no mask_type and the whole volume
+            # is being scanned to infer one
+            with phase("resolve mask type"):
+                resolved_mask_type = resolve_mask_type(
+                    combined_masks, resolved_mask_type, slab_size=slab_size
+                )
+            # Store read-back and per-slice RLE encode, fused by iter_pages
+            with phase("read + encode (rle)"):
+                encoded_masks = encode_slicewise(
+                    combined_masks, mask_type=resolved_mask_type, metadata=metadata
+                )
+            with phase("save (pickle)"):
+                aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
         _log_mem("after saving")
         # Remove the (symlinked) individual masks now that they are combined.
         # missing_ok because Nextflow does not re-publish a cached task's outputs on
@@ -613,5 +717,9 @@ if __name__ == "__main__":
         for mask_path in cli_args.masks:
             (Path(cli_args.output_dir) / mask_path).unlink(missing_ok=True)
     finally:
-        # Remove the scratch stores; they are pure intermediates
-        scratch.cleanup()
+        # Remove the scratch stores; they are pure intermediates. Timed because
+        # unlinking a chunked store is one file per chunk, which is not free.
+        with phase("scratch cleanup"):
+            scratch.cleanup()
+        # In the finally block so a failed run still reports how far it got
+        print_phase_report(perf_counter() - run_start)
