@@ -17,8 +17,8 @@ Non-preprocessed rows keep placeholder so every row shares the same CSV cols
 import argparse
 from pathlib import Path
 
-import pandas as pd
 from aiod_utils.io import validate_image_ids
+from utils import read_img_csv
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    df = pd.read_csv(args.img_csv)
+    df = read_img_csv(args.img_csv)
     df["image_id"] = [i.value for i in validate_image_ids(df["img_path"])]
     if "prep_hash" not in df.columns:
         df["prep_hash"] = ""

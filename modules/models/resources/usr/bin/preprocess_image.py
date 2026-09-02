@@ -14,6 +14,7 @@ from aiod_utils.preprocess import (
     run_preprocess,
 )
 from utils import DEFAULT_DIM_ORDER as DIM_ORDER
+from utils import read_img_csv
 
 
 def construct_fname(image_id, prep_hash):
@@ -45,7 +46,7 @@ if __name__ == "__main__":
 
     # Read image CSV, and filter only to the file for this process
     csv_path = Path(args.img_csv)
-    df_img = pd.read_csv(csv_path)
+    df_img = read_img_csv(csv_path)
     # Reconstruct full path and match with DF to only get the row for this image
     df_img["img_path"] = df_img["img_path"].apply(lambda x: Path(x).name)
     df_img = df_img.loc[df_img.img_path == args.img_path]
@@ -65,11 +66,6 @@ if __name__ == "__main__":
     preprocess_methods = load_methods(args.preprocess_params, filter_noop=True)
     # Create a new dataframe to store the new images, repeating rows per preprocessing set
     df_new = pd.concat([df_img.copy()] * len(preprocess_methods), ignore_index=True)
-    # prep_hash's placeholder value is an empty string, which round-trips
-    # through CSV as NaN (float64) if every row happens to be blank;
-    # force it back to string dtype so per-branch hash assignment below
-    # doesn't fail dtype compatibility checks.
-    df_new["prep_hash"] = df_new["prep_hash"].astype(object)
     # Loop over each set and preprocess
     # Derive the dim_order that matches the squeezed data
     save_dims = "".join(d for i, d in enumerate(DIM_ORDER) if i not in squeezed_axes)
