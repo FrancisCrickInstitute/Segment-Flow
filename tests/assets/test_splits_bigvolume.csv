@@ -1,0 +1,2 @@
+img_path,height,width,num_slices,channels,dtype
+/fake/path/bigvolume_image.tif,8000,8000,1600,1,uint8

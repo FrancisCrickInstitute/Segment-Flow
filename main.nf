@@ -1,11 +1,25 @@
 #!/usr/bin/env nextflow
 nextflow.enable.dsl=2
 
+// Concatenate rather than interpolate this into another stripIndent()'d block:
+// its flush-left lines would reset that block's computed indent.
+def banner() {
+    """\
+    ════════════════════════════════════════════════════
+                  █████╗ ██╗        ██████╗
+                 ██╔══██╗██║        ██╔══██╗
+                 ███████║██║ █████╗ ██║  ██║
+                 ██╔══██║██║██╔══██╗██║  ██║
+                 ██║  ██║██║╚█████╔╝██████╔╝
+                 ╚═╝  ╚═╝╚═╝ ╚════╝ ╚═════╝
+
+                   S E G M E N T - F L O W
+    ════════════════════════════════════════════════════
+    """.stripIndent()
+}
+
 def helpMessage() {
-    log.info """\
-    ==============================================
-       S E G M E N T - F L O W  P I P E L I N E
-    ==============================================
+    log.info banner() + """\
 
     Usage:
         nextflow run FrancisCrickInstitute/Segment-Flow [options]
@@ -20,17 +34,17 @@ def helpMessage() {
         --help                  Show this message and exit
         --model_config  PATH    Path to model config file
         --param_hash    STR     Hash of model config
-        --root_dir      PATH    Root cache directory  [default: ${params.root_dir}]
-        --output_format STR     'rle' or 'tiff'       [default: ${params.output_format}]
+        --root_dir      PATH    Root cache directory            [default: ${params.root_dir}]
+        --output_format STR     'rle' or 'tiff'                 [default: ${params.output_format}]
         --output_mask_type STR  'auto','binary','instance'      [default: ${params.output_mask_type}]
         --preprocess    LIST    Preprocessing params (see docs) [default: ${params.preprocess}]
-        --postprocess   BOOL    Run postprocessing    [default: ${params.postprocess}]
+        --postprocess   BOOL    Run postprocessing              [default: ${params.postprocess}]
 
     Profiles:
         local, crick, crick_dev, rosalind
 
     Docs: ${workflow.manifest.docsUrl}
-    ==============================================
+    ════════════════════════════════════════════════════
     """.stripIndent()
 }
 
@@ -48,7 +62,7 @@ def validateParams(params) {
     if ( !params.task      ) errors << "Missing required parameter: --task"
 
     // Type/existence checks
-    if ( params.img_dir && !file(params.img_dir).exists() ) 
+    if ( params.img_dir && !file(params.img_dir).exists() )
         errors << "img_dir does not exist: ${params.img_dir}"
 
     // Check output mask format is custom .rle or .tiff format
@@ -88,17 +102,14 @@ def model_chkpt_dir     = "${model_dir}/checkpoints"
 params.model_chkpt_dir  = model_chkpt_dir  // needed by storeDir in modules
 
 // Import processes from model modules
-include { setupModel; downloadArtifact; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
+include { setupModel; downloadArtifact; computeImageIds; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
 
 def log_timestamp = new java.util.Date().format( 'yyyy-MM-dd HH:mm:ss' )
 
 // Could consider https://stackoverflow.com/a/71529563 for auto-printing
 
-log.info """\
-         ====================================================
-                        AI ONDEMAND PIPELINE
-                        ${log_timestamp}
-         ====================================================
+log.info banner() + """\
+         Started         : ${log_timestamp}
          Model name      : ${params.model}
          Model variant   : ${params.model_type}
          Task            : ${params.task}
@@ -111,16 +122,18 @@ log.info """\
          Profile         : ${workflow.profile}
          ---
          Full Command    : ${workflow.commandLine}
-         ====================================================
+         ════════════════════════════════════════════════════
          """.stripIndent()
 
 
-// Function to get the name of the mask file given the image and model-version-task
-def getMaskName(img_file, resolvedParamHash) {
-    return "${img_file.baseName}" + "_masks_" + "${params.task}-${params.model}-${params.model_type}-${resolvedParamHash}"
+// NOTE: Mirrors aiod_utils.io.get_mask_name() - keep both in sync if this changes.
+// resolvedParamHash encodes all relevant params to ensure uniqueness
+def getMaskName(image_id, prep_hash, resolvedParamHash) {
+    def prep_suffix = prep_hash ? "_${prep_hash}" : ""
+    return "${image_id}${prep_suffix}_masks_${resolvedParamHash}"
 }
 
-// NOTE: Name this workflow when finetuning is implemented for multiple workflows
+// TODO: Name this workflow when finetuning is implemented for multiple workflows
 workflow {
     // Dynamically discover available models by scanning for run_<model>.py files
     def modelScriptsDir = file("${workflow.projectDir}/modules/models/resources/usr/bin")
@@ -138,18 +151,12 @@ workflow {
     )
 
     // Parse each registry metadata JSON into a (name, location, type) tuple and
-    // call downloadArtifact once per artifact. Each call has a single mandatory
-    // output, so storeDir's cache check is always unambiguous. The optional
-    // channels from setupModel act as natural gates: if a model has no config,
-    // setupModel.out.model_config_meta emits nothing and downloadArtifact is
-    // never scheduled for it.
+    // call downloadArtifact once per artifact (if present)
     def parseMeta = { label, meta_file ->
         def m = new groovy.json.JsonSlurper().parse(meta_file)
         tuple(label, m.name, m.location, m.type)
     }
 
-    // Merge all artifact metadata into one channel so downloadArtifact is only
-    // called once — DSL2 does not allow reusing a process in the same workflow.
     // The label ('checkpoint', 'config', 'finetuning') is carried through as a
     // val so we can filter the mixed output channel downstream.
     downloadArtifact(
@@ -171,26 +178,28 @@ workflow {
         | map    { _label, file -> file }
         | first()
 
-    // Registry-resolved axes for selected model-version
-    model_axes_ch = setupModel.out.model_meta
-        | map { new groovy.json.JsonSlurper().parse(it).axes ?: '' }
-        | first()
+    // Add an image_id (and placeholder prep_hash) to every row
+    // image_id relies on Python-side (bioio) extension recognition that Groovy cannot replicate
+    // So compute it here and carry it forward
+    computeImageIds( file(params.img_dir) )
+    normalized_img_dir = computeImageIds.out.csv
 
     if ( params.preprocess ) {
         // Split the CSV into individual images, so we preprocessImage distributes over each source image
-        channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
+        normalized_img_dir.splitCsv( header: true, quote: '\"' )
             | map{ row ->
-                meta = row.subMap("height", "width", "num_slices", "channels")
+                // image_id is needed by preprocessImage's own output glob
+                meta = row.subMap("height", "width", "num_slices", "channels", "image_id")
                 [
                     meta,
                     file(row.img_path),
-                    getMaskName( file(row.img_path), resolvedParamHash ),
+                    "", // mask_fname: unused by preprocessImage's script
                 ]
             }
             | set { img_ch1 }
         // Preprocess the images, outputting one per non-empty preprocess set
         // Empty sets (i.e. no-ops) are mixed in later so no copies are made
-        preprocessImage( img_ch1, file(params.img_dir) )
+        preprocessImage( img_ch1, normalized_img_dir )
         preprocessImage.out.prep_imgs
             | flatten()
             | map{ img -> [img.name, img] }
@@ -199,14 +208,20 @@ workflow {
         preprocessImage.out.img_csv
             | collectFile(name: "all_img_info.csv", keepHeader: true)
             | set { all_img_info }
+        // Grab the hashes and associated prep sets and log for info
+        preprocessImage.out.hash_legend
+            | first()
+            | map { it.text }
+            | subscribe { legend -> log.info "\nPreprocessing hash legend for this run:\n${legend}" }
         // Check for presence of any no-op sets & integrate if so
         if ( params.preprocess.any { it instanceof List && it.isEmpty() } ) {
-            channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
+            normalized_img_dir.splitCsv( header: true, quote: '\"' )
                 | map{ row -> [row.img_path, file(row.img_path)] }
                 | mix(prep_img_names)
                 | set { img_names }
             all_img_info
-                | mix(channel.fromPath(params.img_dir))
+                // normalized_img_dir shares all_img_info's columns
+                | mix(normalized_img_dir)
                 | collectFile(name: "all_img_info.csv", keepHeader: true)
                 | set { all_img_info }
         } else {
@@ -217,10 +232,10 @@ workflow {
     }
     // If not preprocessing, just split the stacks using the original CSV
     else {
-        channel.fromPath(params.img_dir).splitCsv( header: true, quote: '\"' )
+        normalized_img_dir.splitCsv( header: true, quote: '\"' )
             | map{ row -> [row.img_path, file(row.img_path)]}
             | set { img_names }
-        splitStacks( file(params.img_dir), chkpt_ch )
+        splitStacks( normalized_img_dir, chkpt_ch )
     }
 
     // Now prepare each substack for each (poss preprocessed) image
@@ -229,11 +244,12 @@ workflow {
 
     img_ch = split_csv_rows
         | map{ row ->
-            meta = row.subMap("height", "width", "num_slices", "channels")
+            // Reminder: resolvedParamHash is unique per run, and prep_hash unique per preprocessing branch, and image_id obvs unique per image
+            meta = row.subMap("height", "width", "num_slices", "channels", "prep_hash")
             [
                 row.img_path,
                 meta,
-                getMaskName( file( row.img_path ), resolvedParamHash ),
+                getMaskName( row.image_id, row.prep_hash, resolvedParamHash ),
                 [
                     row.start_w.toInteger(),
                     row.end_w.toInteger(),
@@ -246,14 +262,13 @@ workflow {
         }
         | combine(img_names, by: 0)
 
-    // Split CSV will now be one row per substack (i.e. runModel job)
-    // Key on the file basename (not the raw img_path string) as row.img_path is a
-    // full path in the no-preprocess branch but a bare filename in the preprocess
-    // branch; .baseName normalises both to match runModel's output key
+    // Split CSV is one row per substack (i.e. per runModel job), so counting rows
+    // per mask_fname gives groupTuple the group size it needs to emit early.
+    // Keyed on mask_fname to match runModel's output key exactly
     substack_counts = split_csv_rows
-        | map { row -> tuple( file(row.img_path).baseName, 1 ) }
+        | map { row -> tuple( getMaskName( row.image_id, row.prep_hash, resolvedParamHash ), 1 ) }
         | groupTuple()
-        | map { img_name, ones -> tuple( img_name, ones.size() ) }
+        | map { mask_fname, ones -> tuple( mask_fname, ones.size() ) }
 
     // Create the name for the mask output directory
     mask_output_dir = "${model_dir}/${params.model_type}_masks"
@@ -270,21 +285,22 @@ workflow {
         model_axes_ch
     ).mask
 
-    // Group all the outputs per image together to combine.
-    // groupKey(img_name, n_substacks) tells groupTuple num substacks for each image
+    // Group all the substacks per image+branch together to combine.
+    // mask_fname (image_id-based) is the canonical identity to group on
+    // (as it is image+preprocessing-specific)
+    // groupKey(mask_fname, n_substacks) tells groupTuple num substacks for each image
     // emitting those dataset masks when those are done
     mask_out
     | combine( substack_counts, by: 0 )
-    | map{ img_name, meta, mask_fname, output_dir, mask_path, n_substacks ->
-        tuple( groupKey(img_name, n_substacks), meta, mask_fname, output_dir, mask_path )
+    | map{ mask_fname, meta, output_dir, mask_path, n_substacks ->
+        tuple( groupKey(mask_fname, n_substacks), meta, output_dir, mask_path )
     }
     | groupTuple()
-    | map{ img_name, meta, mask_fnames, output_dirs, mask_paths ->
+    | map{ mask_fname, meta, output_dirs, mask_paths ->
         [
-            img_name,
+            mask_fname,
             meta.first(),
             params.model,
-            mask_fnames.first(),
             output_dirs.first(),
             mask_paths,
         ]

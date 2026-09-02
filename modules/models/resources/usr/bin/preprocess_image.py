@@ -6,22 +6,27 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import skimage.io
-from aiod_utils.io import load_image_data
-from aiod_utils.preprocess import get_params_str, load_methods, run_preprocess
+from aiod_utils.io import load_image_data, save_image
+from aiod_utils.preprocess import (
+    get_params_str,
+    hash_params_str,
+    load_methods,
+    run_preprocess,
+)
+from utils import DEFAULT_DIM_ORDER as DIM_ORDER
 
 
-def construct_fname(img_path, preprocess_params):
-    suffix = get_params_str(preprocess_params, to_save=True)
-    img_path = Path(img_path)
-    return f"{img_path.stem}_{suffix}{img_path.suffix}"
+def construct_fname(image_id, params_str):
+    param_hash = hash_params_str(params_str)
+    # image_id + a short hash of the preprocessing params (not the raw
+    # string) keeps names short and stops them accumulating a fresh
+    # extension-like segment per pipeline stage. Always output OME-Zarr.
+    return Path(f"{image_id}_{param_hash}.ome.zarr")
 
 
-def save_preprocessed_image(img_path, preprocess_params, prep_image):
-    fname = construct_fname(img_path, preprocess_params)
-    # Save the image
-    # TODO: Switch over to bioio when fully sorted, standardising to OME-TIFF internally within Segment-Flow
-    skimage.io.imsave(fname, prep_image)
+def save_preprocessed_image(image_id, params_str, prep_image, save_dims):
+    fname = construct_fname(image_id, params_str)
+    save_image(prep_image, fname, dim_order=save_dims)
     return fname
 
 
@@ -52,7 +57,7 @@ if __name__ == "__main__":
     # TODO: Switch to return_dask, map over blocks, and check output as described at top
     # Load with explicit CZYX ordering so axis identity is preserved for all image types,
     # including RGB images where the S (samples) dimension is mapped to C, giving (C, Z, H, W).
-    image_4d = load_image_data(args.img_path, dim_order="CZYX")
+    image_4d = load_image_data(args.img_path, dim_order=DIM_ORDER)
     # Record which axes are singleton before squeezing so we can reconstruct CZYX afterwards
     squeezed_axes = [i for i, s in enumerate(image_4d.shape) if s == 1]
     image = image_4d.squeeze()
@@ -60,17 +65,37 @@ if __name__ == "__main__":
     preprocess_methods = load_methods(args.preprocess_params, filter_noop=True)
     # Create a new dataframe to store the new images, repeating rows per preprocessing set
     df_new = pd.concat([df_img.copy()] * len(preprocess_methods), ignore_index=True)
+    # prep_hash's placeholder value is an empty string, which round-trips
+    # through CSV as NaN (float64) if every row happens to be blank;
+    # force it back to string dtype so per-branch hash assignment below
+    # doesn't fail dtype compatibility checks.
+    df_new["prep_hash"] = df_new["prep_hash"].astype(object)
     # Loop over each set and preprocess
+    # Derive the dim_order that matches the squeezed data
+    save_dims = "".join(d for i, d in enumerate(DIM_ORDER) if i not in squeezed_axes)
+    # Retrieve image_id for naming
+    image_id = df_img["image_id"].iloc[0]
+    # Container to store the hash with the preprocessing params for logging
+    legend_lines = []
     for i, preprocess_dict in enumerate(preprocess_methods):
         prep_image = run_preprocess(image, methods=preprocess_dict, parse=False)
-        # Get the new filename with embedded preprocessing params
+        params_str = get_params_str(preprocess_dict, to_save=True)
+        prep_hash = hash_params_str(params_str)
+        # Get the new filename, identified by a short hash of the params
         fname = save_preprocessed_image(
-            img_path=args.img_path,
-            preprocess_params=preprocess_dict,
+            image_id=image_id,
+            params_str=params_str,
             prep_image=prep_image,
+            save_dims=save_dims,
         )
         # Update the dataframe with the new image path, ensuring full path given
         df_new.loc[i, "img_path"] = fname
+        # Embed image_id/prep_hash to use throughout for branching etc.
+        df_new.loc[i, "image_id"] = image_id
+        df_new.loc[i, "prep_hash"] = prep_hash
+        legend_lines.append(
+            f"[{prep_hash}] {get_params_str(preprocess_dict, to_save=False)}"
+        )
         # Update shape info in the dataframe if downsampled/modified
         if image.shape != prep_image.shape:
             # Re-insert the singleton axes that were squeezed out to restore CZYX identity.
@@ -86,5 +111,9 @@ if __name__ == "__main__":
             df_new.loc[i, "num_slices"] = new_slices
             df_new.loc[i, "height"] = new_height
             df_new.loc[i, "width"] = new_width
-    # Save the new dataframe
-    df_new.to_csv(f"{Path(args.img_path).stem}.csv", index=False)
+    # Save the new dataframe, matching the img_csv glob in modules/models/main.nf
+    df_new.to_csv(f"{image_id}.csv", index=False)
+    # Write the hashes to a file so we can log it with Nextflow instead of printing
+    # NOTE: I thought logging with Nxf would avoid stdout eating, ensures
+    # it's in the nextflow.log and not reliant on debug=true
+    Path("preprocess_hashes.txt").write_text("\n".join(legend_lines) + "\n")

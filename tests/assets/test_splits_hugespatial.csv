@@ -1,0 +1,2 @@
+img_path,height,width,num_slices,channels,dtype
+/fake/path/hugespatial_image.tif,8000,8000,10,1,float32
