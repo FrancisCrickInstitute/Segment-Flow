@@ -178,6 +178,11 @@ workflow {
         | map    { _label, file -> file }
         | first()
 
+    // Registry-resolved axes for selected model-version
+    model_axes_ch = setupModel.out.model_meta
+        | map { new groovy.json.JsonSlurper().parse(it).axes ?: '' }
+        | first()
+
     // Add an image_id (and placeholder prep_hash) to every row
     // image_id relies on Python-side (bioio) extension recognition that Groovy cannot replicate
     // So compute it here and carry it forward
