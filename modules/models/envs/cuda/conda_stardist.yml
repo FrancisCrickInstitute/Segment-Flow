@@ -1,0 +1,12 @@
+name: stardist_conda
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pyyaml
+  - pip
+  - pip:
+    - "tensorflow[and-cuda]==2.19.1"
+    - stardist==0.9.2
+    - numpy==1.26.4
+    - aiod_utils==0.1
