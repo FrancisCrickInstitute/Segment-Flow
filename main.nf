@@ -41,7 +41,7 @@ def helpMessage() {
         --postprocess   BOOL    Run postprocessing              [default: ${params.postprocess}]
 
     Profiles:
-        local, crick, crick_dev, rosalind
+        local, crick, rosalind
 
     Docs: ${workflow.manifest.docsUrl}
     ════════════════════════════════════════════════════
