@@ -6,26 +6,27 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from aiod_utils.io import load_image_data, save_image
+from aiod_utils.io import get_mask_prefix, load_image_data, save_image
 from aiod_utils.preprocess import (
     get_params_str,
-    hash_params_str,
+    get_prep_hash,
     load_methods,
     run_preprocess,
 )
 from utils import DEFAULT_DIM_ORDER as DIM_ORDER
+from utils import read_img_csv
 
 
-def construct_fname(image_id, params_str):
-    param_hash = hash_params_str(params_str)
+def construct_fname(image_id, prep_hash):
     # image_id + a short hash of the preprocessing params (not the raw
     # string) keeps names short and stops them accumulating a fresh
     # extension-like segment per pipeline stage. Always output OME-Zarr.
-    return Path(f"{image_id}_{param_hash}.ome.zarr")
+    # Same identity + prep rule the mask names use, so both stay in step.
+    return Path(f"{get_mask_prefix(image_id, prep_hash)}.ome.zarr")
 
 
-def save_preprocessed_image(image_id, params_str, prep_image, save_dims):
-    fname = construct_fname(image_id, params_str)
+def save_preprocessed_image(image_id, prep_hash, prep_image, save_dims):
+    fname = construct_fname(image_id, prep_hash)
     save_image(prep_image, fname, dim_order=save_dims)
     return fname
 
@@ -45,7 +46,7 @@ if __name__ == "__main__":
 
     # Read image CSV, and filter only to the file for this process
     csv_path = Path(args.img_csv)
-    df_img = pd.read_csv(csv_path)
+    df_img = read_img_csv(csv_path)
     # Reconstruct full path and match with DF to only get the row for this image
     df_img["img_path"] = df_img["img_path"].apply(lambda x: Path(x).name)
     df_img = df_img.loc[df_img.img_path == args.img_path]
@@ -65,11 +66,6 @@ if __name__ == "__main__":
     preprocess_methods = load_methods(args.preprocess_params, filter_noop=True)
     # Create a new dataframe to store the new images, repeating rows per preprocessing set
     df_new = pd.concat([df_img.copy()] * len(preprocess_methods), ignore_index=True)
-    # prep_hash's placeholder value is an empty string, which round-trips
-    # through CSV as NaN (float64) if every row happens to be blank;
-    # force it back to string dtype so per-branch hash assignment below
-    # doesn't fail dtype compatibility checks.
-    df_new["prep_hash"] = df_new["prep_hash"].astype(object)
     # Loop over each set and preprocess
     # Derive the dim_order that matches the squeezed data
     save_dims = "".join(d for i, d in enumerate(DIM_ORDER) if i not in squeezed_axes)
@@ -79,12 +75,11 @@ if __name__ == "__main__":
     legend_lines = []
     for i, preprocess_dict in enumerate(preprocess_methods):
         prep_image = run_preprocess(image, methods=preprocess_dict, parse=False)
-        params_str = get_params_str(preprocess_dict, to_save=True)
-        prep_hash = hash_params_str(params_str)
+        prep_hash = get_prep_hash(preprocess_dict)
         # Get the new filename, identified by a short hash of the params
         fname = save_preprocessed_image(
             image_id=image_id,
-            params_str=params_str,
+            prep_hash=prep_hash,
             prep_image=prep_image,
             save_dims=save_dims,
         )
