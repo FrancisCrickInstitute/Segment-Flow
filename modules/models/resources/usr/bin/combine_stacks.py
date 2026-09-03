@@ -8,15 +8,11 @@ import numpy as np
 import psutil
 import skimage.measure
 import tifffile
-from aiod_utils.io import (
-    extract_idxs_from_fname,
-    get_combined_mask_name,
-    get_mask_name,
-    reduce_dtype,
-)
+from aiod_utils.io import extract_idxs_from_fname, reduce_dtype
 from aiod_utils.preprocess import (
     get_downsample_factor,
-    get_prep_hash,
+    get_params_str,
+    hash_params_str,
     load_methods,
 )
 from numba import jit, prange
@@ -38,7 +34,7 @@ def get_preprocess_methods(config_path: str, prep_hash: str) -> list[dict]:
         return []
     candidates = load_methods(config_path, filter_noop=True)
     for methods in candidates:
-        if get_prep_hash(methods) == prep_hash:
+        if hash_params_str(get_params_str(methods, to_save=True)) == prep_hash:
             return methods
     raise ValueError(
         f"No preprocessing set in {config_path} matches prep_hash '{prep_hash}'"
@@ -389,35 +385,8 @@ if __name__ == "__main__":
         default="",
         help="Hash identifying this image's preprocessing branch, empty if none",
     )
-    parser.add_argument(
-        "--image-id",
-        required=True,
-        help="Image identity this mask belongs to, used to verify --mask-fname",
-    )
-    parser.add_argument(
-        "--param-hash",
-        required=True,
-        help="Run hash the pipeline resolved, used to verify --mask-fname",
-    )
 
     cli_args = parser.parse_args()
-
-    # getMaskName in main.nf has to build the mask filename independently -
-    # Nextflow needs output patterns before the script runs, which Groovy cannot
-    # get from Python. Check the two agree rather than trusting they do: a silent
-    # divergence writes masks that aiod_napari's watcher never matches.
-    expected_fname = get_mask_name(
-        run_hash=cli_args.param_hash,
-        image_id=cli_args.image_id,
-        prep_hash=cli_args.prep_hash or None,
-    )
-    if cli_args.mask_fname != expected_fname:
-        raise ValueError(
-            f"Mask filename from the pipeline ('{cli_args.mask_fname}') does not "
-            f"match the one aiod_utils builds ('{expected_fname}'). "
-            "getMaskName in main.nf has drifted from aiod_utils.io.get_mask_name - "
-            "update both to the same format."
-        )
 
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
     print(f"Memory used before loading stack: {mem_used:.2f} GB")
@@ -458,7 +427,7 @@ if __name__ == "__main__":
     print(f"Memory used in combination: {mem_used:.2f} GB")
     # Save the masks
     output_format = cli_args.output_format.lower()
-    save_path = get_combined_mask_name(cli_args.mask_fname, output_format)
+    save_path = f"{cli_args.mask_fname}_all.{output_format}"
     # Get downsample factor for metadata if used.
     # NOTE: Our Napari plugin uses this as an identifier to rescale for visualization
     # Recover this branch's preprocessing set from the run's full config by

@@ -10,7 +10,6 @@ from aiod_utils.stacks import (
     compute_max_substack_size,
     generate_stack_indices,
 )
-from utils import read_img_csv
 
 if __name__ == "__main__":
     # Get the command line arguments
@@ -85,7 +84,7 @@ if __name__ == "__main__":
 
     # Load the csv file
     img_csv_fpath = Path(args.img_csv)
-    img_df = read_img_csv(img_csv_fpath)
+    img_df = pd.read_csv(img_csv_fpath)
 
     # Check that the csv has the required columns
     required_columns = ["img_path", "height", "width", "num_slices", "channels"]

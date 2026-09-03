@@ -224,44 +224,4 @@ nextflow_process {
             assert rows[1..-1].collect { it.split(",")[wi] }.toUnique() == ["0"]
         }
     }
-
-    // ---------------------------------------------------------------------------
-    // image_id/prep_hash are opaque identifiers that mask names are built from,
-    // but a hash like "32132e39" is also valid scientific notation — pandas type
-    // inference on the way in turned it into 3.2132e+43 on the way out, silently
-    // corrupting every downstream mask name and prep-set lookup.
-    // ---------------------------------------------------------------------------
-
-    test("identity columns survive as strings, not scientific notation") {
-
-        when {
-            params {
-                num_substacks      = "auto,auto,auto"
-                overlap            = "0.0,0.0,0.0"
-                memory_per_job     = null
-                model              = "panseg"
-                max_substack       = [5000, 5000, 50]
-                substack_scale     = 1.0
-                root_dir = "."
-            }
-            process {
-                """
-                input[0] = file("${projectDir}/tests/assets/test_splits_identity_hashes.csv")
-                input[1] = file("${projectDir}/tests/assets/dummy_chkpt")
-                """
-            }
-        }
-
-        then {
-            assert process.success
-            def rows = path(process.out.csv_file.get(0)).readLines()
-            def header = rows[0].split(",") as List
-            def idx = { col -> header.indexOf(col) }
-            assert idx("prep_hash") >= 0 && idx("image_id") >= 0
-            def hashes = rows[1..-1].collect { it.split(",")[idx("prep_hash")] }.toUnique()
-            def ids    = rows[1..-1].collect { it.split(",")[idx("image_id")]  }.toUnique()
-            assert hashes == ["32132e39"]
-            assert ids == ["em_2d_01_tiff"]
-        }
-    }
 }

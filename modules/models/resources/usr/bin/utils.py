@@ -10,28 +10,6 @@ from skimage.segmentation import relabel_sequential
 
 DEFAULT_DIM_ORDER = "CZYX"
 
-# pandas type inference reads a hash like "32132e39" as scientific notation
-# and completely screws it up
-# So wrapper function around these important columns to avoid this
-IDENTITY_COLS = ("image_id", "prep_hash")
-
-
-def read_img_csv(csv_path, **kwargs):
-    """
-    Read an image CSV with the identity columns forced to string.
-
-    Identity columns absent from the CSV are ignored.
-    """
-    # Local import: utils is also imported by the run_<model>.py scripts, whose
-    # conda envs don't ship pandas
-    import pandas as pd
-
-    df = pd.read_csv(csv_path, dtype=dict.fromkeys(IDENTITY_COLS, str), **kwargs)
-    for col in df.columns.intersection(IDENTITY_COLS):
-        # Blank placeholders still round-trip as NaN under dtype=str
-        df[col] = df[col].fillna("")
-    return df
-
 
 def save_masks(
     save_dir,
