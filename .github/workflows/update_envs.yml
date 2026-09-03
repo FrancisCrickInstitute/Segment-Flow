@@ -89,7 +89,7 @@ jobs:
           BRANCH: ${{ steps.push.outputs.branch }}
         run: |
           gh pr create \
-            --base main \
+            --base master \
             --head "$BRANCH" \
             --title "chore(deps): bump ${PACKAGE} → ${VERSION}" \
             --body "$(cat <<EOF

@@ -92,6 +92,14 @@ def create_argparser_inference():
         choices=["binary", "instance", "auto"],
         help="Mask type to store in output ('binary', 'instance', or 'auto' to use the model default)",
     )
+    parser.add_argument(
+        "--model-axes",
+        default=None,
+        help=(
+            "Expected input axes for the model version (e.g. 'YX', 'ZYX', 'YXC'), "
+            "resolved from the registry at the setupModel stage."
+        ),
+    )
 
     return parser
 
