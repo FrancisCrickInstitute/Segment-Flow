@@ -100,6 +100,14 @@ def create_argparser_inference():
             "resolved from the registry at the setupModel stage."
         ),
     )
+    parser.add_argument(
+        "--task",
+        default=None,
+        help=(
+            "Task this run was requested for (e.g. 'nuclei', 'cyto'). Only needed "
+            "by models whose network has one output head per task; the rest ignore it."
+        ),
+    )
 
     return parser
 
