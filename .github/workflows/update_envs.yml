@@ -44,10 +44,15 @@ jobs:
             exit 0
           fi
 
+          # Env files may pin either the PyPI distribution name (hyphens) or
+          # the import name (underscores) — match both, e.g. "aiod-registry"
+          # also matches "aiod_registry" in the file.
+          PACKAGE_PATTERN=$(echo "$PACKAGE" | sed -E 's/[-_]/[-_]/g')
+
           # Regex replaces both pip-style (`my-package==1.0.0`) and
           # conda-style (`- my-package=1.0.0`) pins.
           echo "$FILES" | xargs sed -i \
-            -E "s/(${PACKAGE}[=><]+?)[0-9]+\.[0-9]+(\.[0-9]+)?/\1${VERSION}/g"
+            -E "s/(${PACKAGE_PATTERN}[=><]+?)[0-9]+\.[0-9]+(\.[0-9]+)?/\1${VERSION}/g"
 
           # Check whether anything actually changed
           if git diff --quiet; then
