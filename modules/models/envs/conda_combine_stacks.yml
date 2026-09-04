@@ -11,6 +11,7 @@ dependencies:
   - psutil
   - numba
   - tqdm
+  - libgl
   - pip
   - pip:
     - aiod_utils==0.1
