@@ -102,10 +102,10 @@ def download_from_url(
 
 
 def copy_from_path(fpath: Path | str, chkpt_fname: Path | str):
-    if not Path(fpath).is_file():
-        raise FileNotFoundError(f"Model checkpoint not found: {fpath}")
-    # Copy the file from accessible path
-    shutil.copy(fpath, chkpt_fname)
+    src = Path(fpath)
+    dst = Path(chkpt_fname)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(src, dst)
 
 
 if __name__ == "__main__":
