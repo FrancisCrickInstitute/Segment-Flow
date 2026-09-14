@@ -20,4 +20,4 @@ dependencies:
   - pip
   - pip:
     - git+https://github.com/FrancisCrickInstitute/em-segment-pytorch.git
-    - aiod_utils==0.1
+    - aiod_utils==0.2.0
