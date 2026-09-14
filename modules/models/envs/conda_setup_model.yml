@@ -7,4 +7,4 @@ dependencies:
   - pip:
     - tqdm
     - requests
-    - aiod_registry==0.1
+    - aiod_registry==0.2.0
