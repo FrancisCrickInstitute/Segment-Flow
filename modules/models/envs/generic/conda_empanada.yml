@@ -13,4 +13,4 @@ dependencies:
     - numpy==1.26.4
     - empanada-dl==0.1.6
     - tqdm
-    - aiod_utils==0.1
+    - aiod_utils==0.2.0

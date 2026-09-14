@@ -14,4 +14,4 @@ dependencies:
     - torchvision
     - git+https://github.com/FrancisCrickInstitute/segment-anything.git
     - opencv-python
-    - aiod_utils==0.1
+    - aiod_utils==0.2.0
