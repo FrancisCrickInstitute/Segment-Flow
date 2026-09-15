@@ -1,0 +1,44 @@
+# Trigger: publishing a GitHub release
+# Needs CROSS_REPO_PAT configured
+#   Fine-grained PAT with Contents+PRs read/write on aiod_napari
+#
+# Front-ends pin the Segment-Flow revision they were developed against, so a new
+# release has to be propagated to them — this dispatches the tag so each can open
+# its own bump PR for review.
+
+name: Notify downstream of new release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to announce (e.g. 0.2.0)"
+        required: true
+        type: string
+
+jobs:
+  notify-downstream:
+    runs-on: ubuntu-latest
+
+    strategy:
+      # A dispatch failure to one repo does not cancel the others
+      fail-fast: false
+      matrix:
+        repo:
+          - FrancisCrickInstitute/aiod_napari
+
+    steps:
+      - name: Dispatch segment-flow-released event to ${{ matrix.repo }}
+        env:
+          GH_TOKEN: ${{ secrets.CROSS_REPO_PAT }}
+          REPO: ${{ matrix.repo }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          gh api \
+            --method POST \
+            repos/${REPO}/dispatches \
+            --field event_type=segment-flow-released \
+            --field client_payload[source_repo]="${GITHUB_REPOSITORY}" \
+            --field client_payload[tag]="${TAG}"
