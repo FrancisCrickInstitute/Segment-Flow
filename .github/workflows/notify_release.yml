@@ -8,6 +8,8 @@
 
 name: Notify downstream of new release
 
+permissions: {}
+
 on:
   release:
     types: [published]
