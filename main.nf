@@ -143,7 +143,6 @@ log.info banner() + """\
          Cache directory : ${model_dir}
          Work directory  : ${workDir}
          Profile         : ${workflow.profile}
-         Version         : ${workflow.manifest.version}
          Revision        : ${revisionLabel()}
          ---
          Full Command    : ${workflow.commandLine}
