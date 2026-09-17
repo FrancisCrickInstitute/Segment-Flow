@@ -264,4 +264,42 @@ nextflow_process {
             assert ids == ["em_2d_01_tiff"]
         }
     }
+
+    // ---------------------------------------------------------------------------
+    // The substack rows are the only place this run's job count exists before the
+    // jobs are submitted, and a front-end cannot re-derive it (the caps come from
+    // nextflow.config and the active profile). Publishing it per-run is what lets
+    // the napari progress bar be exact rather than an estimate.
+    // ---------------------------------------------------------------------------
+
+    test("publishes the substack rows under the cache, named for the run") {
+
+        when {
+            params {
+                num_substacks      = "auto,auto,auto"
+                overlap            = "0.0,0.0,0.0"
+                memory_per_job     = null
+                model              = "panseg"
+                max_substack       = [5000, 5000, 50]
+                substack_scale     = 1.0
+                root_dir           = "$outputDir"
+                resolved_param_hash = "deadbeef"
+            }
+            process {
+                """
+                input[0] = file("${projectDir}/tests/assets/test_splits_input.csv")
+                input[1] = file("${projectDir}/tests/assets/dummy_chkpt")
+                """
+            }
+        }
+
+        then {
+            assert process.success
+            def published = path("$outputDir/aiod_cache/splits/substacks_deadbeef.csv")
+            assert published.exists()
+            // Same rows as the channel output: the published copy is the job count
+            assert published.readLines() == path(process.out.csv_file.get(0)).readLines()
+            assert published.readLines().size() - 1 == 2
+        }
+    }
 }

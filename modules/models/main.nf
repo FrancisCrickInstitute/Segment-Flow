@@ -51,7 +51,14 @@ process splitStacks {
     conda "${moduleDir}/envs/conda_combine_stacks.yml"
     memory { 500.MB * task.attempt as MemoryUnit }
     time { 5.m * task.attempt }
-    // publishDir "$params.cache_dir", mode: 'copy'
+    // The output CSV has one row per substack, so this doubles as the job count
+    // Only accurate here once all memory/model/substack calcs taken into account
+    // This can be consumed by front-ends for accurate job count
+    publishDir(
+        path: { "${params.cache_dir ?: "${params.root_dir}/aiod_cache"}/splits" },
+        mode: 'copy',
+        saveAs: { "substacks_${params.resolved_param_hash ?: params.param_hash ?: 'unhashed'}.csv" }
+    )
 
     input:
     path csv_path

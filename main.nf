@@ -100,6 +100,10 @@ def cache_dir           = "${root_dir}/aiod_cache"
 def model_dir           = "${cache_dir}/${params.model}"
 def model_chkpt_dir     = "${model_dir}/checkpoints"
 params.model_chkpt_dir  = model_chkpt_dir  // needed by storeDir in modules
+params.cache_dir        = cache_dir  // needed by publishDir in modules
+// The substack CSV is published per-run, so a front-end reading it gets this
+// run's job count rather than whatever the last run left behind
+params.resolved_param_hash = resolvedParamHash
 
 // Import processes from model modules
 include { setupModel; downloadArtifact; computeImageIds; preprocessImage; splitStacks; runModel; combineStacks } from './modules/models'
