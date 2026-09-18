@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest an improvement to the pipeline
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        To request a **new model**, please open an issue on
+        [aiod_registry](https://github.com/FrancisCrickInstitute/aiod_registry/issues/new/choose)
+        instead — that is where models are defined.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to see?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

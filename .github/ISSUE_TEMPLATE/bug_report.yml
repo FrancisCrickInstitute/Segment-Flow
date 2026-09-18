@@ -1,0 +1,64 @@
+name: Bug report
+description: A pipeline run fails or produces unexpected results
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please check
+        [Troubleshooting](https://franciscrickinstitute.github.io/aiod_docs/sections/support/troubleshooting/)
+        first — it covers the most common failures at each stage of a run.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect to happen, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Run command
+      description: The full `nextflow run ...` command, or the params file you used.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: revision
+    attributes:
+      label: Pipeline revision
+      description: "The tag or commit passed to `-r`, or `master` if unpinned (in which case the specific commit would help!)."
+      placeholder: "0.2.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: profile
+    attributes:
+      label: Execution profile
+      options:
+        - local
+        - crick
+        - rosalind
+        - Custom / site-specific (please post if relevant)
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Nextflow and Conda versions
+      description: "Output of `nextflow -version` and `conda --version`."
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Model, version and task
+      placeholder: "empanada / mitonet_v1 / mito"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Nextflow log
+      description: |
+        The relevant part of `.nextflow.log`, plus the `.command.err` of the failed
+        task if Nextflow named a work directory. This is automatically formatted as code.
+      render: shell
