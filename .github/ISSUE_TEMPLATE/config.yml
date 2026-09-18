@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Troubleshooting guide
+    url: https://franciscrickinstitute.github.io/aiod_docs/sections/support/troubleshooting/
+    about: Common failures and their fixes — please check here first.
+  - name: Pipeline documentation
+    url: https://franciscrickinstitute.github.io/aiod_docs/sections/nextflow/
+    about: Full parameter reference and pipeline internals.
+  - name: Request a new model
+    url: https://github.com/FrancisCrickInstitute/aiod_registry/issues/new/choose
+    about: Models are defined in the aiod_registry repository, not here.
