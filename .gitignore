@@ -28,3 +28,6 @@ var/
 .nextflow*
 **/work/*
 .nf-test*
+
+tests/harness/results/
+tests/harness/cache/

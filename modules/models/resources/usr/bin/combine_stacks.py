@@ -1,7 +1,9 @@
 import os
 from collections import defaultdict
+from contextlib import contextmanager
 from functools import partial
 from pathlib import Path
+from time import perf_counter
 
 import aiod_utils.rle as aiod_rle
 import dask.array as da
@@ -27,6 +29,50 @@ from numba.core import types
 from numba.typed import Dict
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
+
+# Wall seconds per phase, accumulated across calls. See print_phase_report.
+_PHASE_TIMES: dict[str, float] = {}
+# Time spent in nested phases, one entry per open phase
+_PHASE_STACK: list[float] = []
+
+
+@contextmanager
+def phase(label: str):
+    """Accumulate the wall time spent inside the block under `label`.
+
+    Time inside a nested phase is charged to that phase only, so the
+    report's rows add up to the total. A phase must not span a `yield`.
+    """
+    start = perf_counter()
+    _PHASE_STACK.append(0.0)
+    try:
+        yield
+    finally:
+        elapsed = perf_counter() - start
+        nested = _PHASE_STACK.pop()
+        _PHASE_TIMES[label] = _PHASE_TIMES.get(label, 0.0) + elapsed - nested
+        if _PHASE_STACK:
+            _PHASE_STACK[-1] += elapsed
+
+
+def print_phase_report(total_s: float):
+    """Print where the wall clock went, phase by phase.
+
+    Wall time varies with load on shared nodes, so compare the split between
+    phases rather than totals. A large "(unaccounted)" row means work is
+    happening outside every `phase` block.
+    """
+    if not _PHASE_TIMES:
+        return
+    rows = sorted(_PHASE_TIMES.items(), key=lambda kv: -kv[1])
+    rows.append(("(unaccounted)", total_s - sum(_PHASE_TIMES.values())))
+    rows.append(("TOTAL", total_s))
+    width = max(len(name) for name, _ in rows)
+    print("\n--- combine_stacks phase timings ---")
+    for name, secs in rows:
+        pct = 100.0 * secs / total_s if total_s > 0 else 0.0
+        print(f"  {name:<{width}}  {secs:8.2f}s  {secs / 60:6.2f}m  {pct:5.1f}%")
+
 
 def get_preprocess_methods(config_path: str, prep_hash: str) -> list[dict]:
     """
@@ -277,7 +323,8 @@ def combined_max(tiles: list, image_size: tuple[int, int, int]) -> int:
             starts[idxs[4]].append(open_fn)
     top = 0
     for open_fns in starts.values():
-        opened = [open_fn() for open_fn in open_fns]
+        with phase("load rle"):
+            opened = [open_fn() for open_fn in open_fns]
         offsets = label_offsets(opened) if offset_labels else [0] * len(opened)
         for tile, offset in zip(opened, offsets, strict=True):
             labels = tile.labels
@@ -312,7 +359,8 @@ def iter_combined_slices(tiles: list, image_size: tuple[int, int, int], overlap:
         for k in [k for k in open_tiles if tiles[k][0][5] <= z]:
             del open_tiles[k]
         if starts.get(z):
-            opened = [tiles[k][1]() for k in starts[z]]
+            with phase("load rle"):
+                opened = [tiles[k][1]() for k in starts[z]]
             for tile in opened:
                 mask_type = getattr(tile, "meta_mask_type", None)
                 if mask_type is not None:
@@ -325,21 +373,24 @@ def iter_combined_slices(tiles: list, image_size: tuple[int, int, int], overlap:
             # NOTE: tiles starting together are assumed to share their z-range
             offsets = label_offsets(opened) if offset_labels else [0] * len(opened)
             open_tiles.update(zip(starts[z], zip(opened, offsets)))
-        plane = np.zeros((H, W), dtype=np.uint16)
+        with phase("combine plane"):
+            plane = np.zeros((H, W), dtype=np.uint16)
         for k in sorted(open_tiles):
             tile, offset = open_tiles[k]
             x0, x1, y0, y1, z0, _ = tiles[k][0]
-            t = np.asarray(tile[z - z0]).reshape(y1 - y0, x1 - x0)
-            # Cast boolean to allow addition
-            if t.dtype == bool:
-                t = t.astype(np.uint8)
-            if overlap:
-                # Just sum, naive method
-                plane[y0:y1, x0:x1] += t
-            else:
-                if offset:
-                    t[t > 0] += t.dtype.type(offset % (np.iinfo(t.dtype).max + 1))
-                plane[y0:y1, x0:x1] = t
+            with phase("decode tile slices"):
+                t = np.asarray(tile[z - z0]).reshape(y1 - y0, x1 - x0)
+            with phase("combine plane"):
+                # Cast boolean to allow addition
+                if t.dtype == bool:
+                    t = t.astype(np.uint8)
+                if overlap:
+                    # Just sum, naive method
+                    plane[y0:y1, x0:x1] += t
+                else:
+                    if offset:
+                        t[t > 0] += t.dtype.type(offset % (np.iinfo(t.dtype).max + 1))
+                    plane[y0:y1, x0:x1] = t
         yield plane
 
 
@@ -347,7 +398,8 @@ def infer_mask_type(planes) -> str:
     """aiod_rle.check_mask_type over all planes: binary if <= 2 unique values."""
     values = set()
     for plane in planes:
-        values.update(np.unique(plane).tolist())
+        with phase("infer mask type"):
+            values.update(np.unique(plane).tolist())
         if len(values) > 2:
             return "instance"
     return "binary"
@@ -357,9 +409,11 @@ def write_rle(planes, save_path: str, mask_type: str, metadata: dict):
     """Encode each (H, W) plane and save them as one RLE file."""
     rle = []
     for plane in planes:
-        rle.extend(aiod_rle.encode(plane, mask_type=mask_type, metadata={})[:-1])
+        with phase("encode"):
+            rle.extend(aiod_rle.encode(plane, mask_type=mask_type, metadata={})[:-1])
     rle.append({"metadata": {**metadata, "mask_type": mask_type}})
-    aiod_rle.save_encoding(rle=rle, fpath=save_path)
+    with phase("save"):
+        aiod_rle.save_encoding(rle=rle, fpath=save_path)
 
 
 def write_tiff(
@@ -388,21 +442,24 @@ def write_tiff(
             if max_val is None:
                 max_val = 0
                 for plane in make_planes():
-                    max_val = max(max_val, int(plane.max()))
+                    with phase("scan for output dtype"):
+                        max_val = max(max_val, int(plane.max()))
             dtype = check_dtype(None, max_val=max_val)
 
         def to_page(plane):
             return plane.astype(dtype, copy=False)
 
-    # metadata dict is serialised as JSON into the TIFF ImageDescription tag
-    tifffile.imwrite(
-        save_path,
-        map(to_page, make_planes()),
-        shape=shape,
-        dtype=dtype,
-        metadata=metadata,
-        imagej=True,
-    )
+    def pages():
+        for plane in make_planes():
+            with phase("convert page"):
+                page = to_page(plane)
+            yield page
+
+    with phase("save"):
+        # metadata dict is serialised as JSON into the TIFF ImageDescription tag
+        tifffile.imwrite(
+            save_path, pages(), shape=shape, dtype=dtype, metadata=metadata, imagej=True
+        )
 
 
 def collect_dense(planes, image_size: tuple[int, int, int], single: bool, mask_type: str):
@@ -414,7 +471,8 @@ def collect_dense(planes, image_size: tuple[int, int, int], single: bool, mask_t
     D, H, W = image_size
     dense = np.empty((D, H, W), dtype=np.uint16)
     for z, plane in enumerate(planes):
-        dense[z] = plane
+        with phase("collect dense"):
+            dense[z] = plane
     if D == 1:
         dense = dense[0]
     if not single:
@@ -524,6 +582,7 @@ if __name__ == "__main__":
             "update both to the same format."
         )
 
+    run_start = perf_counter()
     mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
     print(f"Memory used before loading stack: {mem_used:.2f} GB")
     image_size = tuple(cli_args.image_size)
@@ -533,7 +592,8 @@ if __name__ == "__main__":
         for mask_path in cli_args.masks
     ]
     # Mask type from the first file: as recorded, and as decoded
-    first_tile = RLETile.load(cli_args.masks[0])
+    with phase("load rle"):
+        first_tile = RLETile.load(cli_args.masks[0])
     mask_type_from_file = first_tile.meta_mask_type
     decoded_mask_type = first_tile.mask_type
     del first_tile
@@ -552,14 +612,15 @@ if __name__ == "__main__":
             mask_type=decoded_mask_type,
         )
         print("Postprocessing masks...")
-        if cli_args.model == "sam" or cli_args.model == "sam2":
-            # No need to align over slices if there are none! Labels consecutive already
-            if combined_masks.ndim > 2:
-                combined_masks = connect_sam(
-                    combined_masks, iou_threshold=cli_args.iou_threshold
-                )
-        else:
-            combined_masks = connect_components(combined_masks)
+        with phase("postprocess"):
+            if cli_args.model == "sam" or cli_args.model == "sam2":
+                # No need to align over slices if there are none! Labels consecutive already
+                if combined_masks.ndim > 2:
+                    combined_masks = connect_sam(
+                        combined_masks, iou_threshold=cli_args.iou_threshold
+                    )
+            else:
+                combined_masks = connect_components(combined_masks)
         # Squeeze the array in case there is only one slice
         combined_masks = np.squeeze(combined_masks)
         out_shape = combined_masks.shape
@@ -624,6 +685,9 @@ if __name__ == "__main__":
             )
         write_rle(make_planes(), save_path, resolved_mask_type, metadata)
     del combined_masks
+    mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
+    print(f"Memory used after saving: {mem_used:.2f} GB")
+    print_phase_report(perf_counter() - run_start)
     # Remove the (symlinked) individual masks now that they are combined
     for mask_path in cli_args.masks:
         (Path(cli_args.output_dir) / mask_path).unlink()

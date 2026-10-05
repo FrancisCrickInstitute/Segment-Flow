@@ -1,0 +1,507 @@
+import os
+from pathlib import Path
+
+import aiod_utils.rle as aiod_rle
+import dask.array as da
+import dask_image.ndmeasure
+import numpy as np
+import psutil
+import skimage.measure
+import tifffile
+from aiod_utils.io import (
+    extract_idxs_from_fname,
+    get_combined_mask_name,
+    get_mask_name,
+    reduce_dtype,
+)
+from aiod_utils.preprocess import (
+    get_downsample_factor,
+    get_prep_hash,
+    load_methods,
+)
+from numba import jit, prange
+from numba.core import types
+from numba.typed import Dict
+from skimage.segmentation import relabel_sequential
+from tqdm import tqdm
+
+
+def get_preprocess_methods(config_path: str, prep_hash: str) -> list[dict]:
+    """
+    Find the specific preprocessing methods set matching prep_hash within the
+    run's full preprocessing config (params.preprocess). Matches by
+    recomputing the same hash used to create prep_hash in the first place
+    (see preprocess_image.py), rather than threading the set itself through
+    the pipeline's CSV, which can't safely carry raw JSON.
+    """
+    if not prep_hash:
+        return []
+    candidates = load_methods(config_path, filter_noop=True)
+    for methods in candidates:
+        if get_prep_hash(methods) == prep_hash:
+            return methods
+    raise ValueError(
+        f"No preprocessing set in {config_path} matches prep_hash '{prep_hash}'"
+    )
+
+
+def combine_masks(
+    masks: list[str],
+    overlap: list[float, ...],
+    image_size: tuple[int, ...],
+    model: str,
+):
+    """
+    Combine masks from each of the substacks into a single array/dataset.
+
+    If overlap is 0, then the masks are simply inserted into their relevant indices.
+
+    If overlap is >0, then the masks need to be combined.
+
+    Returns:
+        tuple[np.ndarray, str | None]: Combined mask array and mask type ("binary", "instance", or None).
+    """
+    # Get the chunk size from the first file
+    start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(masks[0])
+    _chunk_size = (end_x - start_x, end_y - start_y, end_z - start_z)
+    # Check if there is XY tiling (at least one must be true for any given substack)
+    xy_tiling = (
+        start_x > 0 or end_x < image_size[1] or start_y > 0 or end_y < image_size[2]
+    )
+    # Create the array to hold the masks
+    # NOTE: Using uint16 to be safe, but ideally should be taken from inputs (but slight chicken & egg)
+    # Ensure image size appropriate to given dims
+    if image_size[0] == 1:
+        image_size = image_size[1:]
+        is_2d = True
+    else:
+        is_2d = False
+    # NOTE: image_size will now always take account of downsampling
+    # Create the array to hold the masks (uint16 should be fine...?)
+    all_masks = np.zeros(image_size, dtype=np.uint16)
+    # Loop over each mask and insert into the array
+    # Add the masks together if overlap is >0
+    # NOTE: Adding together only really makes sense for binary masks
+    overlap = [float(val) for val in overlap]
+    mask_types_seen = set()
+
+    if sum(overlap) == 0.0:
+        for mask_path in masks:
+            idxs = extract_idxs_from_fname(mask_path)
+            encoding = aiod_rle.load_encoding(mask_path)
+            mask, metadata = aiod_rle.decode(encoding)
+            current_mask_type = metadata.get("metadata", {}).get("mask_type")
+            if current_mask_type is not None:
+                mask_types_seen.add(current_mask_type)
+            # Cast boolean to allow addition
+            if mask.dtype == bool:
+                mask = mask.astype(np.uint8)
+            all_masks = insert_mask(
+                all_masks=all_masks,
+                mask=mask,
+                idxs=idxs,
+                xy_tiling=xy_tiling,
+                is_overlap=False,
+                is_2d=is_2d,
+            )
+    # TODO: Extract this, and handle binary/labelled masks properly, with specified vote mechanism
+    else:
+        # Combine the masks
+        for mask_path in masks:
+            start_x, end_x, start_y, end_y, start_z, end_z = extract_idxs_from_fname(
+                mask_path
+            )
+            encoding = aiod_rle.load_encoding(mask_path)
+            mask, metadata = aiod_rle.decode(encoding)
+            current_mask_type = metadata.get("metadata", {}).get("mask_type")
+            if current_mask_type is not None:
+                mask_types_seen.add(current_mask_type)
+            # Cast boolean to allow addition
+            if mask.dtype == bool:
+                mask = mask.astype(np.uint8)
+            # Just sum, naive method
+            if is_2d:
+                all_masks[start_y:end_y, start_x:end_x] += mask
+            else:
+                all_masks[start_z:end_z, start_y:end_y, start_x:end_x] += mask
+
+    # Validate mask type consistency across all mask files
+    if len(mask_types_seen) > 1:
+        raise ValueError(
+            f"Inconsistent mask types found across mask files: {mask_types_seen}. "
+            "All mask files must have the same mask type."
+        )
+    mask_type = mask_types_seen.pop() if mask_types_seen else None
+
+    return reduce_dtype(all_masks), mask_type
+
+
+def insert_mask(
+    all_masks,
+    mask,
+    idxs: tuple[int, int, int, int, int, int],
+    xy_tiling: bool,
+    is_overlap: bool,
+    is_2d: bool,
+):
+    # Extract the indices
+    start_x, end_x, start_y, end_y, start_z, end_z = idxs
+    # Ensure labels are unique across a slice
+    if xy_tiling:
+        # Get the current maximum value across the relevant slices
+        max_val = all_masks.max() if is_2d else all_masks[start_z:end_z, ...].max()
+        # TODO: Handle the below, why is it commented out?
+        # # Check if we need to upcast the array
+        # if max_val + mask.max() > np.iinfo(all_masks.dtype).max:
+        #     all_masks = all_masks.astype(np.uint32, copy=False)
+        # Add a constant to all non-zero values to ensure uniqueness
+        mask[mask > 0] += max_val
+        # Insert the mask into the array
+        if is_2d:
+            all_masks[start_y:end_y, start_x:end_x] = mask
+        else:
+            all_masks[start_z:end_z, start_y:end_y, start_x:end_x] = mask
+    else:
+        # Insert the mask into the array
+        if is_2d:
+            all_masks[start_y:end_y, start_x:end_x] = mask
+        else:
+            all_masks[start_z:end_z, start_y:end_y, start_x:end_x] = mask
+    return all_masks
+
+
+def connect_components(all_masks: np.ndarray):
+    # Convert to dask array
+    all_masks = da.from_array(all_masks)
+    # Get the connected components, combining masks from consecutive frames
+    labelled, num_holes = dask_image.ndmeasure.label(all_masks)
+    labelled = labelled.compute()
+    num_holes = int(num_holes)
+    # Get the appropriate dtype from the number of holes, and convert to numpy array
+    return reduce_dtype(labelled, max_val=num_holes)
+
+
+@jit(nopython=True, parallel=True, fastmath=True)
+def mask_iou_batch(
+    box_matches, curr_slice_bool, next_slice_bool, curr_label_dict, next_label_dict
+):
+    # Initialize the array to store the IoUs
+    n = len(box_matches)
+    ious = np.zeros(n)
+    # Parallel loop over the box matches
+    for i in prange(n):
+        # Extract the boolean masks for the current and next labels
+        curr_label, next_label = box_matches[i]
+        curr_mask = curr_slice_bool[..., curr_label_dict[curr_label]]
+        next_mask = next_slice_bool[..., next_label_dict[next_label]]
+        # Calculate the IoU
+        # Inlined here to help numba optimise
+        union = np.count_nonzero(np.logical_or(curr_mask, next_mask))
+        if union == 0:
+            ious[i] = 0.0
+        else:
+            intersection = np.count_nonzero(np.logical_and(curr_mask, next_mask))
+            ious[i] = intersection / union
+    return ious
+
+
+def filter_overlaps(curr_slice, next_slice):
+    # Get the bounding boxes for each region in the current and next slices
+    rps = skimage.measure.regionprops(curr_slice)
+    boxes1 = np.array([rp.bbox for rp in rps])
+    labels1 = np.array([rp.label for rp in rps])
+
+    rps = skimage.measure.regionprops(next_slice)
+    boxes2 = np.array([rp.bbox for rp in rps])
+    labels2 = np.array([rp.label for rp in rps])
+
+    # Check for overlaps between the boxes in the two slices
+    box_matches = []
+
+    for i, box1 in enumerate(boxes1):
+        for j, box2 in enumerate(boxes2):
+            res = check_overlap(box1, box2)
+            if res:
+                box_matches.append((labels1[i], labels2[j]))
+    return box_matches
+
+
+def check_overlap(box1, box2):
+    # Box: [min_row, min_col, max_row, max_col]
+    # https://stackoverflow.com/a/40795835
+    # We compare x & y coords of bottom-left & top-right corners
+    # Bottom-left: min_col (x), max_row (y)
+    # Top-right: max_col (x), min_row (y)
+    # Note that higher y is lower in the image: (0,0) is top-left
+    return not (
+        box1[3] < box2[1] or box1[1] > box2[3] or box1[2] < box2[0] or box1[0] > box2[2]
+    )
+
+
+def connect_sam(all_masks, iou_threshold):
+    for idx in tqdm(range(all_masks.shape[0] - 1)):
+        # Create a matrix to store all combinations of IoUs
+        curr_slice = all_masks[idx]
+        next_slice = all_masks[idx + 1]
+
+        # Get the unique labels in the current and next slices
+        curr_labels = np.unique(curr_slice)
+        next_labels = np.unique(next_slice)
+        # Get a numba-compatible dictionary for the labels to allow for later indexing
+        curr_label_dict = Dict.empty(key_type=types.uint16, value_type=types.uint16)
+        next_label_dict = Dict.empty(key_type=types.uint16, value_type=types.uint16)
+        curr_label_dict.update(
+            {label: np.uint16(i) for i, label in enumerate(curr_labels)}
+        )
+        next_label_dict.update(
+            {label: np.uint16(i) for i, label in enumerate(next_labels)}
+        )
+
+        # Restrict to only overlapping boxes
+        box_matches = filter_overlaps(curr_slice, next_slice)
+
+        # No matches, skip
+        if len(box_matches) > 0:
+            # Create boolean masks for each label in the current and next slices
+            # Effectively converts (H, W) int array into (H, W, N) boolean where N is the number of labels
+            curr_slice_bool = curr_slice[..., None] == curr_labels
+            next_slice_bool = next_slice[..., None] == next_labels
+
+            # Calculate IoUs for all pairs of overlapping boxes
+            ious = mask_iou_batch(
+                box_matches,
+                curr_slice_bool,
+                next_slice_bool,
+                curr_label_dict,
+                next_label_dict,
+            )
+            # Get the max label from the current slice to assign to to ensure no conflict
+            max_label = curr_labels.max() + 1
+            # Create an array mapping the next labels to the current labels
+            mapping_arr = np.full(
+                int(next_labels.max() + 1), fill_value=0, dtype=np.uint16
+            )
+            # Iterate over the matches and check which ones sufficiently overlap
+            for iou, (curr_label, next_label) in zip(ious, box_matches, strict=True):
+                # If threshold met, remap label
+                if iou >= iou_threshold:
+                    mapping_arr[next_label] = curr_label
+            # Need to account for all other labels
+            for i, val in enumerate(mapping_arr):
+                # Fill in the labels that were not matched
+                if val == 0:
+                    # Skip background
+                    if i == 0:
+                        continue
+                    # Set to the next available label
+                    mapping_arr[i] = max_label
+                    max_label += 1
+            # Remap the labels in the next slice
+            # Fancy mapping: https://stackoverflow.com/a/55950051
+            all_masks[idx + 1] = mapping_arr[next_slice.copy()]
+    # Relabel the masks to get consecutive labels from 1 to N
+    (
+        all_masks,
+        _,
+        _,
+    ) = relabel_sequential(all_masks)
+    return reduce_dtype(all_masks)
+
+
+def mask_iou(masks1: np.ndarray, masks2: np.ndarray):
+    intersection = np.sum(np.logical_and(masks1, masks2))
+    union = np.sum(np.logical_or(masks1, masks2))
+    if union == 0:
+        return 0.0
+    else:
+        return intersection / union
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mask-fname", required=True, help="Mask save filename")
+    parser.add_argument("--output-dir", required=True, help="Mask output directory")
+    parser.add_argument(
+        "--masks",
+        required=True,
+        nargs="+",
+        help="Masks to combine",
+    )
+    parser.add_argument(
+        "--model",
+        required=True,
+        help="Model used to generate masks",
+    )
+    parser.add_argument(
+        "--image-size",
+        nargs=3,
+        type=int,
+        required=True,
+        help="Size of the image stack, in array (i.e. D x H x W) format.",
+    )
+    parser.add_argument(
+        "--overlap",
+        required=True,
+        nargs=3,
+        help="Overlap in each dimension (default is 0). Assumed H x W x D.",
+    )
+    parser.add_argument(
+        "--postprocess",
+        required=False,
+        action="store_true",
+        help="Run postprocessing on the masks",
+    )
+    parser.add_argument(
+        "--iou-threshold",
+        required=False,
+        type=float,
+        default=0.8,
+        help="IoU threshold for aligning masks (in SAM)",
+    )
+    parser.add_argument(
+        "--output-format",
+        required=False,
+        default="rle",
+        choices=["rle", "tiff"],
+        help="Output format for the combined masks ('rle' or 'tiff')",
+    )
+    parser.add_argument(
+        "--output-mask-type",
+        required=False,
+        default="instance",
+        choices=["auto", "binary", "instance"],
+        help="Mask type of the combined output ('binary' or 'instance')",
+    )
+    parser.add_argument(
+        "--preprocess-config",
+        required=True,
+        help=(
+            "Path to a JSON file of the run's full params.preprocess config "
+            "(same file preprocessImage receives); used with --prep-hash to "
+            "recover e.g. the downsample factor for output metadata."
+        ),
+    )
+    parser.add_argument(
+        "--prep-hash",
+        required=False,
+        default="",
+        help="Hash identifying this image's preprocessing branch, empty if none",
+    )
+    parser.add_argument(
+        "--image-id",
+        required=True,
+        help="Image identity this mask belongs to, used to verify --mask-fname",
+    )
+    parser.add_argument(
+        "--param-hash",
+        required=True,
+        help="Run hash the pipeline resolved, used to verify --mask-fname",
+    )
+
+    cli_args = parser.parse_args()
+
+    # getMaskName in main.nf has to build the mask filename independently -
+    # Nextflow needs output patterns before the script runs, which Groovy cannot
+    # get from Python. Check the two agree rather than trusting they do: a silent
+    # divergence writes masks that aiod_napari's watcher never matches.
+    expected_fname = get_mask_name(
+        run_hash=cli_args.param_hash,
+        image_id=cli_args.image_id,
+        prep_hash=cli_args.prep_hash or None,
+    )
+    if cli_args.mask_fname != expected_fname:
+        raise ValueError(
+            f"Mask filename from the pipeline ('{cli_args.mask_fname}') does not "
+            f"match the one aiod_utils builds ('{expected_fname}'). "
+            "getMaskName in main.nf has drifted from aiod_utils.io.get_mask_name - "
+            "update both to the same format."
+        )
+
+    mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
+    print(f"Memory used before loading stack: {mem_used:.2f} GB")
+    # Combine the masks
+    if len(cli_args.masks) > 1:
+        combined_masks, mask_type_from_file = combine_masks(
+            cli_args.masks,
+            overlap=cli_args.overlap,
+            image_size=cli_args.image_size,
+            model=cli_args.model,
+        )
+        mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
+        print(f"Memory used after loading stack: {mem_used:.2f} GB")
+    else:
+        combined_masks = aiod_rle.load_encoding(cli_args.masks[0])
+        # NOTE: Extract metadata later from preprocess params
+        combined_masks, decoded_metadata = aiod_rle.decode(combined_masks)
+        # Extract mask_type from metadata to avoid expensive check_mask_type() later
+        mask_type_from_file = decoded_metadata.get("metadata", {}).get("mask_type")
+    print(f"Combined masks shape: {combined_masks.shape}")
+    if cli_args.postprocess:
+        print("Postprocessing masks...")
+        if cli_args.model == "sam" or cli_args.model == "sam2":
+            # No need to align over slices if there are none! Labels consecutive already
+            if combined_masks.ndim > 2:
+                combined_masks = connect_sam(
+                    combined_masks, iou_threshold=cli_args.iou_threshold
+                )
+        else:
+            combined_masks = connect_components(combined_masks)
+    # Ensure the dtype is always reduced if possible
+    # NOTE: Postprocessing funcs above handle this themselves
+    else:
+        combined_masks = reduce_dtype(combined_masks)
+    # Squeeze the array in case there is only one slice
+    combined_masks = np.squeeze(combined_masks)
+    mem_used = psutil.Process(os.getpid()).memory_info().rss / (1024.0**3)
+    print(f"Memory used in combination: {mem_used:.2f} GB")
+    # Save the masks
+    output_format = cli_args.output_format.lower()
+    save_path = get_combined_mask_name(cli_args.mask_fname, output_format)
+    # Get downsample factor for metadata if used.
+    # NOTE: Our Napari plugin uses this as an identifier to rescale for visualization
+    # Recover this branch's preprocessing set from the run's full config by
+    # matching prep_hash
+    preprocess_methods = get_preprocess_methods(
+        cli_args.preprocess_config, cli_args.prep_hash
+    )
+    downsample_factor = (
+        get_downsample_factor(methods=preprocess_methods)
+        if preprocess_methods
+        else None
+    )
+    metadata = (
+        {"downsample_factor": downsample_factor}
+        if downsample_factor is not None
+        else {}
+    )
+    if output_format == "tiff":
+        # Resolve 'auto' using the mask type recorded in the individual patches
+        resolved_mask_type = (
+            mask_type_from_file
+            if cli_args.output_mask_type == "auto"
+            else cli_args.output_mask_type
+        )
+        # Convert binary masks to uint8 0/255 for clean display
+        if resolved_mask_type == "binary":
+            # Convert to binary uint8 with 0/255 values for clean display in downstream tools
+            combined_masks = (combined_masks > 0) * np.uint8(255)
+        # metadata dict is serialised as JSON into the TIFF ImageDescription tag
+        tifffile.imwrite(save_path, combined_masks, metadata=metadata, imagej=True)
+    else:
+        # Reuse mask_type from decoded patches; fall back to CLI value (skip if 'auto' and absent)
+        resolved_mask_type = mask_type_from_file or (
+            cli_args.output_mask_type if cli_args.output_mask_type != "auto" else None
+        )
+        encoded_masks = aiod_rle.encode(
+            combined_masks,
+            mask_type=resolved_mask_type,
+            metadata=metadata,
+        )
+        # Free up memory (though too late at this point)
+        aiod_rle.save_encoding(rle=encoded_masks, fpath=save_path)
+    del combined_masks
+    # Remove the (symlinked) individual masks now that they are combined
+    for mask_path in cli_args.masks:
+        (Path(cli_args.output_dir) / mask_path).unlink()
