@@ -9,4 +9,4 @@ dependencies:
     - torch==2.11.0
     - instanseg-torch==0.1.1
     - numpy==1.26.4
-    - aiod_utils==0.1
+    - aiod_utils==0.2.0
