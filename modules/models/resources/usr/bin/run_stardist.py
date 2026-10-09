@@ -6,7 +6,15 @@ import numpy as np
 import yaml
 from csbdeep.utils import normalize
 from stardist.models import StarDist2D, StarDist3D
-from utils import create_argparser_inference, load_img, save_masks
+from utils import (
+    create_argparser_inference,
+    load_img,
+    resolve_channel,
+    resolve_model_axes,
+    save_masks,
+    spatial_ndim,
+    transpose_to_axes,
+)
 
 STARDIST_MODEL_FILES = ("config.json", "thresholds.json")
 
@@ -74,7 +82,7 @@ def _load_stardist_model(model_type: str, model_chkpt: Path | str, model_axes: s
     Returns:
         Loaded StarDist model
     """
-    model_class = StarDist3D if _spatial_ndim(model_axes) == 3 else StarDist2D
+    model_class = StarDist3D if spatial_ndim(model_axes) == 3 else StarDist2D
     model_dir = _resolve_stardist_model_dir(model_chkpt, model_type)
 
     if model_dir is None:
@@ -84,56 +92,6 @@ def _load_stardist_model(model_type: str, model_chkpt: Path | str, model_axes: s
 
     print(f"Loading StarDist model from local directory: {model_dir}")
     return model_class(None, name=model_dir.name, basedir=str(model_dir.parent))
-
-
-def _spatial_ndim(axes: str) -> int:
-    return sum(axis != "C" for axis in axes)
-
-
-def _resolve_model_axes(raw: str | None) -> str:
-    """Validate the model axes piped in from the registry via setupModel."""
-    # TODO: Delete this func once we centralise model<->input validation into it's own process
-    if not raw:
-        raise ValueError(
-            "No model axes supplied via --model-axes. This should be resolved "
-            "from the registry model version's 'axes' field at the setupModel stage."
-        )
-    axes = raw.upper()
-    unsupported = set(axes) - set("CZYX")
-    if unsupported:
-        raise ValueError(
-            f"Unsupported model axes {axes!r}: cannot handle {sorted(unsupported)}."
-        )
-    return axes
-
-
-def _resolve_channel(
-    img: np.ndarray, model_axes: str, channels: int, channel_idx: int
-) -> tuple[np.ndarray, str]:
-    """Reduce the loaded CZYX image's channel axis to what the model needs.
-
-    Returns the (possibly channel-reduced) image and its current axis order:
-    'CZYX' if the model wants a channel axis, otherwise 'ZYX'.
-    """
-    if "C" in model_axes:
-        return img, "CZYX"
-    if channels > 1:
-        if channel_idx < 0 or channel_idx >= channels:
-            raise ValueError(
-                f"Image has {channels} channels but model axes {model_axes!r} have "
-                f"no channel axis. Select a channel index (0 to {channels - 1}), "
-                f"got {channel_idx}."
-            )
-        return img[channel_idx], "ZYX"
-    return img[0], "ZYX"
-
-
-def _transpose_to_axes(
-    img: np.ndarray, source_axes: str, target_axes: str
-) -> np.ndarray:
-    if source_axes == target_axes:
-        return img
-    return np.transpose(img, axes=[source_axes.index(a) for a in target_axes])
 
 
 def _get_prediction_n_tiles(model, img: np.ndarray, config: dict):
@@ -211,7 +169,7 @@ def run_stardist(
     model = _load_stardist_model(model_type, model_chkpt, model_axes)
     print(f"Model loaded: {model_type}; expects axes {model_axes}")
 
-    img, axes = _resolve_channel(img, model_axes, channels, channel_idx)
+    img, axes = resolve_channel(img, model_axes, channels, channel_idx)
 
     # Flag for (spatial) 2D model with (spatial) 3D data
     run_over_slices = "Z" not in model_axes and num_slices > 1
@@ -223,7 +181,7 @@ def run_stardist(
         labels = np.stack(
             [
                 _predict_instances(
-                    _transpose_to_axes(
+                    transpose_to_axes(
                         np.take(img, indices=z_idx, axis=z_axis), slice_axes, model_axes
                     ),
                     model,
@@ -238,7 +196,7 @@ def run_stardist(
         if "Z" not in model_axes:
             img = np.take(img, indices=0, axis=axes.index("Z"))
             axes = axes.replace("Z", "")
-        img = _transpose_to_axes(img, axes, model_axes)
+        img = transpose_to_axes(img, axes, model_axes)
         labels = _predict_instances(img, model, config)
 
     print(
@@ -255,7 +213,7 @@ if __name__ == "__main__":
     with open(cli_args.model_config) as f:
         config = yaml.safe_load(f)
 
-    model_axes = _resolve_model_axes(cli_args.model_axes)
+    model_axes = resolve_model_axes(cli_args.model_axes)
 
     # Load as CZYX, like every other model script; reshaped in run_stardist() to
     # match model_axes.

@@ -182,6 +182,7 @@ process runModel {
     --channels ${meta.channels} \
     --num-slices ${meta.num_slices} \
     --output-mask-type ${output_mask_type} \
+    --task "${params.task}" \
     ${modelAxesArg}
     """
 }
