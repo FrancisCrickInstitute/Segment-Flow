@@ -7,6 +7,7 @@ dependencies:
   - mkl==2024.0
   - tqdm
   - pyyaml
+  - openjdk
   - pip
   - pip:
     - --extra-index-url https://download.pytorch.org/whl/cu126
@@ -16,4 +17,4 @@ dependencies:
     - scikit-image
     - git+https://github.com/FrancisCrickInstitute/segment-anything.git
     - opencv-python
-    - aiod_utils==0.3.0
+    - aiod_utils[bioformats]==0.3.0

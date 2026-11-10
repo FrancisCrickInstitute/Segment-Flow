@@ -5,8 +5,9 @@ channels:
 dependencies:
   - python=3.11
   - pyyaml
+  - openjdk
   - pip
   - pip:
     - numpy==1.26.4
     - cellpose>=4
-    - aiod_utils==0.3.0
+    - aiod_utils[bioformats]==0.3.0

@@ -17,7 +17,8 @@ dependencies:
   - git
   - openssh
   - imagecodecs
+  - openjdk
   - pip
   - pip:
     - git+https://github.com/FrancisCrickInstitute/em-segment-pytorch.git
-    - aiod_utils==0.3.0
+    - aiod_utils[bioformats]==0.3.0

@@ -15,10 +15,11 @@ dependencies:
   - imagecodecs
   - git
   - openssh
+  - openjdk
   - pip
   - pip:
     - --extra-index-url https://download.pytorch.org/whl/cu126
     - torch==2.11.0+cu126
     - torchvision==0.26.0+cu126
     - git+https://github.com/FrancisCrickInstitute/em-segment-pytorch.git
-    - aiod_utils==0.3.0
+    - aiod_utils[bioformats]==0.3.0

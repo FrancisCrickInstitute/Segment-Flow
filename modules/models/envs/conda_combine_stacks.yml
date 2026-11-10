@@ -11,6 +11,7 @@ dependencies:
   - psutil
   - numba
   - tqdm
+  - openjdk
   - pip
   - pip:
-    - aiod_utils==0.3.0
+    - aiod_utils[bioformats]==0.3.0

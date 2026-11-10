@@ -7,6 +7,7 @@ channels:
 dependencies:
   - python=3.12
   - panseg
+  - openjdk
   - pip
   - pip:
-      - aiod_utils==0.3.0
+      - aiod_utils[bioformats]==0.3.0

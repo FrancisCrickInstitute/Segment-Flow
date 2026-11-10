@@ -6,6 +6,7 @@ dependencies:
   - python=3.11
   - tqdm
   - pyyaml
+  - openjdk
   - pip
   - pip:
     - numpy==1.26.4
@@ -14,4 +15,4 @@ dependencies:
     - torchvision
     - git+https://github.com/FrancisCrickInstitute/segment-anything.git
     - opencv-python
-    - aiod_utils==0.3.0
+    - aiod_utils[bioformats]==0.3.0
