@@ -28,6 +28,11 @@ from numba.typed import Dict
 from skimage.segmentation import relabel_sequential
 from tqdm import tqdm
 
+WORKING_DTYPE = np.uint16
+# offset labels wrap at this value
+LABEL_MODULUS = np.iinfo(WORKING_DTYPE).max + 1
+
+
 def get_preprocess_methods(config_path: str, prep_hash: str) -> list[dict]:
     """
     Find the specific preprocessing methods set matching prep_hash within the
@@ -242,17 +247,15 @@ def label_offsets(tiles: list) -> list[int]:
     """Offset for each tile's non-zero labels, for tiles sharing one z-range.
 
     Each tile's offset is the largest value held by the tiles before it (in
-    the given order) once their own offsets are added. The addition wraps in
-    the dtype the tile is combined in (uint8 for binary, uint16 for instance).
+    the given order) once their own offsets are added. The addition wraps
+    according to the dtype tiles are combined in.
     """
     offsets, top = [], 0
     for tile in tiles:
         offsets.append(top)
         labels = tile.labels
         if labels.size:
-            work_dtype = np.uint8 if tile.dtype == bool else tile.dtype
-            modulus = np.iinfo(work_dtype).max + 1
-            top = max(top, int(((labels + top) % modulus).max()))
+            top = max(top, int(((labels + top) % LABEL_MODULUS).max()))
     return offsets
 
 
@@ -282,14 +285,12 @@ def combined_max(tiles: list, image_size: tuple[int, int, int]) -> int:
         for tile, offset in zip(opened, offsets, strict=True):
             labels = tile.labels
             if labels.size:
-                work_dtype = np.uint8 if tile.dtype == bool else tile.dtype
-                modulus = np.iinfo(work_dtype).max + 1
-                top = max(top, int(((labels + offset) % modulus).max()))
+                top = max(top, int(((labels + offset) % LABEL_MODULUS).max()))
     return top
 
 
 def iter_combined_slices(tiles: list, image_size: tuple[int, int, int], overlap: bool):
-    """Yield the combined (H, W) uint16 plane for each z in 0..D-1.
+    """Yield the combined (H, W) plane for each z in 0..D-1.
 
     tiles: one (idxs, open_fn) per substack, in CLI order. idxs is
     (start_x, end_x, start_y, end_y, start_z, end_z); open_fn() returns a tile
@@ -325,20 +326,18 @@ def iter_combined_slices(tiles: list, image_size: tuple[int, int, int], overlap:
             # NOTE: tiles starting together are assumed to share their z-range
             offsets = label_offsets(opened) if offset_labels else [0] * len(opened)
             open_tiles.update(zip(starts[z], zip(opened, offsets)))
-        plane = np.zeros((H, W), dtype=np.uint16)
+        plane = np.zeros((H, W), dtype=WORKING_DTYPE)
         for k in sorted(open_tiles):
             tile, offset = open_tiles[k]
             x0, x1, y0, y1, z0, _ = tiles[k][0]
-            t = np.asarray(tile[z - z0]).reshape(y1 - y0, x1 - x0)
-            # Cast boolean to allow addition
-            if t.dtype == bool:
-                t = t.astype(np.uint8)
+            t = np.asarray(tile[z - z0], dtype=plane.dtype).reshape(y1 - y0, x1 - x0)
             if overlap:
                 # Just sum, naive method
                 plane[y0:y1, x0:x1] += t
             else:
                 if offset:
-                    t[t > 0] += t.dtype.type(offset % (np.iinfo(t.dtype).max + 1))
+                    # offset < LABEL_MODULUS, so this wraps as label_offsets does
+                    t[t > 0] += plane.dtype.type(offset)
                 plane[y0:y1, x0:x1] = t
         yield plane
 
@@ -409,10 +408,10 @@ def collect_dense(planes, image_size: tuple[int, int, int], single: bool, mask_t
     """Stack the planes into one array: (D, H, W), or (H, W) if D == 1.
 
     Multiple substacks give the smallest dtype that fits. A single substack
-    keeps its decoded dtype (bool for binary, uint16 for instance).
+    is returned as bool or WORKING_DTYPE
     """
     D, H, W = image_size
-    dense = np.empty((D, H, W), dtype=np.uint16)
+    dense = np.empty((D, H, W), dtype=WORKING_DTYPE)
     for z, plane in enumerate(planes):
         dense[z] = plane
     if D == 1:

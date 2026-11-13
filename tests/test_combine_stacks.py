@@ -127,17 +127,18 @@ def test_rle_tile_matches_decode(mask_type):
 
 def test_label_offsets():
     class Fake:
-        def __init__(self, labels, dtype=np.uint16):
+        def __init__(self, labels, dtype=cs.WORKING_DTYPE):
             self.labels = np.array(labels, dtype=np.int64)
             self.dtype = np.dtype(dtype)
 
     tiles = [Fake([1, 2, 3]), Fake([]), Fake([1, 5]), Fake([1])]
     assert cs.label_offsets(tiles) == [0, 3, 3, 8]
     # Wraps in the tile's combine dtype
-    assert cs.label_offsets([Fake([65535]), Fake([1, 2])]) == [0, 65535]
+    assert cs.label_offsets([Fake([cs.LABEL_MODULUS-1]), Fake([1, 2])]) == [0, cs.LABEL_MODULUS-1]
     assert cs.label_offsets([Fake([1], bool)] * 3) == [0, 1, 2]
+    assert cs.label_offsets([Fake([1], bool)] * 258)[-4:] == [254, 255, 256, 257]
     # A tile wrapping to 0 leaves the running maximum where it was
-    assert cs.label_offsets([Fake([1], bool)] * 258)[-4:] == [254, 255, 255, 255]
+    assert cs.label_offsets([Fake([cs.LABEL_MODULUS-1]), Fake([1]), Fake([1])]) == [0, cs.LABEL_MODULUS-1, cs.LABEL_MODULUS-1]
 
 
 def test_tiles_open_lazily_and_release():
