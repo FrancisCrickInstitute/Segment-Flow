@@ -191,17 +191,17 @@ process combineStacks {
     // Add a minimum amount of memory, otherwise scale as a multiple of the input mask size
     // Postprocessing builds the dense volume: masks are RLE-compressed, so multiply by
     // buffer (10) then by average compression factor (1000).
-    // Without it, masks are combined one slice at a time and only the RLE is held:
-    // the output's (~3.5x its file size in RAM) plus one z-layer of input substacks.
+    // Without it, masks are combined one slice at a time. RAM needs allocating for
+    // the full (uncompressed/unpickled) output  RLE plus one z-layer of input substacks.
     memory {
         def mask_bytes = masks*.size().sum()
-        def needed = params.postprocess
+        def needed = postprocess
             ? Math.max((5.GB).toBytes(), mask_bytes * 10000)
             : Math.max((2.GB).toBytes(), mask_bytes * 20)
         (needed * task.attempt) as MemoryUnit
     }
     // Give more base time if postprocessing
-    time { params.postprocess ? 45.m * Math.pow(2, task.attempt) : 10.min * Math.pow(2, task.attempt) }
+    time { postprocess ? 45.m * Math.pow(2, task.attempt) : 10.min * Math.pow(2, task.attempt) }
     publishDir "$mask_output_dir", mode: 'copy'
 
     input:
