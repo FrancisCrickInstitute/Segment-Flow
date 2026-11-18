@@ -185,8 +185,7 @@ def _check_plane(plane: np.ndarray, model_axes: str) -> tuple[int, int]:
         raise ValueError(
             f"Image has {channels} channels but each slice is only "
             f"{height}x{width}. InstanSeg infers the channel axis as the "
-            "smallest one, so it would transpose this image. Use larger "
-            "substacks, or select fewer channels with 'channel_ids'."
+            "smallest one, so it would transpose this image. Use larger substacks."
         )
     return height, width
 
