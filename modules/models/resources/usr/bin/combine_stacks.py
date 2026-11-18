@@ -286,6 +286,7 @@ def combined_max(tiles: list, image_size: tuple[int, int, int]) -> int:
             labels = tile.labels
             if labels.size:
                 top = max(top, int(((labels + offset) % LABEL_MODULUS).max()))
+        del opened, tile, labels
     return top
 
 
