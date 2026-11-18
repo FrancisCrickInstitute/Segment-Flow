@@ -100,6 +100,14 @@ def create_argparser_inference():
             "resolved from the registry at the setupModel stage."
         ),
     )
+    parser.add_argument(
+        "--task",
+        default=None,
+        help=(
+            "Task this run was requested for (e.g. 'nuclei', 'cyto'). Only needed "
+            "by models whose network has one output head per task; the rest ignore it."
+        ),
+    )
 
     return parser
 
@@ -182,6 +190,56 @@ def validate_dims(
         )
         return np.swapaxes(img, c_idx, z_idx)
     raise ValueError(errmsg)
+
+
+def spatial_ndim(axes: str) -> int:
+    return sum(axis != "C" for axis in axes)
+
+
+def resolve_model_axes(raw: str | None) -> str:
+    """Validate the model axes piped in from the registry via setupModel."""
+    # TODO: Delete this func once we centralise model<->input validation into it's own process
+    if not raw:
+        raise ValueError(
+            "No model axes supplied via --model-axes. This should be resolved "
+            "from the registry model version's 'axes' field at the setupModel stage."
+        )
+    axes = raw.upper()
+    unsupported = set(axes) - set("CZYX")
+    if unsupported:
+        raise ValueError(
+            f"Unsupported model axes {axes!r}: cannot handle {sorted(unsupported)}."
+        )
+    return axes
+
+
+def resolve_channel(
+    img: np.ndarray, model_axes: str, channels: int, channel_idx: int
+) -> tuple[np.ndarray, str]:
+    """Reduce the loaded CZYX image's channel axis to what the model needs.
+
+    Returns the (possibly channel-reduced) image and its current axis order:
+    'CZYX' if the model wants a channel axis, otherwise 'ZYX'.
+    """
+    if "C" in model_axes:
+        return img, "CZYX"
+    if channels > 1:
+        if channel_idx < 0 or channel_idx >= channels:
+            raise ValueError(
+                f"Image has {channels} channels but model axes {model_axes!r} have "
+                f"no channel axis. Select a channel index (0 to {channels - 1}), "
+                f"got {channel_idx}."
+            )
+        return img[channel_idx], "ZYX"
+    return img[0], "ZYX"
+
+
+def transpose_to_axes(
+    img: np.ndarray, source_axes: str, target_axes: str
+) -> np.ndarray:
+    if source_axes == target_axes:
+        return img
+    return np.transpose(img, axes=[source_axes.index(a) for a in target_axes])
 
 
 def align_segment_labels(all_masks: np.ndarray, threshold: float = 0.5):
